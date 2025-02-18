@@ -31,11 +31,29 @@ const UploadPage = () => {
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
+    console.log(`[${new Date().toISOString()}] Starting file upload process`, {
+      fileCount: acceptedFiles.length,
+      fileTypes: acceptedFiles.map(f => f.type)
+    });
+
     Promise.all(
       acceptedFiles.map(file => {
-        return new Promise<FileWithPreview>((resolve) => {
+        console.log(`Processing file: ${file.name}`, {
+          size: file.size,
+          type: file.type
+        });
+
+        return new Promise<FileWithPreview>((resolve, reject) => {
           const reader = new FileReader();
+          
+          reader.onerror = () => {
+            console.error(`Error reading file: ${file.name}`, reader.error);
+            toast.error(`Failed to read file: ${file.name}`);
+            reject(reader.error);
+          };
+
           reader.onload = () => {
+            console.log(`Successfully read file: ${file.name}`);
             const isJson = file.type === 'application/json';
             let text = reader.result as string;
             let words: TimestampedWord[] | undefined;
@@ -45,8 +63,16 @@ const UploadPage = () => {
                 const data = JSON.parse(text);
                 words = data.words;
                 text = words?.map(w => w.word).join(' ') || text;
+                console.log('Successfully parsed JSON file', {
+                  wordCount: words?.length,
+                  textLength: text.length
+                });
               } catch (e) {
-                console.error('Error parsing JSON:', e);
+                console.error('Error parsing JSON:', e, {
+                  fileName: file.name,
+                  fileContent: text.substring(0, 100) + '...'
+                });
+                toast.error('Error parsing JSON file');
               }
             }
             
@@ -64,7 +90,15 @@ const UploadPage = () => {
         });
       })
     ).then(processedFiles => {
+      console.log('All files processed successfully', {
+        processedCount: processedFiles.length,
+        totalSize: processedFiles.reduce((acc, f) => acc + f.size, 0)
+      });
       setFiles(prevFiles => [...prevFiles, ...processedFiles]);
+      toast.success(`Successfully uploaded ${processedFiles.length} file(s)`);
+    }).catch(error => {
+      console.error('Error processing files:', error);
+      toast.error('Error processing files');
     });
   }, []);
 
@@ -80,11 +114,18 @@ const UploadPage = () => {
   });
 
   const handleAudioDrop = useCallback((audioFile: File) => {
+    console.log('Processing audio file:', {
+      name: audioFile.name,
+      size: audioFile.size,
+      type: audioFile.type
+    });
+
     if (selectedFile) {
       setSelectedFile({
         ...selectedFile,
         audioUrl: URL.createObjectURL(audioFile)
       });
+      console.log('Audio file attached to selected file:', selectedFile.name);
     }
   }, [selectedFile]);
 
@@ -109,13 +150,21 @@ const UploadPage = () => {
   };
 
   const removeFile = (name: string) => {
+    console.log(`Removing file: ${name}`);
     setFiles(files => files.filter(file => file.name !== name));
     if (selectedFile?.name === name) {
       setSelectedFile(null);
     }
+    toast.info(`Removed file: ${name}`);
   };
 
   const processFile = async (file: FileWithPreview) => {
+    console.log(`[${new Date().toISOString()}] Starting file processing:`, {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type
+    });
+
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -138,8 +187,23 @@ const UploadPage = () => {
         })
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      console.log(`API response received for ${file.name}`, {
+        status: response.status,
+        timestamp: new Date().toISOString()
+      });
+
       const data = await response.json();
       const correctedText = data.choices[0].message.content;
+
+      console.log('Text correction completed', {
+        fileName: file.name,
+        originalLength: file.text.length,
+        correctedLength: correctedText.length
+      });
 
       setFiles(prevFiles => 
         prevFiles.map(f => 
@@ -155,12 +219,21 @@ const UploadPage = () => {
 
       toast.success("Text correction completed");
     } catch (error) {
-      console.error('Error processing file:', error);
+      console.error('Error processing file:', {
+        fileName: file.name,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString()
+      });
       toast.error("Error processing file");
     }
   };
 
   const processFiles = async () => {
+    console.log(`[${new Date().toISOString()}] Starting batch processing`, {
+      totalFiles: files.length,
+      pendingFiles: files.filter(f => f.status === 'pending').length
+    });
+
     setProcessing(true);
     try {
       for (const file of files) {
@@ -168,12 +241,17 @@ const UploadPage = () => {
           await processFile(file);
         }
       }
+    } catch (error) {
+      console.error('Batch processing error:', error);
+      toast.error("Error during batch processing");
     } finally {
       setProcessing(false);
+      console.log('Batch processing completed');
     }
   };
 
   const handleApprove = (file: FileWithPreview) => {
+    console.log(`Approving changes for file: ${file.name}`);
     setFiles(prevFiles =>
       prevFiles.map(f =>
         f.name === file.name
@@ -188,6 +266,7 @@ const UploadPage = () => {
   };
 
   const handleReject = (file: FileWithPreview) => {
+    console.log(`Rejecting changes for file: ${file.name}`);
     setFiles(prevFiles =>
       prevFiles.map(f =>
         f.name === file.name
