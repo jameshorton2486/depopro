@@ -441,9 +441,9 @@ const UploadPage = () => {
             className="space-y-6"
           >
             <div>
-              <h1 className="text-3xl font-bold mb-4">Model Training</h1>
+              <h1 className="text-3xl font-bold mb-4">Model Training with Transcripts</h1>
               <p className="text-muted-foreground mb-4">
-                Upload transcript pairs to generate new training rules:
+                Upload the original transcript and the corrected transcript to generate training rules.
               </p>
             </div>
 
