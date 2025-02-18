@@ -338,15 +338,15 @@ const UploadPage = () => {
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
-      <div className="container mx-auto px-4 py-16">
-        <nav className="flex items-center justify-between mb-16 animate-fade-down">
-          <div className="text-xl font-semibold">Transcript Processing and Training</div>
+      <div className="container mx-auto px-4 py-16 max-w-4xl">
+        <nav className="flex flex-col items-center mb-16 animate-fade-down">
+          <div className="text-3xl font-semibold text-center mb-4">Transcript Processing and Training</div>
           <a href="/" className="text-sm hover:text-primary/80 transition-colors">
             Back to Home
           </a>
         </nav>
 
-        <div className="max-w-6xl mx-auto space-y-8">
+        <div className="space-y-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -361,76 +361,60 @@ const UploadPage = () => {
               <FileUploadStatus requiredFiles={requiredFiles} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="space-y-8">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+            <div className="flex flex-col gap-8">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <div
+                  {...getRootProps()}
+                  className={`border-2 border-dashed rounded-lg p-4 h-[140px] flex flex-col items-center justify-center cursor-pointer transition-colors
+                    ${isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
                 >
-                  <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed rounded-lg p-4 h-[140px] flex flex-col items-center justify-center cursor-pointer transition-colors
-                      ${isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
-                  >
-                    <input {...getInputProps()} />
-                    <div className="text-muted-foreground">
-                      <UploadIcon className="w-8 h-8 mb-2 mx-auto" />
-                    </div>
-                    <p className="text-base mb-1">
-                      {isDragActive ? 'Drop your files here' : 'Drag & drop files here'}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Or click to select files
-                    </p>
+                  <input {...getInputProps()} />
+                  <div className="text-muted-foreground">
+                    <UploadIcon className="w-8 h-8 mb-2 mx-auto" />
                   </div>
-                </motion.div>
+                  <p className="text-base mb-1">
+                    {isDragActive ? 'Drop your files here' : 'Drag & drop files here'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Or click to select files
+                  </p>
+                </div>
+              </motion.div>
 
-                {files.length > 0 && (
-                  <FileList
-                    files={files}
-                    selectedFile={selectedFile}
-                    onSelectFile={setSelectedFile}
-                    onRemoveFile={removeFile}
-                    onProcessFiles={processFiles}
-                    processing={processing}
-                  />
-                )}
-              </div>
+              {files.length > 0 && (
+                <FileList
+                  files={files}
+                  selectedFile={selectedFile}
+                  onSelectFile={setSelectedFile}
+                  onRemoveFile={removeFile}
+                  onProcessFiles={processFiles}
+                  processing={processing}
+                />
+              )}
 
-              <div className="space-y-8">
-                {selectedFile ? (
-                  <>
-                    {selectedFile.audioUrl && (
-                      <TranscriptPlayer
-                        audioUrl={selectedFile.audioUrl}
-                        words={selectedFile.words || []}
-                        onTimeUpdate={handleTimeUpdate}
-                      />
-                    )}
-                    <ResultsComparison
-                      originalText={selectedFile.text}
-                      correctedText={selectedFile.correctedText}
-                      status={selectedFile.status}
-                      onApprove={() => handleApprove(selectedFile)}
+              {selectedFile && (
+                <div className="space-y-8">
+                  {selectedFile.audioUrl && (
+                    <TranscriptPlayer
                       audioUrl={selectedFile.audioUrl}
-                      words={selectedFile.words}
-                      currentWordIndex={currentWordIndex}
+                      words={selectedFile.words || []}
+                      onTimeUpdate={handleTimeUpdate}
                     />
-                  </>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="bg-background border rounded-lg p-6"
-                  >
-                    <h2 className="text-xl font-semibold mb-4">Training Rules</h2>
-                    <TrainingRulesComponent
-                      trainingRules={trainingRules}
-                      onTrainingRulesChange={setTrainingRules}
-                    />
-                  </motion.div>
-                )}
-              </div>
+                  )}
+                  <ResultsComparison
+                    originalText={selectedFile.text}
+                    correctedText={selectedFile.correctedText}
+                    status={selectedFile.status}
+                    onApprove={() => handleApprove(selectedFile)}
+                    audioUrl={selectedFile.audioUrl}
+                    words={selectedFile.words}
+                    currentWordIndex={currentWordIndex}
+                  />
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -447,10 +431,24 @@ const UploadPage = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="flex flex-col gap-8">
               <ModelTraining onRulesGenerated={handleTrainingRulesGenerated} />
             </div>
           </motion.div>
+
+          {!selectedFile && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="bg-background border rounded-lg p-6"
+            >
+              <h2 className="text-xl font-semibold mb-4">Training Rules</h2>
+              <TrainingRulesComponent
+                trainingRules={trainingRules}
+                onTrainingRulesChange={setTrainingRules}
+              />
+            </motion.div>
+          )}
         </div>
       </div>
     </div>
