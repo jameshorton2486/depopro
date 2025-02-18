@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload as UploadIcon, FileText, X, Download, Check } from "lucide-react";
+import { Upload as UploadIcon, FileText, X, Download, Check, FileAudio, FileJson } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import TranscriptPlayer from "@/components/TranscriptPlayer";
@@ -24,59 +24,48 @@ type FileWithPreview = {
   status: 'pending' | 'processing' | 'corrected' | 'approved' | 'rejected';
 };
 
+type RequiredFiles = {
+  audio?: File;
+  json?: File;
+  docx?: File;
+};
+
 const UploadPage = () => {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
+  const [requiredFiles, setRequiredFiles] = useState<RequiredFiles>({});
   const [processing, setProcessing] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileWithPreview | null>(null);
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    console.log(`[${new Date().toISOString()}] Starting file upload process`, {
+    console.log(`[${new Date().toISOString()}] Processing uploaded files`, {
       fileCount: acceptedFiles.length,
       fileTypes: acceptedFiles.map(f => f.type)
     });
 
-    Promise.all(
-      acceptedFiles.map(file => {
-        console.log(`Processing file: ${file.name}`, {
-          size: file.size,
-          type: file.type
-        });
+    acceptedFiles.forEach(file => {
+      // Categorize files based on their type
+      if (file.type.includes('audio')) {
+        setRequiredFiles(prev => ({ ...prev, audio: file }));
+        toast.success("Audio file uploaded successfully");
+      } else if (file.type === 'application/json') {
+        setRequiredFiles(prev => ({ ...prev, json: file }));
+        toast.success("JSON transcript file uploaded successfully");
+      } else if (file.type.includes('document')) {
+        setRequiredFiles(prev => ({ ...prev, docx: file }));
+        toast.success("DOCX file uploaded successfully");
+      }
 
-        return new Promise<FileWithPreview>((resolve, reject) => {
-          const reader = new FileReader();
-          
-          reader.onerror = () => {
-            console.error(`Error reading file: ${file.name}`, reader.error);
-            toast.error(`Failed to read file: ${file.name}`);
-            reject(reader.error);
-          };
-
-          reader.onload = () => {
-            console.log(`Successfully read file: ${file.name}`);
-            const isJson = file.type === 'application/json';
-            let text = reader.result as string;
-            let words: TimestampedWord[] | undefined;
+      // Process file content
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (file.type === 'application/json') {
+          try {
+            const data = JSON.parse(reader.result as string);
+            const words = data.words;
+            const text = words?.map((w: TimestampedWord) => w.word).join(' ') || '';
             
-            if (isJson) {
-              try {
-                const data = JSON.parse(text);
-                words = data.words;
-                text = words?.map(w => w.word).join(' ') || text;
-                console.log('Successfully parsed JSON file', {
-                  wordCount: words?.length,
-                  textLength: text.length
-                });
-              } catch (e) {
-                console.error('Error parsing JSON:', e, {
-                  fileName: file.name,
-                  fileContent: text.substring(0, 100) + '...'
-                });
-                toast.error('Error parsing JSON file');
-              }
-            }
-            
-            resolve({
+            setFiles(prevFiles => [...prevFiles, {
               name: file.name,
               size: file.size,
               type: file.type,
@@ -84,32 +73,46 @@ const UploadPage = () => {
               text,
               words,
               status: 'pending'
-            });
-          };
-          reader.readAsText(file);
-        });
-      })
-    ).then(processedFiles => {
-      console.log('All files processed successfully', {
-        processedCount: processedFiles.length,
-        totalSize: processedFiles.reduce((acc, f) => acc + f.size, 0)
-      });
-      setFiles(prevFiles => [...prevFiles, ...processedFiles]);
-      toast.success(`Successfully uploaded ${processedFiles.length} file(s)`);
-    }).catch(error => {
-      console.error('Error processing files:', error);
-      toast.error('Error processing files');
+            }]);
+          } catch (e) {
+            console.error('Error parsing JSON:', e);
+            toast.error("Error parsing JSON file");
+          }
+        } else if (!file.type.includes('audio')) {
+          setFiles(prevFiles => [...prevFiles, {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            preview: URL.createObjectURL(file),
+            text: reader.result as string,
+            status: 'pending'
+          }]);
+        }
+      };
+
+      if (file.type.includes('audio')) {
+        const audioUrl = URL.createObjectURL(file);
+        setFiles(prevFiles => [...prevFiles, {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          preview: audioUrl,
+          text: '',
+          audioUrl,
+          status: 'pending'
+        }]);
+      } else {
+        reader.readAsText(file);
+      }
     });
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
     onDrop,
     accept: {
-      'text/plain': ['.txt'],
+      'audio/*': ['.mp3', '.wav'],
       'application/json': ['.json'],
-      'application/msword': ['.doc'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'audio/*': ['.mp3', '.wav']
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
     }
   });
 
@@ -228,7 +231,22 @@ const UploadPage = () => {
     }
   };
 
+  const checkRequiredFiles = () => {
+    const missing = [];
+    if (!requiredFiles.audio) missing.push('Audio');
+    if (!requiredFiles.json) missing.push('JSON transcript');
+    if (!requiredFiles.docx) missing.push('DOCX');
+    
+    if (missing.length > 0) {
+      toast.error(`Missing required files: ${missing.join(', ')}`);
+      return false;
+    }
+    return true;
+  };
+
   const processFiles = async () => {
+    if (!checkRequiredFiles()) return;
+
     console.log(`[${new Date().toISOString()}] Starting batch processing`, {
       totalFiles: files.length,
       pendingFiles: files.filter(f => f.status === 'pending').length
@@ -284,7 +302,7 @@ const UploadPage = () => {
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
       <div className="container mx-auto px-4 py-16">
         <nav className="flex items-center justify-between mb-16 animate-fade-down">
-          <div className="text-xl font-semibold">CaseCat</div>
+          <div className="text-xl font-semibold">Deepgram Transcript Corrector</div>
           <a href="/" className="text-sm hover:text-primary/80 transition-colors">
             Back to Home
           </a>
@@ -297,11 +315,27 @@ const UploadPage = () => {
             transition={{ duration: 0.6 }}
             className="mb-8"
           >
-            <h1 className="text-3xl font-bold mb-4">Text Processing</h1>
-            <p className="text-muted-foreground">
-              Upload your documents and audio files for AI-powered correction and validation.
-              Supported formats: .txt, .doc, .docx, .json, .mp3, .wav
+            <h1 className="text-3xl font-bold mb-4">Transcript Processing</h1>
+            <p className="text-muted-foreground mb-4">
+              Upload all required files to process your transcript:
             </p>
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className={`p-4 rounded-lg border ${requiredFiles.audio ? 'border-green-500 bg-green-50/10' : 'border-border'}`}>
+                <FileAudio className="w-6 h-6 mb-2" />
+                <p className="font-medium">Audio File</p>
+                <p className="text-sm text-muted-foreground">{requiredFiles.audio?.name || 'Not uploaded'}</p>
+              </div>
+              <div className={`p-4 rounded-lg border ${requiredFiles.json ? 'border-green-500 bg-green-50/10' : 'border-border'}`}>
+                <FileJson className="w-6 h-6 mb-2" />
+                <p className="font-medium">JSON Transcript</p>
+                <p className="text-sm text-muted-foreground">{requiredFiles.json?.name || 'Not uploaded'}</p>
+              </div>
+              <div className={`p-4 rounded-lg border ${requiredFiles.docx ? 'border-green-500 bg-green-50/10' : 'border-border'}`}>
+                <FileText className="w-6 h-6 mb-2" />
+                <p className="font-medium">DOCX File</p>
+                <p className="text-sm text-muted-foreground">{requiredFiles.docx?.name || 'Not uploaded'}</p>
+              </div>
+            </div>
           </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
