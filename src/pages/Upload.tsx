@@ -340,116 +340,96 @@ const UploadPage = () => {
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
       <div className="container mx-auto px-4 py-16 max-w-4xl">
         <nav className="flex flex-col items-center mb-16 animate-fade-down">
-          <div className="text-3xl font-semibold text-center mb-4">Transcript Processing and Training</div>
+          <div className="text-6xl font-semibold text-center mb-4 text-blue-500">
+            Transcript Processing and Training
+          </div>
           <a href="/" className="text-sm hover:text-primary/80 transition-colors">
             Back to Home
           </a>
         </nav>
 
-        <div className="space-y-12">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="space-y-6"
+        >
+          <div>
+            <h1 className="text-3xl font-bold mb-4">Upload Transcripts</h1>
+            <p className="text-muted-foreground mb-4">
+              Upload the original transcript and the corrected transcript to generate training rules.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-8">
+            <ModelTraining onRulesGenerated={handleTrainingRulesGenerated} />
+          </div>
+        </motion.div>
+
+        {!selectedFile && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="space-y-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-background border rounded-lg p-6 mt-8"
           >
-            <div>
-              <h1 className="text-3xl font-bold mb-4">Transcript Processing</h1>
-              <p className="text-muted-foreground mb-4">
-                Upload all required files to process your transcript:
-              </p>
-              <FileUploadStatus requiredFiles={requiredFiles} />
-            </div>
-
-            <div className="flex flex-col gap-8">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                <div
-                  {...getRootProps()}
-                  className={`border-2 border-dashed rounded-lg p-4 h-[140px] flex flex-col items-center justify-center cursor-pointer transition-colors
-                    ${isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
-                >
-                  <input {...getInputProps()} />
-                  <div className="text-muted-foreground">
-                    <UploadIcon className="w-8 h-8 mb-2 mx-auto" />
-                  </div>
-                  <p className="text-base mb-1">
-                    {isDragActive ? 'Drop your files here' : 'Drag & drop files here'}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Or click to select files
-                  </p>
-                </div>
-              </motion.div>
-
-              {files.length > 0 && (
-                <FileList
-                  files={files}
-                  selectedFile={selectedFile}
-                  onSelectFile={setSelectedFile}
-                  onRemoveFile={removeFile}
-                  onProcessFiles={processFiles}
-                  processing={processing}
-                />
-              )}
-
-              {selectedFile && (
-                <div className="space-y-8">
-                  {selectedFile.audioUrl && (
-                    <TranscriptPlayer
-                      audioUrl={selectedFile.audioUrl}
-                      words={selectedFile.words || []}
-                      onTimeUpdate={handleTimeUpdate}
-                    />
-                  )}
-                  <ResultsComparison
-                    originalText={selectedFile.text}
-                    correctedText={selectedFile.correctedText}
-                    status={selectedFile.status}
-                    onApprove={() => handleApprove(selectedFile)}
-                    audioUrl={selectedFile.audioUrl}
-                    words={selectedFile.words}
-                    currentWordIndex={currentWordIndex}
+            <h2 className="text-xl font-semibold mb-4">Training Rules</h2>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Original Text</h3>
+                  <textarea
+                    className="w-full h-48 p-3 border rounded-lg bg-background resize-none"
+                    placeholder="Paste the original incorrect text here..."
+                    onChange={(e) => {
+                      console.log("Original text:", e.target.value);
+                    }}
                   />
                 </div>
-              )}
-            </div>
-          </motion.div>
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Corrected Text</h3>
+                  <textarea
+                    className="w-full h-48 p-3 border rounded-lg bg-background resize-none"
+                    placeholder="Paste the corrected version here..."
+                    onChange={(e) => {
+                      console.log("Corrected text:", e.target.value);
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    console.log("Generating rules from text comparison");
+                  }}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+                >
+                  Generate Rules from Text
+                </button>
+              </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="space-y-6"
-          >
-            <div>
-              <h1 className="text-3xl font-bold mb-4">Model Training with Transcripts</h1>
-              <p className="text-muted-foreground mb-4">
-                Upload the original transcript and the corrected transcript to generate training rules.
-              </p>
-            </div>
+              <div className="mt-6">
+                <h3 className="text-lg font-medium mb-2">Upload Document</h3>
+                <div
+                  className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50"
+                  onClick={() => {
+                    console.log("Document upload clicked");
+                  }}
+                >
+                  <UploadIcon className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Upload PDF or Document files
+                  </p>
+                </div>
+              </div>
 
-            <div className="flex flex-col gap-8">
-              <ModelTraining onRulesGenerated={handleTrainingRulesGenerated} />
-            </div>
-          </motion.div>
-
-          {!selectedFile && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-background border rounded-lg p-6"
-            >
-              <h2 className="text-xl font-semibold mb-4">Training Rules</h2>
               <TrainingRulesComponent
                 trainingRules={trainingRules}
                 onTrainingRulesChange={setTrainingRules}
               />
-            </motion.div>
-          )}
-        </div>
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   );
