@@ -8,6 +8,7 @@ import FileUploadStatus from "@/components/upload/FileUploadStatus";
 import FileList from "@/components/upload/FileList";
 import TrainingRulesComponent from "@/components/upload/TrainingRules";
 import ResultsComparison from "@/components/upload/ResultsComparison";
+import ModelTraining from "@/components/upload/ModelTraining";
 
 type TimestampedWord = {
   start_time: string;
@@ -325,6 +326,16 @@ const UploadPage = () => {
     toast.success("Changes approved");
   };
 
+  const handleTrainingRulesGenerated = (newRules: any) => {
+    if (!trainingRules) return;
+
+    const updatedRules = {
+      ...trainingRules,
+      rules: [...trainingRules.rules, ...newRules]
+    };
+    setTrainingRules(updatedRules);
+  };
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
       <div className="container mx-auto px-4 py-16">
@@ -335,12 +346,11 @@ const UploadPage = () => {
           </a>
         </nav>
 
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto space-y-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="mb-8"
           >
             <h1 className="text-3xl font-bold mb-4">Transcript Processing</h1>
             <p className="text-muted-foreground mb-4">
@@ -350,23 +360,28 @@ const UploadPage = () => {
           </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div>
-              <div
-                {...getRootProps()}
-                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-                  ${isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
+            <div className="space-y-8">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
               >
-                <input {...getInputProps()} />
-                <div className="text-muted-foreground">
-                  <UploadIcon className="w-12 h-12 mb-4 mx-auto" />
+                <div
+                  {...getRootProps()}
+                  className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+                    ${isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
+                >
+                  <input {...getInputProps()} />
+                  <div className="text-muted-foreground">
+                    <UploadIcon className="w-12 h-12 mb-4 mx-auto" />
+                  </div>
+                  <p className="text-lg mb-2">
+                    {isDragActive ? 'Drop your files here' : 'Drag & drop files here'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Or click to select files
+                  </p>
                 </div>
-                <p className="text-lg mb-2">
-                  {isDragActive ? 'Drop your files here' : 'Drag & drop files here'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Or click to select files
-                </p>
-              </div>
+              </motion.div>
 
               {files.length > 0 && (
                 <FileList
@@ -380,38 +395,42 @@ const UploadPage = () => {
               )}
             </div>
 
-            {selectedFile ? (
-              <>
-                {selectedFile.audioUrl && (
-                  <TranscriptPlayer
+            <div className="space-y-8">
+              <ModelTraining onRulesGenerated={handleTrainingRulesGenerated} />
+
+              {selectedFile ? (
+                <>
+                  {selectedFile.audioUrl && (
+                    <TranscriptPlayer
+                      audioUrl={selectedFile.audioUrl}
+                      words={selectedFile.words || []}
+                      onTimeUpdate={handleTimeUpdate}
+                    />
+                  )}
+                  <ResultsComparison
+                    originalText={selectedFile.text}
+                    correctedText={selectedFile.correctedText}
+                    status={selectedFile.status}
+                    onApprove={() => handleApprove(selectedFile)}
                     audioUrl={selectedFile.audioUrl}
-                    words={selectedFile.words || []}
-                    onTimeUpdate={handleTimeUpdate}
+                    words={selectedFile.words}
+                    currentWordIndex={currentWordIndex}
                   />
-                )}
-                <ResultsComparison
-                  originalText={selectedFile.text}
-                  correctedText={selectedFile.correctedText}
-                  status={selectedFile.status}
-                  onApprove={() => handleApprove(selectedFile)}
-                  audioUrl={selectedFile.audioUrl}
-                  words={selectedFile.words}
-                  currentWordIndex={currentWordIndex}
-                />
-              </>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="bg-background border rounded-lg p-6"
-              >
-                <h2 className="text-xl font-semibold mb-4">Training Configuration</h2>
-                <TrainingRulesComponent
-                  trainingRules={trainingRules}
-                  onTrainingRulesChange={setTrainingRules}
-                />
-              </motion.div>
-            )}
+                </>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="bg-background border rounded-lg p-6"
+                >
+                  <h2 className="text-xl font-semibold mb-4">Training Rules</h2>
+                  <TrainingRulesComponent
+                    trainingRules={trainingRules}
+                    onTrainingRulesChange={setTrainingRules}
+                  />
+                </motion.div>
+              )}
+            </div>
           </div>
         </div>
       </div>
