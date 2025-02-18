@@ -7,6 +7,7 @@ import TranscriptPlayer from "@/components/TranscriptPlayer";
 import FileUploadStatus from "@/components/upload/FileUploadStatus";
 import FileList from "@/components/upload/FileList";
 import TrainingRulesComponent from "@/components/upload/TrainingRules";
+import ResultsComparison from "@/components/upload/ResultsComparison";
 
 type TimestampedWord = {
   start_time: string;
@@ -380,25 +381,7 @@ const UploadPage = () => {
             </div>
 
             {selectedFile ? (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="bg-background border rounded-lg p-6 space-y-6"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Text Preview</h3>
-                  {selectedFile.status === 'corrected' && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleApprove(selectedFile)}
-                        className="p-2 rounded-full bg-green-500/10 text-green-500 hover:bg-green-500/20"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
+              <>
                 {selectedFile.audioUrl && (
                   <TranscriptPlayer
                     audioUrl={selectedFile.audioUrl}
@@ -406,62 +389,16 @@ const UploadPage = () => {
                     onTimeUpdate={handleTimeUpdate}
                   />
                 )}
-
-                <div className="space-y-4">
-                  {selectedFile.status === 'corrected' ? (
-                    <>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Original Text</label>
-                        <div className="p-4 rounded-lg bg-secondary/50 text-sm whitespace-pre-wrap">
-                          {selectedFile.text}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Corrected Text</label>
-                        <div className="p-4 rounded-lg bg-primary/5 text-sm whitespace-pre-wrap">
-                          {selectedFile.correctedText}
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="p-4 rounded-lg bg-secondary/50 text-sm">
-                      {selectedFile.words ? (
-                        <div className="space-y-1">
-                          {selectedFile.words.map((word, index) => (
-                            <span
-                              key={index}
-                              className={`inline-block mr-1 ${
-                                index === currentWordIndex ? 'bg-primary/20' : ''
-                              } ${
-                                word.confidence < 0.9 ? 'bg-yellow-200/50' : ''
-                              }`}
-                              title={`Confidence: ${(word.confidence * 100).toFixed(1)}%`}
-                            >
-                              {word.word}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="whitespace-pre-wrap">{selectedFile.text}</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {selectedFile.status === 'pending' && (
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      onClick={() => processFile(selectedFile)}
-                      disabled={processing}
-                      className="px-4 py-2 rounded-full bg-primary text-primary-foreground 
-                        flex items-center gap-2 text-sm hover-up disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Process Text
-                      <Download className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </motion.div>
+                <ResultsComparison
+                  originalText={selectedFile.text}
+                  correctedText={selectedFile.correctedText}
+                  status={selectedFile.status}
+                  onApprove={() => handleApprove(selectedFile)}
+                  audioUrl={selectedFile.audioUrl}
+                  words={selectedFile.words}
+                  currentWordIndex={currentWordIndex}
+                />
+              </>
             ) : (
               <motion.div
                 initial={{ opacity: 0 }}
