@@ -176,6 +176,23 @@ const UploadPage = () => {
     });
 
     try {
+      setFiles(prevFiles =>
+        prevFiles.map(f =>
+          f.name === file.name
+            ? { ...f, status: 'processing' }
+            : f
+        )
+      );
+
+      const trainingContext = trainingRules ? {
+        rules: trainingRules.rules.map(rule => ({
+          pattern: rule.pattern,
+          correction: rule.correction,
+          type: rule.type
+        })),
+        instructions: trainingRules.general_instructions
+      } : null;
+
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -187,7 +204,8 @@ const UploadPage = () => {
           messages: [
             {
               role: "system",
-              content: "You are a professional editor specializing in legal and medical transcripts. Correct any spelling, grammar, or formatting issues while preserving the original meaning. Pay special attention to medical and legal terminology, ensuring proper capitalization and formatting of terms like 'HIPAA' and legal citations."
+              content: `You are a professional transcript corrector. Apply these specific rules and instructions:
+                ${JSON.stringify(trainingContext, null, 2)}`
             },
             {
               role: "user",
@@ -212,7 +230,8 @@ const UploadPage = () => {
       console.log('Text correction completed', {
         fileName: file.name,
         originalLength: file.text.length,
-        correctedLength: correctedText.length
+        correctedLength: correctedText.length,
+        trainingRulesApplied: trainingRules ? trainingRules.rules.length : 0
       });
 
       setFiles(prevFiles => 
@@ -227,14 +246,23 @@ const UploadPage = () => {
         setSelectedFile(prev => prev ? { ...prev, correctedText, status: 'corrected' } : null);
       }
 
-      toast.success("Text correction completed");
+      toast.success(`Training completed for ${file.name}`);
     } catch (error) {
       console.error('Error processing file:', {
         fileName: file.name,
         error: error instanceof Error ? error.message : String(error),
         timestamp: new Date().toISOString()
       });
-      toast.error("Error processing file");
+      
+      setFiles(prevFiles =>
+        prevFiles.map(f =>
+          f.name === file.name
+            ? { ...f, status: 'pending' }
+            : f
+        )
+      );
+      
+      toast.error(`Error processing ${file.name}`);
     }
   };
 
@@ -254,9 +282,15 @@ const UploadPage = () => {
   const processFiles = async () => {
     if (!checkRequiredFiles()) return;
 
+    if (!trainingRules) {
+      toast.error("Please upload training rules before processing files");
+      return;
+    }
+
     console.log(`[${new Date().toISOString()}] Starting batch processing`, {
       totalFiles: files.length,
-      pendingFiles: files.filter(f => f.status === 'pending').length
+      pendingFiles: files.filter(f => f.status === 'pending').length,
+      trainingRules: trainingRules.rules.length
     });
 
     setProcessing(true);
