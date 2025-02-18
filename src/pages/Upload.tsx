@@ -1,14 +1,14 @@
 
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload, FileText, X, Download } from "lucide-react";
+import { Upload as UploadIcon, FileText, X, Download } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface FileWithPreview extends File {
   preview?: string;
 }
 
-const Upload = () => {
+const UploadPage = () => {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [processing, setProcessing] = useState(false);
 
@@ -72,7 +72,9 @@ const Upload = () => {
               ${isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
           >
             <input {...getInputProps()} />
-            <Upload className="w-12 h-12 mb-4 mx-auto text-muted-foreground" />
+            <div className="text-muted-foreground">
+              <UploadIcon className="w-12 h-12 mb-4 mx-auto" />
+            </div>
             <p className="text-lg mb-2">
               {isDragActive ? 'Drop your files here' : 'Drag & drop files here'}
             </p>
@@ -95,7 +97,7 @@ const Upload = () => {
                     className="flex items-center justify-between p-3 rounded-lg bg-background border"
                   >
                     <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-muted-foreground" />
+                      <FileText className="w-5 h-5" />
                       <div>
                         <p className="font-medium">{file.name}</p>
                         <p className="text-sm text-muted-foreground">
@@ -142,4 +144,4 @@ const Upload = () => {
   );
 };
 
-export default Upload;
+export default UploadPage;
