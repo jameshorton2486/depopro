@@ -340,7 +340,7 @@ const UploadPage = () => {
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
       <div className="container mx-auto px-4 py-16">
         <nav className="flex items-center justify-between mb-16 animate-fade-down">
-          <div className="text-xl font-semibold">Deepgram Transcript Corrector</div>
+          <div className="text-xl font-semibold">Transcript Processing and Training</div>
           <a href="/" className="text-sm hover:text-primary/80 transition-colors">
             Back to Home
           </a>
