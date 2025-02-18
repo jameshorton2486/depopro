@@ -552,7 +552,7 @@ const UploadPage = () => {
               <div className="flex justify-end">
                 <button
                   onClick={generateRulesFromComparison}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                 >
                   Generate Rules from Text
                 </button>
@@ -574,7 +574,7 @@ const UploadPage = () => {
                 <div className="flex justify-end mt-4">
                   <button
                     onClick={generateRulesFromFiles}
-                    className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                   >
                     Generate Rules from Files
                   </button>
