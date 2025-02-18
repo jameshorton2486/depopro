@@ -532,7 +532,7 @@ const UploadPage = () => {
                 <div>
                   <h3 className="text-lg font-medium mb-2">Original Text</h3>
                   <textarea
-                    className="w-full h-48 p-3 border rounded-lg bg-background resize-none"
+                    className="w-full h-[280px] p-3 border rounded-lg bg-background resize-none"
                     placeholder="Paste the original incorrect text here..."
                     value={originalCompareText}
                     onChange={(e) => setOriginalCompareText(e.target.value)}
@@ -541,7 +541,7 @@ const UploadPage = () => {
                 <div>
                   <h3 className="text-lg font-medium mb-2">Corrected Text</h3>
                   <textarea
-                    className="w-full h-48 p-3 border rounded-lg bg-background resize-none"
+                    className="w-full h-[280px] p-3 border rounded-lg bg-background resize-none"
                     placeholder="Paste the corrected version here..."
                     value={correctedCompareText}
                     onChange={(e) => setCorrectedCompareText(e.target.value)}
@@ -561,12 +561,12 @@ const UploadPage = () => {
               <div className="mt-6">
                 <h3 className="text-lg font-medium mb-2">Upload Document</h3>
                 <div
-                  className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50"
+                  className="border-2 border-dashed rounded-lg h-[280px] flex flex-col items-center justify-center cursor-pointer hover:border-primary/50"
                   onClick={() => {
                     console.log("Document upload clicked");
                   }}
                 >
-                  <UploadIcon className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                  <UploadIcon className="w-8 h-8 mb-2 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
                     Upload PDF or Document files
                   </p>
