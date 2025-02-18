@@ -1,17 +1,25 @@
-
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload as UploadIcon, FileText, X, Download, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import TranscriptPlayer from "@/components/TranscriptPlayer";
 
-// Define the FileWithPreview type as a new type instead of extending File
+type TimestampedWord = {
+  start_time: string;
+  end_time: string;
+  word: string;
+  confidence: number;
+};
+
 type FileWithPreview = {
   name: string;
   size: number;
   type: string;
   preview: string;
   text: string;
+  audioUrl?: string;
+  words?: TimestampedWord[];
   correctedText?: string;
   status: 'pending' | 'processing' | 'corrected' | 'approved' | 'rejected';
 };
@@ -20,6 +28,7 @@ const UploadPage = () => {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [processing, setProcessing] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileWithPreview | null>(null);
+  const [currentWordIndex, setCurrentWordIndex] = useState(-1);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     Promise.all(
@@ -27,12 +36,27 @@ const UploadPage = () => {
         return new Promise<FileWithPreview>((resolve) => {
           const reader = new FileReader();
           reader.onload = () => {
+            const isJson = file.type === 'application/json';
+            let text = reader.result as string;
+            let words: TimestampedWord[] | undefined;
+            
+            if (isJson) {
+              try {
+                const data = JSON.parse(text);
+                words = data.words;
+                text = words?.map(w => w.word).join(' ') || text;
+              } catch (e) {
+                console.error('Error parsing JSON:', e);
+              }
+            }
+            
             resolve({
               name: file.name,
               size: file.size,
               type: file.type,
               preview: URL.createObjectURL(file),
-              text: reader.result as string,
+              text,
+              words,
               status: 'pending'
             });
           };
@@ -48,10 +72,41 @@ const UploadPage = () => {
     onDrop,
     accept: {
       'text/plain': ['.txt'],
+      'application/json': ['.json'],
       'application/msword': ['.doc'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'audio/*': ['.mp3', '.wav']
     }
   });
+
+  const handleAudioDrop = useCallback((audioFile: File) => {
+    if (selectedFile) {
+      setSelectedFile({
+        ...selectedFile,
+        audioUrl: URL.createObjectURL(audioFile)
+      });
+    }
+  }, [selectedFile]);
+
+  const handleTimeUpdate = (time: number) => {
+    if (selectedFile?.words) {
+      const newIndex = selectedFile.words.findIndex(
+        word => {
+          const startTime = timeToSeconds(word.start_time);
+          const endTime = timeToSeconds(word.end_time);
+          return time >= startTime && time <= endTime;
+        }
+      );
+      if (newIndex !== currentWordIndex) {
+        setCurrentWordIndex(newIndex);
+      }
+    }
+  };
+
+  const timeToSeconds = (timeStr: string) => {
+    const [minutes, seconds] = timeStr.split(':').map(Number);
+    return minutes * 60 + seconds;
+  };
 
   const removeFile = (name: string) => {
     setFiles(files => files.filter(file => file.name !== name));
@@ -165,8 +220,8 @@ const UploadPage = () => {
           >
             <h1 className="text-3xl font-bold mb-4">Text Processing</h1>
             <p className="text-muted-foreground">
-              Upload your documents for AI-powered correction and validation.
-              Supported formats: .txt, .doc, .docx
+              Upload your documents and audio files for AI-powered correction and validation.
+              Supported formats: .txt, .doc, .docx, .json, .mp3, .wav
             </p>
           </motion.div>
 
@@ -256,7 +311,7 @@ const UploadPage = () => {
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-background border rounded-lg p-6"
+                className="bg-background border rounded-lg p-6 space-y-6"
               >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold">Text Preview</h3>
@@ -278,6 +333,14 @@ const UploadPage = () => {
                   )}
                 </div>
 
+                {selectedFile.audioUrl && (
+                  <TranscriptPlayer
+                    audioUrl={selectedFile.audioUrl}
+                    words={selectedFile.words || []}
+                    onTimeUpdate={handleTimeUpdate}
+                  />
+                )}
+
                 <div className="space-y-4">
                   {selectedFile.status === 'corrected' ? (
                     <>
@@ -295,8 +358,26 @@ const UploadPage = () => {
                       </div>
                     </>
                   ) : (
-                    <div className="p-4 rounded-lg bg-secondary/50 text-sm whitespace-pre-wrap">
-                      {selectedFile.text}
+                    <div className="p-4 rounded-lg bg-secondary/50 text-sm">
+                      {selectedFile.words ? (
+                        <div className="space-y-1">
+                          {selectedFile.words.map((word, index) => (
+                            <span
+                              key={index}
+                              className={`inline-block mr-1 ${
+                                index === currentWordIndex ? 'bg-primary/20' : ''
+                              } ${
+                                word.confidence < 0.9 ? 'bg-yellow-200/50' : ''
+                              }`}
+                              title={`Confidence: ${(word.confidence * 100).toFixed(1)}%`}
+                            >
+                              {word.word}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap">{selectedFile.text}</div>
+                      )}
                     </div>
                   )}
                 </div>
