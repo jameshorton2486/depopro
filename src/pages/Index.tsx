@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Index = () => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -18,9 +19,12 @@ const Index = () => {
           <div className="flex items-center gap-6">
             <a href="#features" className="text-sm hover:text-primary/80 transition-colors">Features</a>
             <a href="#about" className="text-sm hover:text-primary/80 transition-colors">About</a>
-            <button className="px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm hover-up">
+            <Link 
+              to="/upload"
+              className="px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm hover-up"
+            >
               Get Started
-            </button>
+            </Link>
           </div>
         </nav>
 
@@ -48,10 +52,13 @@ const Index = () => {
             transition={{ duration: 0.6, delay: 0.4 }}
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
-            <button className="px-6 py-3 rounded-full bg-primary text-primary-foreground 
-              flex items-center gap-2 hover-up">
-              Explore Features <ArrowRight className="w-4 h-4" />
-            </button>
+            <Link
+              to="/upload"
+              className="px-6 py-3 rounded-full bg-primary text-primary-foreground 
+                flex items-center gap-2 hover-up"
+            >
+              Upload Files <ArrowRight className="w-4 h-4" />
+            </Link>
             <button className="px-6 py-3 rounded-full border border-border bg-background/50 
               backdrop-blur-sm hover-up">
               Learn More
