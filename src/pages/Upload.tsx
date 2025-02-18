@@ -58,6 +58,8 @@ const UploadPage = () => {
   const [selectedFile, setSelectedFile] = useState<FileWithPreview | null>(null);
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const [trainingRules, setTrainingRules] = useState<TrainingRules | null>(null);
+  const [originalCompareText, setOriginalCompareText] = useState('');
+  const [correctedCompareText, setCorrectedCompareText] = useState('');
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     console.log(`[${new Date().toISOString()}] Processing uploaded files`, {
@@ -336,6 +338,84 @@ const UploadPage = () => {
     setTrainingRules(updatedRules);
   };
 
+  const generateRulesFromComparison = async () => {
+    if (!originalCompareText || !correctedCompareText) {
+      toast.error("Please provide both original and corrected text");
+      return;
+    }
+
+    console.log("Generating rules from text comparison");
+    
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are a transcript analysis expert. Compare the original and corrected texts to identify patterns and generate correction rules. Format your response as a JSON array of rules with the following structure:
+              {
+                "rules": [
+                  {
+                    "type": "spelling|grammar|punctuation|formatting",
+                    "pattern": "identified pattern",
+                    "correction": "how to correct it",
+                    "description": "explanation of the rule"
+                  }
+                ]
+              }`
+            },
+            {
+              role: "user",
+              content: `Original text:\n${originalCompareText}\n\nCorrected text:\n${correctedCompareText}`
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const newRules = JSON.parse(data.choices[0].message.content);
+
+      // Append new rules to existing rules
+      setTrainingRules(prevRules => {
+        if (!prevRules) {
+          return {
+            rules: newRules.rules,
+            general_instructions: {
+              capitalization: "Follow standard capitalization rules",
+              formatting: "Maintain consistent formatting",
+              punctuation: "Use appropriate punctuation"
+            }
+          };
+        }
+
+        return {
+          ...prevRules,
+          rules: [...prevRules.rules, ...newRules.rules]
+        };
+      });
+
+      // Clear the comparison text fields
+      setOriginalCompareText('');
+      setCorrectedCompareText('');
+      
+      toast.success("New rules generated and added to training rules");
+      console.log("Rules generated successfully:", newRules);
+    } catch (error) {
+      console.error("Error generating rules:", error);
+      toast.error("Failed to generate rules from text comparison");
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
       <div className="container mx-auto px-4 py-16 max-w-4xl">
@@ -380,9 +460,8 @@ const UploadPage = () => {
                   <textarea
                     className="w-full h-48 p-3 border rounded-lg bg-background resize-none"
                     placeholder="Paste the original incorrect text here..."
-                    onChange={(e) => {
-                      console.log("Original text:", e.target.value);
-                    }}
+                    value={originalCompareText}
+                    onChange={(e) => setOriginalCompareText(e.target.value)}
                   />
                 </div>
                 <div>
@@ -390,18 +469,15 @@ const UploadPage = () => {
                   <textarea
                     className="w-full h-48 p-3 border rounded-lg bg-background resize-none"
                     placeholder="Paste the corrected version here..."
-                    onChange={(e) => {
-                      console.log("Corrected text:", e.target.value);
-                    }}
+                    value={correctedCompareText}
+                    onChange={(e) => setCorrectedCompareText(e.target.value)}
                   />
                 </div>
               </div>
               
               <div className="flex justify-end">
                 <button
-                  onClick={() => {
-                    console.log("Generating rules from text comparison");
-                  }}
+                  onClick={generateRulesFromComparison}
                   className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
                 >
                   Generate Rules from Text
