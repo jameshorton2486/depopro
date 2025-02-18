@@ -1,16 +1,20 @@
 
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload as UploadIcon, FileText, X, Download, Check, AlertCircle } from "lucide-react";
+import { Upload as UploadIcon, FileText, X, Download, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
-interface FileWithPreview extends File {
-  preview?: string;
-  text?: string;
+// Define the FileWithPreview type as a new type instead of extending File
+type FileWithPreview = {
+  name: string;
+  size: number;
+  type: string;
+  preview: string;
+  text: string;
   correctedText?: string;
-  status?: 'pending' | 'processing' | 'corrected' | 'approved' | 'rejected';
-}
+  status: 'pending' | 'processing' | 'corrected' | 'approved' | 'rejected';
+};
 
 const UploadPage = () => {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
@@ -23,17 +27,20 @@ const UploadPage = () => {
         return new Promise<FileWithPreview>((resolve) => {
           const reader = new FileReader();
           reader.onload = () => {
-            resolve(Object.assign(file, {
+            resolve({
+              name: file.name,
+              size: file.size,
+              type: file.type,
               preview: URL.createObjectURL(file),
               text: reader.result as string,
               status: 'pending'
-            }));
+            });
           };
           reader.readAsText(file);
         });
       })
-    ).then(files => {
-      setFiles(prevFiles => [...prevFiles, ...files]);
+    ).then(processedFiles => {
+      setFiles(prevFiles => [...prevFiles, ...processedFiles]);
     });
   }, []);
 
@@ -66,7 +73,7 @@ const UploadPage = () => {
           messages: [
             {
               role: "system",
-              content: "You are a professional editor specializing in legal and medical transcripts. Correct any spelling, grammar, or formatting issues while preserving the original meaning."
+              content: "You are a professional editor specializing in legal and medical transcripts. Correct any spelling, grammar, or formatting issues while preserving the original meaning. Pay special attention to medical and legal terminology, ensuring proper capitalization and formatting of terms like 'HIPAA' and legal citations."
             },
             {
               role: "user",
