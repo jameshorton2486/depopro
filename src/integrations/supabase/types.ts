@@ -9,7 +9,81 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      training_rules: {
+        Row: {
+          correction: string
+          created_at: string | null
+          description: string | null
+          general_instructions: Json | null
+          id: string
+          pattern: string
+          type: Database["public"]["Enums"]["rule_type"]
+        }
+        Insert: {
+          correction: string
+          created_at?: string | null
+          description?: string | null
+          general_instructions?: Json | null
+          id?: string
+          pattern: string
+          type: Database["public"]["Enums"]["rule_type"]
+        }
+        Update: {
+          correction?: string
+          created_at?: string | null
+          description?: string | null
+          general_instructions?: Json | null
+          id?: string
+          pattern?: string
+          type?: Database["public"]["Enums"]["rule_type"]
+        }
+        Relationships: []
+      }
+      transcripts: {
+        Row: {
+          audio_url: string | null
+          confidence_scores: Json | null
+          corrected_text: string | null
+          created_at: string | null
+          file_size: number | null
+          file_type: string | null
+          id: string
+          name: string
+          original_text: string
+          processing_duration: number | null
+          status: Database["public"]["Enums"]["file_status"] | null
+          words: Json | null
+        }
+        Insert: {
+          audio_url?: string | null
+          confidence_scores?: Json | null
+          corrected_text?: string | null
+          created_at?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          name: string
+          original_text: string
+          processing_duration?: number | null
+          status?: Database["public"]["Enums"]["file_status"] | null
+          words?: Json | null
+        }
+        Update: {
+          audio_url?: string | null
+          confidence_scores?: Json | null
+          corrected_text?: string | null
+          created_at?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          name?: string
+          original_text?: string
+          processing_duration?: number | null
+          status?: Database["public"]["Enums"]["file_status"] | null
+          words?: Json | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -18,7 +92,18 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      file_status:
+        | "pending"
+        | "processing"
+        | "corrected"
+        | "approved"
+        | "rejected"
+      rule_type:
+        | "spelling"
+        | "grammar"
+        | "punctuation"
+        | "formatting"
+        | "custom"
     }
     CompositeTypes: {
       [_ in never]: never
