@@ -9,7 +9,7 @@ type FileUploaderProps = {
   onGenerateRules: (text: string) => Promise<void>;
 };
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
+const MAX_FILE_SIZE = 2.7 * 1024 * 1024; // ~2.7MB in bytes (2 times 1,336 KB)
 const CHUNK_SIZE = 4000; // characters per chunk for OpenAI API
 
 const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
@@ -78,7 +78,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     const file = acceptedFiles[0];
 
     if (file.size > MAX_FILE_SIZE) {
-      toast.error(`File size must be less than 100MB. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+      toast.error(`File size must be less than 2.7MB. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
       return;
     }
 
@@ -147,7 +147,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     onDropRejected: (fileRejections) => {
       const error = fileRejections[0]?.errors[0];
       if (error?.code === 'file-too-large') {
-        toast.error(`File size must be less than 100MB. Current size: ${(fileRejections[0].file.size / (1024 * 1024)).toFixed(2)}MB`);
+        toast.error(`File size must be less than 2.7MB. Current size: ${(fileRejections[0].file.size / (1024 * 1024)).toFixed(2)}MB`);
       } else {
         toast.error("Invalid file type. Please upload a PDF, DOCX, or TXT file");
       }
@@ -196,7 +196,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
                 ? "Drop the document here..."
                 : isProcessing
                   ? `Processing document... ${progress}%`
-                  : "Upload PDF, DOCX, or TXT files (max 100MB)"}
+                  : "Upload PDF, DOCX, or TXT files (max 2.7MB)"}
             </p>
             {isProcessing && (
               <div className="w-full max-w-xs mt-4">
