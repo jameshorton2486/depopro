@@ -6,11 +6,42 @@ import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import UploadProgress from "@/components/upload/UploadProgress";
+import { uploadAndProcessFile } from "@/services/fileProcessing";
+import { openAIService } from "@/services/openai";
+import { supabase } from "@/integrations/supabase/client";
 
 const TransCorrection = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [correctedText, setCorrectedText] = useState<string>("");
+
+  const processTranscript = async (text: string) => {
+    try {
+      // Get the training rules
+      const rules = await openAIService.generateRulesFromSingleText(text);
+      
+      // Process the text in chunks to avoid rate limits
+      const chunks = text.match(/[^.!?]+[.!?]+/g) || [text];
+      let processedText = '';
+      
+      for (let i = 0; i < chunks.length; i++) {
+        setProgress(Math.round((i / chunks.length) * 100));
+        
+        const { data, error } = await supabase.functions.invoke('process-transcript', {
+          body: { text: chunks[i], rules }
+        });
+
+        if (error) throw error;
+        processedText += data.correctedText + ' ';
+      }
+
+      return processedText.trim();
+    } catch (error) {
+      console.error('Error processing transcript:', error);
+      throw error;
+    }
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) {
@@ -24,31 +55,25 @@ const TransCorrection = () => {
     try {
       setIsProcessing(true);
       setProgress(0);
-      // Simulate upload progress
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 10;
-        });
-      }, 500);
 
-      // Store the uploaded file
+      // Upload and process the file
+      const { text } = await uploadAndProcessFile(file, setProgress);
       setUploadedFile(file);
+
+      toast.success("File uploaded successfully. Starting correction process...");
       
-      // Clear interval when done
-      setTimeout(() => {
-        clearInterval(interval);
-        setIsProcessing(false);
-        setProgress(100);
-        toast.success("File uploaded successfully");
-      }, 3000);
+      // Process the transcript
+      const corrected = await processTranscript(text);
+      setCorrectedText(corrected);
+      
+      toast.success("Transcript correction completed!");
     } catch (error) {
       console.error("Error processing file:", error);
-      toast.error("Error uploading file");
+      toast.error("Error processing file");
       setUploadedFile(null);
+    } finally {
+      setIsProcessing(false);
+      setProgress(100);
     }
   }, []);
 
@@ -121,17 +146,22 @@ const TransCorrection = () => {
             )}
           </div>
 
-          {uploadedFile && !isProcessing && (
-            <div className="flex justify-center mt-6">
-              <Button 
-                className="min-w-[200px]"
-                onClick={() => {
-                  toast.info("Processing transcript...");
-                  // Here you would implement the actual transcript processing
-                }}
-              >
-                Process Transcript
-              </Button>
+          {correctedText && !isProcessing && (
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold mb-2">Corrected Transcript</h3>
+              <div className="p-4 bg-muted rounded-lg">
+                <pre className="whitespace-pre-wrap text-sm">{correctedText}</pre>
+              </div>
+              <div className="flex justify-center mt-4">
+                <Button
+                  onClick={() => {
+                    navigator.clipboard.writeText(correctedText);
+                    toast.success("Copied to clipboard!");
+                  }}
+                >
+                  Copy to Clipboard
+                </Button>
+              </div>
             </div>
           )}
         </div>
