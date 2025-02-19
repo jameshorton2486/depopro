@@ -11,6 +11,7 @@ import ModelTraining from "@/components/upload/ModelTraining";
 import SingleTextInput from "@/components/upload/SingleTextInput";
 import TextComparison from "@/components/upload/TextComparison";
 import FileUploader from "@/components/upload/FileUploader";
+import { openAIService, type TrainingRules } from "@/services/openai";
 
 type TimestampedWord = {
   start_time: string;
@@ -330,14 +331,16 @@ const UploadPage = () => {
     toast.success("Changes approved");
   };
 
-  const handleTrainingRulesGenerated = (newRules: any) => {
-    if (!trainingRules) return;
+  const handleTrainingRulesGenerated = (newRules: TrainingRules) => {
+    if (!trainingRules) {
+      setTrainingRules(newRules);
+      return;
+    }
 
-    const updatedRules = {
-      ...trainingRules,
-      rules: [...trainingRules.rules, ...newRules]
-    };
-    setTrainingRules(updatedRules);
+    setTrainingRules(prevRules => ({
+      ...prevRules,
+      rules: [...prevRules.rules, ...newRules.rules]
+    }));
   };
 
   const generateRulesFromComparison = async () => {
@@ -346,73 +349,18 @@ const UploadPage = () => {
       return;
     }
 
-    console.log("Generating rules from text comparison");
-    
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: `You are a transcript analysis expert. Compare the original and corrected texts to identify patterns and generate correction rules. Format your response as a JSON array of rules with the following structure:
-              {
-                "rules": [
-                  {
-                    "type": "spelling|grammar|punctuation|formatting",
-                    "pattern": "identified pattern",
-                    "correction": "how to correct it",
-                    "description": "explanation of the rule"
-                  }
-                ]
-              }`
-            },
-            {
-              role: "user",
-              content: `Original text:\n${originalCompareText}\n\nCorrected text:\n${correctedCompareText}`
-            }
-          ]
-        })
-      });
+      const newRules = await openAIService.generateRulesFromComparison(
+        originalCompareText,
+        correctedCompareText
+      );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const newRules = JSON.parse(data.choices[0].message.content);
-
-      setTrainingRules(prevRules => {
-        if (!prevRules) {
-          return {
-            rules: newRules.rules,
-            general_instructions: {
-              capitalization: "Follow standard capitalization rules",
-              formatting: "Maintain consistent formatting",
-              punctuation: "Use appropriate punctuation"
-            }
-          };
-        }
-
-        return {
-          ...prevRules,
-          rules: [...prevRules.rules, ...newRules.rules]
-        };
-      });
-
+      handleTrainingRulesGenerated(newRules);
       setOriginalCompareText('');
       setCorrectedCompareText('');
-      
       toast.success("New rules generated and added to training rules");
-      console.log("Rules generated successfully:", newRules);
     } catch (error) {
-      console.error("Error generating rules:", error);
-      toast.error("Failed to generate rules from text comparison");
+      console.error("Error in comparison flow:", error);
     }
   };
 
@@ -422,70 +370,18 @@ const UploadPage = () => {
       return;
     }
 
-    console.log("Generating rules from document files");
-    
+    const documentFile = files.find(f => f.type.includes('document'));
+    if (!documentFile?.text) {
+      toast.error("Document content not found");
+      return;
+    }
+
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: `You are a transcript analysis expert. Analyze the document and identify correction patterns. Format your response as a JSON array of rules with the following structure:
-              {
-                "rules": [
-                  {
-                    "type": "spelling|grammar|punctuation|formatting",
-                    "pattern": "identified pattern",
-                    "correction": "how to correct it",
-                    "description": "explanation of the rule"
-                  }
-                ]
-              }`
-            },
-            {
-              role: "user",
-              content: `Document content:\n${files.find(f => f.type.includes('document'))?.text || ''}`
-            }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const newRules = JSON.parse(data.choices[0].message.content);
-
-      setTrainingRules(prevRules => {
-        if (!prevRules) {
-          return {
-            rules: newRules.rules,
-            general_instructions: {
-              capitalization: "Follow standard capitalization rules",
-              formatting: "Maintain consistent formatting",
-              punctuation: "Use appropriate punctuation"
-            }
-          };
-        }
-
-        return {
-          ...prevRules,
-          rules: [...prevRules.rules, ...newRules.rules]
-        };
-      });
-      
+      const newRules = await openAIService.generateRulesFromDocument(documentFile.text);
+      handleTrainingRulesGenerated(newRules);
       toast.success("New rules generated from document and added to training rules");
-      console.log("Rules generated successfully from document:", newRules);
     } catch (error) {
-      console.error("Error generating rules from document:", error);
-      toast.error("Failed to generate rules from document");
+      console.error("Error in document flow:", error);
     }
   };
 

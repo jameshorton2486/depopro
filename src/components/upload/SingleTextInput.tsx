@@ -1,85 +1,52 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { openAIService, type TrainingRules } from "@/services/openai";
 
 type SingleTextInputProps = {
-  onRulesGenerated: (rules: any) => void;
+  onRulesGenerated: (rules: TrainingRules) => void;
 };
 
 const SingleTextInput = ({ onRulesGenerated }: SingleTextInputProps) => {
-  const [singleText, setSingleText] = useState("");
+  const [text, setText] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const generateRulesFromText = async () => {
-    if (!singleText) {
+  const handleGenerateRules = async () => {
+    if (!text.trim()) {
       toast.error("Please enter some text first");
       return;
     }
 
-    console.log("Generating rules from single text input");
-    
+    setIsGenerating(true);
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: `You are a transcript analysis expert. Analyze the text and identify correction patterns. Format your response as a JSON array of rules with the following structure:
-              {
-                "rules": [
-                  {
-                    "type": "spelling|grammar|punctuation|formatting",
-                    "pattern": "identified pattern",
-                    "correction": "how to correct it",
-                    "description": "explanation of the rule"
-                  }
-                ]
-              }`
-            },
-            {
-              role: "user",
-              content: `Text content:\n${singleText}`
-            }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const newRules = JSON.parse(data.choices[0].message.content);
+      const newRules = await openAIService.generateRulesFromSingleText(text);
       onRulesGenerated(newRules);
-      
-      setSingleText(""); // Clear the input after successful generation
+      setText("");
       toast.success("New rules generated from text");
     } catch (error) {
-      console.error("Error generating rules from text:", error);
-      toast.error("Failed to generate rules from text");
+      // Error already handled by the service
+      console.error("Error in single text flow:", error);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
   return (
-    <div>
-      <h3 className="text-lg font-medium mb-2">Generate Rules from Text</h3>
+    <div className="space-y-4">
+      <h3 className="text-lg font-medium">Single Text Analysis</h3>
       <textarea
-        className="w-full h-[280px] p-3 border rounded-lg bg-background resize-none"
-        placeholder="Paste your text here to generate rules..."
-        value={singleText}
-        onChange={(e) => setSingleText(e.target.value)}
+        className="w-full h-[200px] p-3 border rounded-lg bg-background resize-none"
+        placeholder="Enter text to analyze..."
+        value={text}
+        onChange={(e) => setText(e.target.value)}
       />
-      <div className="flex justify-end mt-4">
+      <div className="flex justify-end">
         <button
-          onClick={generateRulesFromText}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          onClick={handleGenerateRules}
+          disabled={isGenerating}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Generate Rules from Text
+          {isGenerating ? "Generating..." : "Generate Rules from Text"}
         </button>
       </div>
     </div>
