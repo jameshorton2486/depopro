@@ -1,22 +1,7 @@
 
 import { UploadIcon, X, BookOpen } from "lucide-react";
 import { toast } from "sonner";
-
-type TrainingRule = {
-  type: string;
-  pattern: string;
-  correction: string;
-  description: string;
-};
-
-type TrainingRules = {
-  rules: TrainingRule[];
-  general_instructions: {
-    capitalization: string;
-    formatting: string;
-    punctuation: string;
-  };
-};
+import { type TrainingRule, type TrainingRules } from "@/services/openai";
 
 interface TrainingRulesProps {
   trainingRules: TrainingRules | null;
