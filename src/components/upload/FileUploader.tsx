@@ -1,3 +1,4 @@
+
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadIcon, FileText, Loader2 } from "lucide-react";
@@ -45,11 +46,8 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     for (let i = 0; i < chunks.length; i++) {
       try {
         const { data, error } = await supabase.functions.invoke('process-document', {
-          body: new Blob([chunks[i]], { type: 'text/plain' }),
-          headers: {
-            'x-file-name': 'chunk.txt',
-            'content-type': 'text/plain'
-          }
+          body: { text: chunks[i] },
+          headers: { 'Content-Type': 'application/json' }
         });
 
         if (error) throw error;
@@ -88,43 +86,52 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       setIsProcessing(true);
       setProgress(0);
 
-      if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-        const text = await file.text();
-        const processedText = await processBatchedText(text);
-        
-        setUploadedFile({
-          text: processedText,
-          name: file.name
-        });
-        toast.success("Text file processed successfully");
-      } else {
-        console.log("Sending file to edge function");
-        const { data, error } = await supabase.functions.invoke('process-document', {
-          body: file,
-          headers: {
-            'x-file-name': file.name,
-            'content-type': file.type
-          }
-        });
+      // Upload file to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
-        console.log("Edge function response:", { data, error });
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file);
 
-        if (error) {
-          throw new Error(`Error processing document: ${error.message}`);
-        }
-
-        if (data?.error) {
-          throw new Error(data.error);
-        }
-
-        const processedText = await processBatchedText(data.text);
-
-        setUploadedFile({
-          text: processedText,
-          name: data.fileName
-        });
-        toast.success("Document processed successfully");
+      if (uploadError) {
+        throw new Error(`Error uploading file: ${uploadError.message}`);
       }
+
+      // Get public URL for the uploaded file
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      console.log("File uploaded successfully, processing document...");
+
+      // Process the file using the edge function
+      const { data, error } = await supabase.functions.invoke('process-document', {
+        body: { fileUrl: publicUrl },
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      const processedText = await processBatchedText(data.text);
+
+      setUploadedFile({
+        text: processedText,
+        name: file.name
+      });
+      toast.success("Document processed successfully");
+
+      // Clean up: remove the temporary file from storage
+      await supabase.storage
+        .from('documents')
+        .remove([filePath]);
+
     } catch (error) {
       console.error("Error processing file:", error);
       toast.error(error instanceof Error ? error.message : "Error processing document");
