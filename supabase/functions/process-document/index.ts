@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,25 +7,40 @@ const corsHeaders = {
 }
 
 async function fetchAndProcessFile(url: string): Promise<string> {
-  console.log('Starting file fetch from URL:', url);
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch file: ${response.statusText}`);
+  try {
+    console.log('Starting file fetch from URL:', url);
+    
+    const response = await fetch(url);
+    console.log('Fetch response status:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    console.log('File content type:', contentType);
+
+    let text: string;
+    try {
+      text = await response.text();
+      console.log('Successfully extracted text, length:', text.length);
+    } catch (textError) {
+      console.error('Error extracting text:', textError);
+      throw new Error(`Failed to extract text from file: ${textError.message}`);
+    }
+
+    // Basic cleanup of the text
+    const cleanedText = text
+      .replace(/\r\n/g, '\n')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    console.log('Cleaned text length:', cleanedText.length);
+    return cleanedText;
+  } catch (error) {
+    console.error('Error in fetchAndProcessFile:', error);
+    throw error; // Re-throw to be handled by the main try-catch
   }
-
-  const contentType = response.headers.get('content-type') || '';
-  console.log('File content type:', contentType);
-
-  // For now, we'll treat all files as text files
-  // This is a temporary solution until we can properly implement PDF processing
-  const text = await response.text();
-  
-  // Basic cleanup of the text
-  return text
-    .replace(/\r\n/g, '\n')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 serve(async (req) => {
@@ -42,25 +56,41 @@ serve(async (req) => {
   }
 
   try {
-    const { fileUrl, text } = await req.json();
-    console.log('Received request with:', { fileUrl: !!fileUrl, text: !!text });
+    let requestBody;
+    try {
+      requestBody = await req.json();
+      console.log('Request body parsed:', { 
+        hasFileUrl: !!requestBody?.fileUrl, 
+        hasText: !!requestBody?.text 
+      });
+    } catch (parseError) {
+      console.error('Error parsing request body:', parseError);
+      throw new Error('Invalid JSON in request body');
+    }
+
+    const { fileUrl, text } = requestBody;
 
     // If text is provided directly, return it
     if (text) {
+      console.log('Processing direct text input');
       return new Response(
-        JSON.stringify({ text, fileName: 'text-chunk.txt' }),
+        JSON.stringify({ 
+          text, 
+          fileName: 'text-chunk.txt' 
+        }),
         { headers }
       );
     }
 
     // Validate fileUrl
     if (!fileUrl) {
+      console.error('No file URL provided in request');
       throw new Error('No file URL provided');
     }
 
-    console.log('Processing file from URL:', fileUrl);
+    console.log('Starting file processing');
     const extractedText = await fetchAndProcessFile(fileUrl);
-    console.log('Successfully processed file, text length:', extractedText.length);
+    console.log('File processing completed successfully');
 
     return new Response(
       JSON.stringify({ 
@@ -71,11 +101,17 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in edge function:', error);
+    console.error('Error in edge function:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+
     return new Response(
       JSON.stringify({ 
         error: 'Failed to process document',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error.message,
+        type: error.name
       }),
       { 
         headers,
