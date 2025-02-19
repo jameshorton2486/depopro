@@ -121,7 +121,7 @@ const SingleTextInput = ({ onRulesGenerated }: SingleTextInputProps) => {
           placeholder="Paste text or JSON rules to analyze..."
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="min-h-[100px]"
+          className="min-h-[288px]"
         />
       </div>
       <Button

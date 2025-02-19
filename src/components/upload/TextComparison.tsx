@@ -22,7 +22,7 @@ const TextComparison = ({
         <div>
           <h3 className="text-lg font-medium mb-2">Original Text</h3>
           <textarea
-            className="w-full h-[280px] p-3 border rounded-lg bg-background resize-none"
+            className="w-full h-[288px] p-3 border rounded-lg bg-background resize-none"
             placeholder="Paste the original incorrect text here..."
             value={originalText}
             onChange={(e) => onOriginalTextChange(e.target.value)}
@@ -31,7 +31,7 @@ const TextComparison = ({
         <div>
           <h3 className="text-lg font-medium mb-2">Corrected Text</h3>
           <textarea
-            className="w-full h-[280px] p-3 border rounded-lg bg-background resize-none"
+            className="w-full h-[288px] p-3 border rounded-lg bg-background resize-none"
             placeholder="Paste the corrected version here..."
             value={correctedText}
             onChange={(e) => onCorrectedTextChange(e.target.value)}
