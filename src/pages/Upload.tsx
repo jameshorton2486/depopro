@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadIcon, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import TranscriptPlayer from "@/components/TranscriptPlayer";
@@ -9,6 +8,9 @@ import FileList from "@/components/upload/FileList";
 import TrainingRulesComponent from "@/components/upload/TrainingRules";
 import ResultsComparison from "@/components/upload/ResultsComparison";
 import ModelTraining from "@/components/upload/ModelTraining";
+import SingleTextInput from "@/components/upload/SingleTextInput";
+import TextComparison from "@/components/upload/TextComparison";
+import FileUploader from "@/components/upload/FileUploader";
 
 type TimestampedWord = {
   start_time: string;
@@ -60,7 +62,6 @@ const UploadPage = () => {
   const [trainingRules, setTrainingRules] = useState<TrainingRules | null>(null);
   const [originalCompareText, setOriginalCompareText] = useState('');
   const [correctedCompareText, setCorrectedCompareText] = useState('');
-  const [singleText, setSingleText] = useState("");
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     console.log(`[${new Date().toISOString()}] Processing uploaded files`, {
@@ -602,78 +603,36 @@ const UploadPage = () => {
           >
             <h2 className="text-xl font-semibold mb-4">Training Rules</h2>
             <div className="space-y-6">
-              {/* New Generate Rules from Text section */}
-              <div>
-                <h3 className="text-lg font-medium mb-2">Generate Rules from Text</h3>
-                <textarea
-                  className="w-full h-[280px] p-3 border rounded-lg bg-background resize-none"
-                  placeholder="Paste your text here to generate rules..."
-                  value={singleText}
-                  onChange={(e) => setSingleText(e.target.value)}
-                />
-                <div className="flex justify-end mt-4">
-                  <button
-                    onClick={generateRulesFromText}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                  >
-                    Generate Rules from Text
-                  </button>
-                </div>
-              </div>
+              <SingleTextInput 
+                onRulesGenerated={(newRules) => {
+                  setTrainingRules(prevRules => {
+                    if (!prevRules) {
+                      return {
+                        rules: newRules.rules,
+                        general_instructions: {
+                          capitalization: "Follow standard capitalization rules",
+                          formatting: "Maintain consistent formatting",
+                          punctuation: "Use appropriate punctuation"
+                        }
+                      };
+                    }
+                    return {
+                      ...prevRules,
+                      rules: [...prevRules.rules, ...newRules.rules]
+                    };
+                  });
+                }}
+              />
 
-              {/* Original two-column text comparison */}
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Original Text</h3>
-                  <textarea
-                    className="w-full h-[280px] p-3 border rounded-lg bg-background resize-none"
-                    placeholder="Paste the original incorrect text here..."
-                    value={originalCompareText}
-                    onChange={(e) => setOriginalCompareText(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Corrected Text</h3>
-                  <textarea
-                    className="w-full h-[280px] p-3 border rounded-lg bg-background resize-none"
-                    placeholder="Paste the corrected version here..."
-                    value={correctedCompareText}
-                    onChange={(e) => setCorrectedCompareText(e.target.value)}
-                  />
-                </div>
-              </div>
-              
-              <div className="flex justify-end">
-                <button
-                  onClick={generateRulesFromComparison}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  Generate Rules from Text
-                </button>
-              </div>
+              <TextComparison
+                originalText={originalCompareText}
+                correctedText={correctedCompareText}
+                onOriginalTextChange={setOriginalCompareText}
+                onCorrectedTextChange={setCorrectedCompareText}
+                onGenerateRules={generateRulesFromComparison}
+              />
 
-              <div className="mt-6">
-                <h3 className="text-lg font-medium mb-2">Upload Document</h3>
-                <div
-                  className="border-2 border-dashed rounded-lg h-[280px] flex flex-col items-center justify-center cursor-pointer hover:border-primary/50"
-                  onClick={() => {
-                    console.log("Document upload clicked");
-                  }}
-                >
-                  <UploadIcon className="w-8 h-8 mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    Upload PDF or Document files
-                  </p>
-                </div>
-                <div className="flex justify-end mt-4">
-                  <button
-                    onClick={generateRulesFromFiles}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                  >
-                    Generate Rules from Files
-                  </button>
-                </div>
-              </div>
+              <FileUploader onGenerateRules={generateRulesFromFiles} />
 
               <TrainingRulesComponent
                 trainingRules={trainingRules}
