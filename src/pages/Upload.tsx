@@ -359,6 +359,96 @@ const UploadPage = () => {
     }
   };
 
+  const processCourtReportingRules = (styleGuide: any) => {
+    const newRules: TrainingRule[] = [
+      {
+        type: "punctuation",
+        pattern: "(?<=[a-zA-Z])\\.\\s",
+        correction: ". ",
+        description: "Proper period spacing after declarative statements"
+      },
+      {
+        type: "punctuation",
+        pattern: "(?<=\\w),(?=\\w)",
+        correction: ", ",
+        description: styleGuide.punctuation_rules.comma.series_rule
+      },
+      {
+        type: "formatting",
+        pattern: "(?<=\\d):\\d{2}(?::\\d{2})?",
+        correction: "timestamp format HH:MM:SS",
+        description: styleGuide.core_principles.timestamp_format
+      },
+      {
+        type: "formatting",
+        pattern: "\\b([A-Z][a-z]+ [A-Z][a-z]+)\\b",
+        correction: "First mention: full name, subsequent: abbreviated",
+        description: styleGuide.core_principles.speaker_identification
+      },
+      {
+        type: "punctuation",
+        pattern: "\\.{3}",
+        correction: "...",
+        description: styleGuide.punctuation_rules.ellipses.pause_indication
+      },
+      {
+        type: "formatting",
+        pattern: "\\[.*?\\]",
+        correction: "[clarification]",
+        description: styleGuide.punctuation_rules.brackets.clarifications
+      },
+      {
+        type: "grammar",
+        pattern: "(?<=\\d)(st|nd|rd|th)",
+        correction: "ordinal numbers",
+        description: styleGuide.formatting_standards.numerical_formatting.general_rule
+      },
+      {
+        type: "formatting",
+        pattern: "(?<=[QA])\\.",
+        correction: "Q. or A.",
+        description: "Proper Q&A formatting in legal transcripts"
+      }
+    ];
+
+    setTrainingRules(prevRules => {
+      if (!prevRules) {
+        return {
+          rules: newRules,
+          general_instructions: {
+            capitalization: "Follow standard legal transcript capitalization",
+            formatting: styleGuide.formatting_standards.paragraphs.speaker_change,
+            punctuation: "Follow court reporting punctuation guidelines"
+          }
+        };
+      }
+      return {
+        ...prevRules,
+        rules: [...prevRules.rules, ...newRules]
+      };
+    });
+
+    toast.success("Court reporting rules added successfully");
+  };
+
+  const handleSingleTextAnalysis = async (text: string) => {
+    try {
+      try {
+        const jsonData = JSON.parse(text);
+        if (jsonData.court_reporting_style_guide) {
+          processCourtReportingRules(jsonData.court_reporting_style_guide);
+          return;
+        }
+      } catch (jsonError) {
+        const newRules = await openAIService.generateRulesFromSingleText(text);
+        handleTrainingRulesGenerated(newRules);
+      }
+    } catch (error) {
+      console.error("Error in single text analysis:", error);
+      toast.error("Failed to analyze text");
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
       <div className="container mx-auto px-4 py-16 max-w-4xl">
