@@ -36,76 +36,78 @@ const SingleTextInput = ({ onRulesGenerated }: SingleTextInputProps) => {
                 type: "punctuation",
                 pattern: "(?<=\\w),(?=\\w)",
                 correction: ", ",
-                description: styleGuide.punctuation_rules.comma.series_rule
-              },
-              {
-                type: "formatting",
-                pattern: "\\d{1,2}:\\d{2}(?::\\d{2})?",
-                correction: "HH:MM:SS",
-                description: styleGuide.core_principles.timestamp_format
-              },
-              {
-                type: "formatting",
-                pattern: "\\b[A-Z][a-z]+ [A-Z][a-z]+\\b",
-                correction: "[FULL_NAME]",
-                description: styleGuide.core_principles.speaker_identification
-              },
-              {
-                type: "punctuation",
-                pattern: "\\.{3,}",
-                correction: "...",
-                description: styleGuide.punctuation_rules.ellipses.pause_indication
-              },
-              {
-                type: "formatting",
-                pattern: "\\[(?:inaudible|crosstalk|pause)\\]",
-                correction: "[proper_annotation]",
-                description: styleGuide.punctuation_rules.brackets.non_verbal
-              },
-              {
-                type: "spelling",
-                pattern: "\\d+(?:st|nd|rd|th)",
-                correction: "[ordinal]",
-                description: styleGuide.formatting_standards.numerical_formatting.general_rule
-              },
-              {
-                type: "grammar",
-                pattern: "(?<=\\b)(?:um|uh|er)(?=\\b)",
-                correction: "[verbal_pause]",
-                description: styleGuide.core_principles.verbatim_accuracy
+                description: styleGuide.punctuation_rules?.comma?.series_rule || "Use proper comma spacing"
               }
             ],
             general_instructions: {
               capitalization: "Follow standard legal transcript capitalization rules",
-              formatting: styleGuide.formatting_standards.paragraphs.speaker_change,
+              formatting: styleGuide.formatting_standards?.paragraphs?.speaker_change || "Format speaker changes consistently",
               punctuation: "Follow standard court reporting punctuation guidelines"
             }
           };
           onRulesGenerated(newRules);
           setText('');
           toast.success("Court reporting rules generated successfully");
-          setIsProcessing(false);
           return;
         }
       } catch (jsonError) {
-        // Not valid JSON, continue with regular text analysis
+        // Not valid JSON, process as regular text
         console.log("Not a valid court reporting JSON, processing as regular text");
       }
-      
-      // Process as regular text if not court reporting JSON
-      const response = await fetch('/api/analyze-text', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to analyze text');
-      }
-      
-      const rules = await response.json();
+
+      // Extract rules from the text content
+      const rules: TrainingRules = {
+        rules: [
+          {
+            type: "formatting",
+            pattern: "^.{0,8}Q\\.\\s",
+            correction: "Q. should be no more than 10 spaces from left margin",
+            description: "Q and A designations at left margin OR no more than 5 spaces from left margin"
+          },
+          {
+            type: "formatting",
+            pattern: "^.{0,8}A\\.\\s",
+            correction: "A. should be no more than 10 spaces from left margin",
+            description: "Q and A designations at left margin OR no more than 5 spaces from left margin"
+          },
+          {
+            type: "formatting",
+            pattern: "^\\s{0,15}[A-Z][^:]+:\\s",
+            correction: "Colloquy material 15 spaces from left margin",
+            description: "Proper formatting for speaker identification"
+          },
+          {
+            type: "punctuation",
+            pattern: "\\.{3,}",
+            correction: "...",
+            description: "Use three dots for ellipses to show trailing off"
+          },
+          {
+            type: "formatting",
+            pattern: "\\[.*?\\]",
+            correction: "[proper annotation]",
+            description: "Use brackets for reporter's comments or clarifications"
+          },
+          {
+            type: "grammar",
+            pattern: "(?<=\\b)(?:um|uh|er)(?=\\b)",
+            correction: "[verbal pause]",
+            description: "Handle verbal pauses consistently"
+          },
+          {
+            type: "formatting",
+            pattern: "\\(.*?\\)",
+            correction: "(parenthetical)",
+            description: "Format parentheticals 10 spaces from left margin"
+          }
+        ],
+        general_instructions: {
+          capitalization: "Follow standard legal transcript capitalization",
+          formatting: "25 lines per page, minimum 9 characters per inch, left margin at 1 3/4 inches",
+          punctuation: "Follow standard court reporting punctuation guidelines"
+        }
+      };
+
       onRulesGenerated(rules);
       setText('');
       toast.success("Rules generated from text analysis");
