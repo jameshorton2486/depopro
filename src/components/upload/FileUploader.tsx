@@ -10,11 +10,63 @@ type FileUploaderProps = {
   onGenerateRules: (text: string) => Promise<void>;
 };
 
-const MAX_FILE_SIZE = 1024 * 1024; // 1MB in bytes
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
+const CHUNK_SIZE = 4000; // characters per chunk for OpenAI API
 
 const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
   const [uploadedFile, setUploadedFile] = useState<{ text: string; name: string } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const splitTextIntoChunks = (text: string): string[] => {
+    const chunks: string[] = [];
+    let currentChunk = '';
+
+    // Split by sentences to maintain context
+    const sentences = text.split(/(?<=[.!?])\s+/);
+
+    for (const sentence of sentences) {
+      if ((currentChunk + sentence).length <= CHUNK_SIZE) {
+        currentChunk += (currentChunk ? ' ' : '') + sentence;
+      } else {
+        if (currentChunk) chunks.push(currentChunk);
+        currentChunk = sentence;
+      }
+    }
+
+    if (currentChunk) chunks.push(currentChunk);
+    return chunks;
+  };
+
+  const processBatchedText = async (text: string): Promise<string> => {
+    const chunks = splitTextIntoChunks(text);
+    const processedChunks: string[] = [];
+    
+    console.log(`Processing ${chunks.length} chunks of text`);
+
+    for (let i = 0; i < chunks.length; i++) {
+      try {
+        const { data, error } = await supabase.functions.invoke('process-document', {
+          body: chunks[i],
+        });
+
+        if (error) throw error;
+        
+        processedChunks.push(data.text);
+        setProgress(Math.round(((i + 1) / chunks.length) * 100));
+        
+        // Add a small delay between chunks to avoid rate limiting
+        if (i < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      } catch (error) {
+        console.error(`Error processing chunk ${i}:`, error);
+        toast.error(`Error processing document chunk ${i + 1}`);
+      }
+    }
+
+    return processedChunks.join(' ');
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) {
@@ -26,7 +78,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
 
     // Check file size
     if (file.size > MAX_FILE_SIZE) {
-      toast.error(`File size must be less than 1MB. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+      toast.error(`File size must be less than 100MB. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
       return;
     }
 
@@ -34,22 +86,28 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
 
     try {
       setIsProcessing(true);
+      setProgress(0);
 
       if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-        // Handle text files directly
+        // Handle text files directly with batching
         const reader = new FileReader();
-        reader.onload = () => {
+        reader.onload = async () => {
+          const text = reader.result as string;
+          const processedText = await processBatchedText(text);
+          
           setUploadedFile({
-            text: reader.result as string,
+            text: processedText,
             name: file.name
           });
           toast.success("Text file processed successfully");
           setIsProcessing(false);
+          setProgress(100);
         };
         reader.onerror = () => {
           toast.error("Error reading text file");
           setUploadedFile(null);
           setIsProcessing(false);
+          setProgress(0);
         };
         reader.readAsText(file);
       } else {
@@ -72,8 +130,11 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
           throw new Error(data.error);
         }
 
+        // Process the extracted text in batches
+        const processedText = await processBatchedText(data.text);
+
         setUploadedFile({
-          text: data.text,
+          text: processedText,
           name: data.fileName
         });
         toast.success("Document processed successfully");
@@ -84,6 +145,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       setUploadedFile(null);
     } finally {
       setIsProcessing(false);
+      setProgress(0);
     }
   }, []);
 
@@ -95,11 +157,11 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       'text/plain': ['.txt']
     },
     maxFiles: 1,
-    maxSize: MAX_FILE_SIZE, // Add maxSize to dropzone config
+    maxSize: MAX_FILE_SIZE,
     onDropRejected: (fileRejections) => {
       const error = fileRejections[0]?.errors[0];
       if (error?.code === 'file-too-large') {
-        toast.error(`File size must be less than 1MB. Current size: ${(fileRejections[0].file.size / (1024 * 1024)).toFixed(2)}MB`);
+        toast.error(`File size must be less than 100MB. Current size: ${(fileRejections[0].file.size / (1024 * 1024)).toFixed(2)}MB`);
       } else {
         toast.error("Invalid file type. Please upload a PDF, DOCX, or TXT file");
       }
@@ -147,10 +209,19 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
               {isDragActive 
                 ? "Drop the document here..."
                 : isProcessing
-                  ? "Processing document..."
-                  : "Upload PDF, DOCX, or TXT files (max 1MB)"}
+                  ? `Processing document... ${progress}%`
+                  : "Upload PDF, DOCX, or TXT files (max 100MB)"}
             </p>
-            {isProcessing && <Loader2 className="w-6 h-6 mt-2 animate-spin" />}
+            {isProcessing && (
+              <div className="w-full max-w-xs mt-4">
+                <div className="h-2 bg-gray-200 rounded">
+                  <div 
+                    className="h-full bg-primary rounded transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
