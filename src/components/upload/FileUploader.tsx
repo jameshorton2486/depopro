@@ -10,6 +10,8 @@ type FileUploaderProps = {
   onGenerateRules: (text: string) => Promise<void>;
 };
 
+const MAX_FILE_SIZE = 1024 * 1024; // 1MB in bytes
+
 const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
   const [uploadedFile, setUploadedFile] = useState<{ text: string; name: string } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -21,7 +23,14 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     }
 
     const file = acceptedFiles[0];
-    console.log("Processing file:", file.name, "Type:", file.type);
+
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(`File size must be less than 1MB. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+      return;
+    }
+
+    console.log("Processing file:", file.name, "Type:", file.type, "Size:", `${(file.size / 1024).toFixed(2)}KB`);
 
     try {
       setIsProcessing(true);
@@ -85,7 +94,16 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'text/plain': ['.txt']
     },
-    maxFiles: 1
+    maxFiles: 1,
+    maxSize: MAX_FILE_SIZE, // Add maxSize to dropzone config
+    onDropRejected: (fileRejections) => {
+      const error = fileRejections[0]?.errors[0];
+      if (error?.code === 'file-too-large') {
+        toast.error(`File size must be less than 1MB. Current size: ${(fileRejections[0].file.size / (1024 * 1024)).toFixed(2)}MB`);
+      } else {
+        toast.error("Invalid file type. Please upload a PDF, DOCX, or TXT file");
+      }
+    }
   });
 
   const handleGenerateRules = async () => {
@@ -130,8 +148,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
                 ? "Drop the document here..."
                 : isProcessing
                   ? "Processing document..."
-                  : "Upload PDF, DOCX, or TXT files"
-              }
+                  : "Upload PDF, DOCX, or TXT files (max 1MB)"}
             </p>
             {isProcessing && <Loader2 className="w-6 h-6 mt-2 animate-spin" />}
           </>
@@ -152,3 +169,4 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
 };
 
 export default FileUploader;
+
