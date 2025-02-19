@@ -1,4 +1,3 @@
-
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadIcon, FileText, Loader2 } from "lucide-react";
@@ -22,7 +21,6 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     const chunks: string[] = [];
     let currentChunk = '';
 
-    // Split by sentences to maintain context
     const sentences = text.split(/(?<=[.!?])\s+/);
 
     for (const sentence of sentences) {
@@ -47,7 +45,11 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     for (let i = 0; i < chunks.length; i++) {
       try {
         const { data, error } = await supabase.functions.invoke('process-document', {
-          body: chunks[i],
+          body: new Blob([chunks[i]], { type: 'text/plain' }),
+          headers: {
+            'x-file-name': 'chunk.txt',
+            'content-type': 'text/plain'
+          }
         });
 
         if (error) throw error;
@@ -55,7 +57,6 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
         processedChunks.push(data.text);
         setProgress(Math.round(((i + 1) / chunks.length) * 100));
         
-        // Add a small delay between chunks to avoid rate limiting
         if (i < chunks.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
@@ -76,7 +77,6 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
 
     const file = acceptedFiles[0];
 
-    // Check file size
     if (file.size > MAX_FILE_SIZE) {
       toast.error(`File size must be less than 100MB. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
       return;
@@ -89,35 +89,22 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       setProgress(0);
 
       if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-        // Handle text files directly with batching
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const text = reader.result as string;
-          const processedText = await processBatchedText(text);
-          
-          setUploadedFile({
-            text: processedText,
-            name: file.name
-          });
-          toast.success("Text file processed successfully");
-          setIsProcessing(false);
-          setProgress(100);
-        };
-        reader.onerror = () => {
-          toast.error("Error reading text file");
-          setUploadedFile(null);
-          setIsProcessing(false);
-          setProgress(0);
-        };
-        reader.readAsText(file);
+        const text = await file.text();
+        const processedText = await processBatchedText(text);
+        
+        setUploadedFile({
+          text: processedText,
+          name: file.name
+        });
+        toast.success("Text file processed successfully");
       } else {
-        // Process file using the edge function
-        const formData = new FormData();
-        formData.append('file', file);
-
         console.log("Sending file to edge function");
         const { data, error } = await supabase.functions.invoke('process-document', {
           body: file,
+          headers: {
+            'x-file-name': file.name,
+            'content-type': file.type
+          }
         });
 
         console.log("Edge function response:", { data, error });
@@ -130,7 +117,6 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
           throw new Error(data.error);
         }
 
-        // Process the extracted text in batches
         const processedText = await processBatchedText(data.text);
 
         setUploadedFile({
@@ -240,4 +226,3 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
 };
 
 export default FileUploader;
-

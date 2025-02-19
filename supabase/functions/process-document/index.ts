@@ -1,8 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import * as pdfjs from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js/+esm'
-import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts";
+import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,46 +12,50 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
 
 async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<string> {
-  const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-  const pdf = await loadingTask.promise;
-  let fullText = '';
+  try {
+    console.log("Starting PDF text extraction");
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+    const pages = pdfDoc.getPages();
+    let fullText = '';
 
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items
-      .map((item: any) => item.str)
-      .join(' ');
-    fullText += pageText + '\n';
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
+      const { width, height } = page.getSize();
+      const textContent = await page.doc.getText();
+      fullText += textContent + '\n';
+      console.log(`Processed page ${i + 1} of ${pages.length}`);
+    }
+
+    return fullText;
+  } catch (error) {
+    console.error("PDF extraction error:", error);
+    throw new Error(`Failed to extract text from PDF: ${error.message}`);
   }
-
-  return fullText;
 }
 
 async function extractTextFromDOCX(arrayBuffer: ArrayBuffer): Promise<string> {
-  // For DOCX files, we'll use a simple text extraction for now
   const text = new TextDecoder().decode(arrayBuffer);
-  return text.replace(/[^\x20-\x7E\n]/g, ''); // Remove non-printable characters
+  return text.replace(/[^\x20-\x7E\n]/g, '');
 }
 
 async function processFileWithRetry(
-  file: File,
+  fileData: ArrayBuffer,
+  fileName: string,
+  contentType: string,
   retryCount = 0
 ): Promise<{ text: string; fileName: string }> {
   try {
-    const arrayBuffer = await file.arrayBuffer();
+    console.log(`Processing file: ${fileName} (type: ${contentType}), attempt ${retryCount + 1}`);
     let text = '';
 
-    console.log(`Processing file: ${file.name} (type: ${file.type})`);
-
-    if (file.type === 'application/pdf') {
-      text = await extractTextFromPDF(arrayBuffer);
-    } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      text = await extractTextFromDOCX(arrayBuffer);
-    } else if (file.type === 'text/plain') {
-      text = await file.text();
+    if (contentType === 'application/pdf') {
+      text = await extractTextFromPDF(fileData);
+    } else if (contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      text = await extractTextFromDOCX(fileData);
+    } else if (contentType === 'text/plain') {
+      text = new TextDecoder().decode(fileData);
     } else {
-      throw new Error(`Unsupported file type: ${file.type}`);
+      throw new Error(`Unsupported file type: ${contentType}`);
     }
 
     if (!text.trim()) {
@@ -61,7 +64,7 @@ async function processFileWithRetry(
 
     return {
       text: text.trim(),
-      fileName: file.name
+      fileName: fileName
     };
   } catch (error) {
     console.error(`Error processing file (attempt ${retryCount + 1}):`, error);
@@ -69,7 +72,7 @@ async function processFileWithRetry(
     if (retryCount < MAX_RETRIES) {
       console.log(`Retrying in ${RETRY_DELAY}ms...`);
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-      return processFileWithRetry(file, retryCount + 1);
+      return processFileWithRetry(fileData, fileName, contentType, retryCount + 1);
     }
 
     throw error;
@@ -77,7 +80,6 @@ async function processFileWithRetry(
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -85,46 +87,60 @@ serve(async (req) => {
   try {
     console.log('Received request to process document');
     
-    // Parse multipart form data
-    const formData = await req.formData();
-    const file = formData.get('file');
+    // Handle both FormData and direct file uploads
+    let fileData: ArrayBuffer;
+    let fileName: string;
+    let contentType: string;
 
-    if (!file || !(file instanceof File)) {
-      console.error('No file uploaded or invalid file');
-      return new Response(
-        JSON.stringify({ error: 'No file uploaded or invalid file' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      );
+    const contentTypeHeader = req.headers.get('content-type') || '';
+    
+    if (contentTypeHeader.includes('multipart/form-data')) {
+      const formData = await req.formData();
+      const file = formData.get('file') as File;
+      
+      if (!file) {
+        throw new Error('No file provided in form data');
+      }
+      
+      fileData = await file.arrayBuffer();
+      fileName = file.name;
+      contentType = file.type;
+    } else {
+      fileData = await req.arrayBuffer();
+      fileName = req.headers.get('x-file-name') || 'unknown.pdf';
+      contentType = req.headers.get('content-type') || 'application/pdf';
     }
 
-    // Validate file size (1MB limit)
-    if (file.size > 1024 * 1024) {
-      return new Response(
-        JSON.stringify({ error: 'File size exceeds 1MB limit' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      );
-    }
+    console.log(`Processing ${fileName} (${contentType})`);
 
-    // Process the file with retry logic
-    const result = await processFileWithRetry(file);
+    const result = await processFileWithRetry(fileData, fileName, contentType);
 
     return new Response(
       JSON.stringify(result),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        },
+        status: 200 
+      }
     );
   } catch (error) {
     console.error('Error processing document:', error);
 
-    // Structured error response
-    const errorResponse = {
-      error: 'Failed to process document',
-      details: error instanceof Error ? error.message : 'Unknown error',
-      code: error instanceof Error ? error.name : 'UNKNOWN_ERROR'
-    };
-
     return new Response(
-      JSON.stringify(errorResponse),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      JSON.stringify({
+        error: 'Failed to process document',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        code: error instanceof Error ? error.name : 'UNKNOWN_ERROR'
+      }),
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        }, 
+        status: 500 
+      }
     );
   }
 });
