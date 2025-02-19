@@ -23,21 +23,6 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     const file = acceptedFiles[0];
     console.log("Processing file:", file.name, "Type:", file.type);
 
-    // Check if file type is supported
-    const supportedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain',
-      '.pdf',
-      '.docx',
-      '.txt'
-    ];
-
-    if (!supportedTypes.includes(file.type) && !file.name.match(/\.(pdf|docx|txt)$/i)) {
-      toast.error("Please upload a PDF, DOCX, or TXT file");
-      return;
-    }
-
     try {
       setIsProcessing(true);
 
@@ -59,16 +44,13 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
         };
         reader.readAsText(file);
       } else {
-        // Process PDF and DOCX files using the edge function
+        // Process file using the edge function
         const formData = new FormData();
         formData.append('file', file);
 
         console.log("Sending file to edge function");
         const { data, error } = await supabase.functions.invoke('process-document', {
-          body: formData,
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
+          body: file,
         });
 
         console.log("Edge function response:", { data, error });
@@ -77,7 +59,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
           throw new Error(`Error processing document: ${error.message}`);
         }
 
-        if (data.error) {
+        if (data?.error) {
           throw new Error(data.error);
         }
 
