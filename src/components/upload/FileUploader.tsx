@@ -4,6 +4,7 @@ import { useDropzone } from "react-dropzone";
 import { UploadIcon, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 type FileUploaderProps = {
   onGenerateRules: (text: string) => Promise<void>;
@@ -20,7 +21,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     }
 
     const file = acceptedFiles[0];
-    console.log("File type:", file.type);
+    console.log("Processing file:", file.name, "Type:", file.type);
 
     // Check if file type is supported
     const supportedTypes = [
@@ -38,40 +39,55 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     }
 
     try {
+      setIsProcessing(true);
+
       if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-        // Handle text files
+        // Handle text files directly
         const reader = new FileReader();
         reader.onload = () => {
           setUploadedFile({
             text: reader.result as string,
             name: file.name
           });
-          toast.success("Document uploaded successfully");
+          toast.success("Text file processed successfully");
+          setIsProcessing(false);
         };
         reader.onerror = () => {
-          toast.error("Error reading document file");
+          toast.error("Error reading text file");
           setUploadedFile(null);
+          setIsProcessing(false);
         };
         reader.readAsText(file);
       } else {
-        // For PDF and DOCX files, we'll need to extract text
+        // Process PDF and DOCX files using the edge function
         const formData = new FormData();
         formData.append('file', file);
 
-        // Here you would typically send the file to a backend service
-        // For now, we'll simulate text extraction
-        const text = `Extracted text from ${file.name}\n\nThis is placeholder text for demonstration. In a real implementation, you would process the ${file.type} file on the server and extract its text content.`;
-        
+        const { data: functionData, error: functionError } = await supabase.functions
+          .invoke('process-document', {
+            body: formData
+          });
+
+        if (functionError) {
+          throw new Error(`Error processing document: ${functionError.message}`);
+        }
+
+        if (functionData.error) {
+          throw new Error(functionData.error);
+        }
+
         setUploadedFile({
-          text: text,
-          name: file.name
+          text: functionData.text,
+          name: functionData.fileName
         });
-        toast.success("Document uploaded successfully");
+        toast.success("Document processed successfully");
       }
     } catch (error) {
       console.error("Error processing file:", error);
-      toast.error("Error processing document");
+      toast.error(error instanceof Error ? error.message : "Error processing document");
       setUploadedFile(null);
+    } finally {
+      setIsProcessing(false);
     }
   }, []);
 
@@ -125,9 +141,12 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
             <p className="text-sm text-muted-foreground">
               {isDragActive 
                 ? "Drop the document here..."
-                : "Upload PDF, DOCX, or TXT files"
+                : isProcessing
+                  ? "Processing document..."
+                  : "Upload PDF, DOCX, or TXT files"
               }
             </p>
+            {isProcessing && <Loader2 className="w-6 h-6 mt-2 animate-spin" />}
           </>
         )}
       </div>
