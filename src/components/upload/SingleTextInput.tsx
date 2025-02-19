@@ -171,6 +171,91 @@ const SingleTextInput = ({ onRulesGenerated }: SingleTextInputProps) => {
             pattern: "\\*{3,}",
             correction: "*** or blacked out",
             description: "Properly format redacted material"
+          },
+          // New Rules Added
+          // Oaths and Swearing In
+          {
+            type: "formatting",
+            pattern: "Do you solemnly swear|affirm",
+            correction: "Standard oath format",
+            description: "Proper formatting for administering oaths"
+          },
+          // Interpreter Oath
+          {
+            type: "formatting",
+            pattern: "translate from.*?to",
+            correction: "Standard interpreter oath format",
+            description: "Proper formatting for interpreter oath"
+          },
+          // Carry-over Lines
+          {
+            type: "formatting",
+            pattern: "^\\s{5,}\\w+",
+            correction: "Carry-over lines begin at 5 spaces from left margin",
+            description: "Proper formatting for carry-over lines"
+          },
+          // Page Numbering
+          {
+            type: "formatting",
+            pattern: "^Page\\s+\\d+$",
+            correction: "All pages after title page should be numbered",
+            description: "Proper page numbering format"
+          },
+          // Title Page Format
+          {
+            type: "formatting",
+            pattern: "IN THE.*?COURT",
+            correction: "Standard title page format",
+            description: "Proper formatting for transcript title page"
+          },
+          // Index Format
+          {
+            type: "formatting",
+            pattern: "I N D E X",
+            correction: "Standard index format",
+            description: "Proper formatting for transcript index"
+          },
+          // Certificate Format
+          {
+            type: "formatting",
+            pattern: "REPORTER'S CERTIFICATION",
+            correction: "Standard certificate format",
+            description: "Proper formatting for reporter's certificate"
+          },
+          // Voir Dire Format
+          {
+            type: "formatting",
+            pattern: "Prospective Juror",
+            correction: "Standard voir dire format",
+            description: "Proper formatting for voir dire proceedings"
+          },
+          // Errata Sheet
+          {
+            type: "formatting",
+            pattern: "ERRATA SHEET",
+            correction: "Standard errata sheet format",
+            description: "Proper formatting for errata sheet"
+          },
+          // Speaker Identification
+          {
+            type: "formatting",
+            pattern: "THE WITNESS:|THE COURT:",
+            correction: "Standard speaker identification format",
+            description: "Proper formatting for speaker identification"
+          },
+          // Quoted Material
+          {
+            type: "formatting",
+            pattern: "^\\s{15}[\"']",
+            correction: "Quoted material begins 15 spaces from left margin",
+            description: "Proper formatting for quoted material"
+          },
+          // Parenthetical Descriptions
+          {
+            type: "formatting",
+            pattern: "\\(Witness.*?\\)",
+            correction: "(Witness complies) or (Witness indicates)",
+            description: "Proper formatting for witness actions"
           }
         ],
         general_instructions: {
