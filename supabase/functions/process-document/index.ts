@@ -1,7 +1,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { extractTextFromPdf } from 'https://esm.sh/pdf-parse@1.1.1'
+import PDFParser from 'https://esm.sh/pdf-parse@1.1.1'
 import * as mammoth from 'https://esm.sh/mammoth@1.6.0'
 
 const corsHeaders = {
@@ -16,53 +16,64 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Received request to process document");
     const formData = await req.formData()
     const file = formData.get('file')
 
     if (!file || !(file instanceof File)) {
+      console.error("No file uploaded or invalid file");
       return new Response(
         JSON.stringify({ error: 'No file uploaded' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
 
+    console.log("Processing file:", file.name, "Type:", file.type);
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Generate a unique filename
+    // Generate a sanitized filename
     const fileExt = file.name.split('.').pop()?.toLowerCase()
     const filePath = `${crypto.randomUUID()}.${fileExt}`
 
-    // Upload file to storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('documents')
-      .upload(filePath, file)
-
-    if (uploadError) {
-      throw new Error(`Error uploading file: ${uploadError.message}`)
-    }
-
-    // Get the file URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('documents')
-      .getPublicUrl(filePath)
-
-    // Download the file for processing
-    const fileResponse = await fetch(publicUrl)
-    const fileBuffer = await fileResponse.arrayBuffer()
+    // Convert File to ArrayBuffer for processing
+    const arrayBuffer = await file.arrayBuffer()
 
     let extractedText = ''
 
     // Extract text based on file type
     if (file.type === 'application/pdf' || fileExt === 'pdf') {
-      const pdfData = await extractTextFromPdf(new Uint8Array(fileBuffer))
+      console.log("Processing PDF file");
+      const uint8Array = new Uint8Array(arrayBuffer)
+      const pdfData = await PDFParser(uint8Array)
       extractedText = pdfData.text
     } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || fileExt === 'docx') {
-      const result = await mammoth.extractRawText({ arrayBuffer: fileBuffer })
+      console.log("Processing DOCX file");
+      const result = await mammoth.extractRawText({ arrayBuffer })
       extractedText = result.value
+    } else {
+      throw new Error('Unsupported file type')
     }
+
+    console.log("Text extracted successfully, uploading to storage");
+
+    // Upload file to storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('documents')
+      .upload(filePath, arrayBuffer, {
+        contentType: file.type,
+        duplex: 'half'
+      })
+
+    if (uploadError) {
+      console.error("Storage upload error:", uploadError);
+      throw new Error(`Error uploading file: ${uploadError.message}`)
+    }
+
+    console.log("File uploaded successfully, storing metadata");
 
     // Store the extracted text in the database
     const { error: dbError } = await supabase
@@ -75,8 +86,11 @@ serve(async (req) => {
       })
 
     if (dbError) {
+      console.error("Database insert error:", dbError);
       throw new Error(`Error storing text: ${dbError.message}`)
     }
+
+    console.log("Process completed successfully");
 
     return new Response(
       JSON.stringify({ 

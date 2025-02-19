@@ -63,22 +63,27 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
         const formData = new FormData();
         formData.append('file', file);
 
-        const { data: functionData, error: functionError } = await supabase.functions
-          .invoke('process-document', {
-            body: formData
-          });
+        console.log("Sending file to edge function");
+        const { data, error } = await supabase.functions.invoke('process-document', {
+          body: formData,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
 
-        if (functionError) {
-          throw new Error(`Error processing document: ${functionError.message}`);
+        console.log("Edge function response:", { data, error });
+
+        if (error) {
+          throw new Error(`Error processing document: ${error.message}`);
         }
 
-        if (functionData.error) {
-          throw new Error(functionData.error);
+        if (data.error) {
+          throw new Error(data.error);
         }
 
         setUploadedFile({
-          text: functionData.text,
-          name: functionData.fileName
+          text: data.text,
+          name: data.fileName
         });
         toast.success("Document processed successfully");
       }
