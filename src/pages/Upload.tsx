@@ -348,24 +348,14 @@ const UploadPage = () => {
     }
   };
 
-  const generateRulesFromFiles = async () => {
-    if (!requiredFiles.docx) {
-      toast.error("Please upload a document file first");
-      return;
-    }
-
-    const documentFile = files.find(f => f.type.includes('document'));
-    if (!documentFile?.text) {
-      toast.error("Document content not found");
-      return;
-    }
-
+  const generateRulesFromFiles = async (documentText: string) => {
     try {
-      const newRules = await openAIService.generateRulesFromDocument(documentFile.text);
+      const newRules = await openAIService.generateRulesFromDocument(documentText);
       handleTrainingRulesGenerated(newRules);
       toast.success("New rules generated from document and added to training rules");
     } catch (error) {
       console.error("Error in document flow:", error);
+      throw error;
     }
   };
 
