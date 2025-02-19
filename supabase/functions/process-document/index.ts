@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import * as pdfjs from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,42 +9,25 @@ const corsHeaders = {
 }
 
 async function extractTextFromPdf(arrayBuffer: ArrayBuffer): Promise<string> {
-  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-  let fullText = '';
-  
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items
-      .map((item: any) => item.str)
-      .join(' ');
-    fullText += pageText + '\n';
-  }
-  
-  return fullText.trim();
-}
-
-async function processDocument(fileUrl: string, fileType: string): Promise<string> {
-  console.log(`Processing document of type: ${fileType}`);
-  
-  const response = await fetch(fileUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch document: ${response.statusText}`);
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  
-  if (fileType === 'application/pdf') {
-    return await extractTextFromPdf(arrayBuffer);
-  } else {
-    // For text files and other formats, convert to text directly
-    const decoder = new TextDecoder('utf-8');
-    return decoder.decode(arrayBuffer);
+  try {
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+    const pages = pdfDoc.getPages();
+    let text = '';
+    
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
+      // Extract text content from the page
+      text += await page.doc.getPage(i + 1).then(p => p.getTextContent());
+    }
+    
+    return text;
+  } catch (error) {
+    console.error('Error extracting text from PDF:', error);
+    throw new Error('Failed to extract text from PDF');
   }
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -55,29 +39,47 @@ serve(async (req) => {
     if (text) {
       return new Response(
         JSON.stringify({ text }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Validate fileUrl
-    if (!fileUrl) {
-      return new Response(
-        JSON.stringify({ error: 'No file URL provided' }),
         { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
         }
       );
     }
 
-    console.log('Processing file from URL:', fileUrl);
+    if (!fileUrl) {
+      return new Response(
+        JSON.stringify({ error: 'No file URL provided' }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
+        }
+      );
+    }
 
-    // Detect file type from URL
-    const fileType = fileUrl.toLowerCase().endsWith('.pdf') 
-      ? 'application/pdf'
-      : 'text/plain';
+    console.log('Fetching file from URL:', fileUrl);
+    
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch document: ${response.statusText}`);
+    }
 
-    const extractedText = await processDocument(fileUrl, fileType);
+    const contentType = response.headers.get('content-type');
+    const arrayBuffer = await response.arrayBuffer();
+    let extractedText = '';
+
+    console.log('File content type:', contentType);
+
+    if (contentType?.includes('pdf')) {
+      extractedText = await extractTextFromPdf(arrayBuffer);
+    } else {
+      // For text files and other formats
+      const decoder = new TextDecoder('utf-8');
+      extractedText = decoder.decode(arrayBuffer);
+    }
+
+    console.log('Text extraction completed, length:', extractedText.length);
 
     return new Response(
       JSON.stringify({ 
@@ -85,13 +87,12 @@ serve(async (req) => {
         fileName: fileUrl.split('/').pop() 
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
 
   } catch (error) {
-    console.error('Error in edge function:', error);
+    console.error('Error processing document:', error);
     
     return new Response(
       JSON.stringify({ 
@@ -99,8 +100,8 @@ serve(async (req) => {
         details: error.message 
       }),
       { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500 
       }
     );
   }
