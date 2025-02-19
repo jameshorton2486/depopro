@@ -60,6 +60,7 @@ const UploadPage = () => {
   const [trainingRules, setTrainingRules] = useState<TrainingRules | null>(null);
   const [originalCompareText, setOriginalCompareText] = useState('');
   const [correctedCompareText, setCorrectedCompareText] = useState('');
+  const [singleText, setSingleText] = useState("");
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     console.log(`[${new Date().toISOString()}] Processing uploaded files`, {
@@ -490,6 +491,79 @@ const UploadPage = () => {
     }
   };
 
+  const generateRulesFromText = async () => {
+    if (!singleText) {
+      toast.error("Please enter some text first");
+      return;
+    }
+
+    console.log("Generating rules from single text input");
+    
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are a transcript analysis expert. Analyze the text and identify correction patterns. Format your response as a JSON array of rules with the following structure:
+              {
+                "rules": [
+                  {
+                    "type": "spelling|grammar|punctuation|formatting",
+                    "pattern": "identified pattern",
+                    "correction": "how to correct it",
+                    "description": "explanation of the rule"
+                  }
+                ]
+              }`
+            },
+            {
+              role: "user",
+              content: `Text content:\n${singleText}`
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const newRules = JSON.parse(data.choices[0].message.content);
+
+      setTrainingRules(prevRules => {
+        if (!prevRules) {
+          return {
+            rules: newRules.rules,
+            general_instructions: {
+              capitalization: "Follow standard capitalization rules",
+              formatting: "Maintain consistent formatting",
+              punctuation: "Use appropriate punctuation"
+            }
+          };
+        }
+
+        return {
+          ...prevRules,
+          rules: [...prevRules.rules, ...newRules.rules]
+        };
+      });
+      
+      setSingleText(""); // Clear the input after successful generation
+      toast.success("New rules generated from text");
+    } catch (error) {
+      console.error("Error generating rules from text:", error);
+      toast.error("Failed to generate rules from text");
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
       <div className="container mx-auto px-4 py-16 max-w-4xl">
@@ -528,6 +602,26 @@ const UploadPage = () => {
           >
             <h2 className="text-xl font-semibold mb-4">Training Rules</h2>
             <div className="space-y-6">
+              {/* New Generate Rules from Text section */}
+              <div>
+                <h3 className="text-lg font-medium mb-2">Generate Rules from Text</h3>
+                <textarea
+                  className="w-full h-[280px] p-3 border rounded-lg bg-background resize-none"
+                  placeholder="Paste your text here to generate rules..."
+                  value={singleText}
+                  onChange={(e) => setSingleText(e.target.value)}
+                />
+                <div className="flex justify-end mt-4">
+                  <button
+                    onClick={generateRulesFromText}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  >
+                    Generate Rules from Text
+                  </button>
+                </div>
+              </div>
+
+              {/* Original two-column text comparison */}
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-lg font-medium mb-2">Original Text</h3>
