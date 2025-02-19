@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { type TrainingRules } from '@/services/openai';
 
 interface SingleTextInputProps {
@@ -28,7 +29,7 @@ const SingleTextInput = ({ onRulesGenerated }: SingleTextInputProps) => {
               {
                 type: "punctuation",
                 pattern: "\\b(?:Q|A)\\.\\s",
-                correction: "Q./A. with proper spacing",
+                correction: "Q. or A. with proper spacing",
                 description: "Format Q&A with proper spacing"
               },
               {
@@ -82,6 +83,8 @@ const SingleTextInput = ({ onRulesGenerated }: SingleTextInputProps) => {
           };
           onRulesGenerated(newRules);
           setText('');
+          toast.success("Court reporting rules generated successfully");
+          setIsProcessing(false);
           return;
         }
       } catch (jsonError) {
@@ -105,9 +108,10 @@ const SingleTextInput = ({ onRulesGenerated }: SingleTextInputProps) => {
       const rules = await response.json();
       onRulesGenerated(rules);
       setText('');
+      toast.success("Rules generated from text analysis");
     } catch (error) {
       console.error('Error in text analysis:', error);
-      throw error;
+      toast.error("Failed to analyze text");
     } finally {
       setIsProcessing(false);
     }
