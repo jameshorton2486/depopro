@@ -1,11 +1,35 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
+import * as pdfjsLib from 'https://cdn.skypack.dev/pdfjs-dist@3.11.174/build/pdf.js'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+async function extractTextFromPdf(arrayBuffer: ArrayBuffer): Promise<string> {
+  // Configure PDF.js worker
+  const workerSrc = 'https://cdn.skypack.dev/pdfjs-dist@3.11.174/build/pdf.worker.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+
+  // Load the PDF document
+  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+  const pdfDocument = await loadingTask.promise;
+  
+  let fullText = '';
+
+  // Iterate through each page
+  for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+    const page = await pdfDocument.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map((item: any) => item.str)
+      .join(' ');
+    fullText += pageText + '\n';
+  }
+
+  return fullText;
 }
 
 async function fetchAndProcessFile(url: string): Promise<string> {
@@ -17,22 +41,14 @@ async function fetchAndProcessFile(url: string): Promise<string> {
   const arrayBuffer = await response.arrayBuffer();
   const contentType = response.headers.get('content-type') || '';
 
-  if (contentType === 'application/pdf') {
-    const pdfDoc = await PDFDocument.load(arrayBuffer);
-    const pages = pdfDoc.getPages();
-    let text = '';
+  console.log('Processing file with content type:', contentType);
 
-    for (let i = 0; i < pages.length; i++) {
-      const page = pages[i];
-      const textContent = await page.doc.getText();
-      text += textContent + '\n';
-    }
-
-    return text;
-  } else if (contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+  if (contentType.includes('pdf')) {
+    return await extractTextFromPdf(arrayBuffer);
+  } else if (contentType.includes('docx')) {
     // For DOCX files, return the raw text content
     return new TextDecoder().decode(arrayBuffer);
-  } else if (contentType === 'text/plain') {
+  } else if (contentType.includes('text/plain')) {
     return new TextDecoder().decode(arrayBuffer);
   } else {
     throw new Error(`Unsupported file type: ${contentType}`);
