@@ -119,7 +119,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
           className="flex items-center gap-2"
         >
           {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
-          Generate Rules from Document
+          Extract Entities from Document
         </Button>
       </div>
     </div>
@@ -127,4 +127,3 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
 };
 
 export default FileUploader;
-
