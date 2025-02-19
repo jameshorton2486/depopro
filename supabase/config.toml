@@ -1,6 +1,3 @@
 
-[functions]
-project_id = "relqexesmhirdxubfgmy"
-
 [functions.process-document]
 verify_jwt = false
