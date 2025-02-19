@@ -1,121 +1,106 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import * as pdfjs from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-async function fetchAndProcessFile(url: string): Promise<string> {
-  try {
-    console.log('Starting file fetch from URL:', url);
-    
-    const response = await fetch(url);
-    console.log('Fetch response status:', response.status);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-    }
+async function extractTextFromPdf(arrayBuffer: ArrayBuffer): Promise<string> {
+  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map((item: any) => item.str)
+      .join(' ');
+    fullText += pageText + '\n';
+  }
+  
+  return fullText.trim();
+}
 
-    const contentType = response.headers.get('content-type');
-    console.log('File content type:', contentType);
+async function processDocument(fileUrl: string, fileType: string): Promise<string> {
+  console.log(`Processing document of type: ${fileType}`);
+  
+  const response = await fetch(fileUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch document: ${response.statusText}`);
+  }
 
-    let text: string;
-    try {
-      text = await response.text();
-      console.log('Successfully extracted text, length:', text.length);
-    } catch (textError) {
-      console.error('Error extracting text:', textError);
-      throw new Error(`Failed to extract text from file: ${textError.message}`);
-    }
-
-    // Basic cleanup of the text
-    const cleanedText = text
-      .replace(/\r\n/g, '\n')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    console.log('Cleaned text length:', cleanedText.length);
-    return cleanedText;
-  } catch (error) {
-    console.error('Error in fetchAndProcessFile:', error);
-    throw error; // Re-throw to be handled by the main try-catch
+  const arrayBuffer = await response.arrayBuffer();
+  
+  if (fileType === 'application/pdf') {
+    return await extractTextFromPdf(arrayBuffer);
+  } else {
+    // For text files and other formats, convert to text directly
+    const decoder = new TextDecoder('utf-8');
+    return decoder.decode(arrayBuffer);
   }
 }
 
 serve(async (req) => {
-  // Add CORS headers to all responses
-  const headers = {
-    ...corsHeaders,
-    'Content-Type': 'application/json',
-  };
-
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    let requestBody;
-    try {
-      requestBody = await req.json();
-      console.log('Request body parsed:', { 
-        hasFileUrl: !!requestBody?.fileUrl, 
-        hasText: !!requestBody?.text 
-      });
-    } catch (parseError) {
-      console.error('Error parsing request body:', parseError);
-      throw new Error('Invalid JSON in request body');
-    }
+    const { fileUrl, text } = await req.json();
 
-    const { fileUrl, text } = requestBody;
-
-    // If text is provided directly, return it
+    // If direct text is provided, return it
     if (text) {
-      console.log('Processing direct text input');
       return new Response(
-        JSON.stringify({ 
-          text, 
-          fileName: 'text-chunk.txt' 
-        }),
-        { headers }
+        JSON.stringify({ text }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Validate fileUrl
     if (!fileUrl) {
-      console.error('No file URL provided in request');
-      throw new Error('No file URL provided');
+      return new Response(
+        JSON.stringify({ error: 'No file URL provided' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
-    console.log('Starting file processing');
-    const extractedText = await fetchAndProcessFile(fileUrl);
-    console.log('File processing completed successfully');
+    console.log('Processing file from URL:', fileUrl);
+
+    // Detect file type from URL
+    const fileType = fileUrl.toLowerCase().endsWith('.pdf') 
+      ? 'application/pdf'
+      : 'text/plain';
+
+    const extractedText = await processDocument(fileUrl, fileType);
 
     return new Response(
       JSON.stringify({ 
         text: extractedText,
         fileName: fileUrl.split('/').pop() 
       }),
-      { headers }
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      }
     );
 
   } catch (error) {
-    console.error('Error in edge function:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-
+    console.error('Error in edge function:', error);
+    
     return new Response(
       JSON.stringify({ 
         error: 'Failed to process document',
-        details: error.message,
-        type: error.name
+        details: error.message 
       }),
       { 
-        headers,
-        status: 500
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
   }
