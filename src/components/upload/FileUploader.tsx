@@ -26,11 +26,11 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     const file = acceptedFiles[0];
 
     if (file.size > MAX_FILE_SIZE) {
-      toast.error(`File size must be less than 2.7MB. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+      toast.error(`File size must be less than 3GB. Current size: ${(file.size / (1024 * 1024 * 1024)).toFixed(2)}GB`);
       return;
     }
 
-    console.log("Processing file:", file.name, "Type:", file.type, "Size:", `${(file.size / 1024).toFixed(2)}KB`);
+    console.log("Processing file:", file.name, "Type:", file.type, "Size:", `${(file.size / (1024 * 1024)).toFixed(2)}MB`);
 
     try {
       setIsProcessing(true);
@@ -61,7 +61,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     onDropRejected: (fileRejections) => {
       const error = fileRejections[0]?.errors[0];
       if (error?.code === 'file-too-large') {
-        toast.error(`File size must be less than 2.7MB. Current size: ${(fileRejections[0].file.size / (1024 * 1024)).toFixed(2)}MB`);
+        toast.error(`File size must be less than 3GB. Current size: ${(fileRejections[0].file.size / (1024 * 1024 * 1024)).toFixed(2)}GB`);
       } else {
         toast.error("Invalid file type. Please upload a PDF, DOCX, or TXT file");
       }
@@ -106,7 +106,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
                 ? "Drop the document here..."
                 : isProcessing
                   ? `Processing document... ${progress}%`
-                  : "Upload PDF, DOCX, or TXT files (max 2.7MB)"}
+                  : "Upload PDF, DOCX, or TXT files (max 3GB)"}
             </p>
             {isProcessing && <UploadProgress progress={progress} />}
           </>
@@ -127,3 +127,4 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
 };
 
 export default FileUploader;
+
