@@ -1,71 +1,21 @@
 
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadIcon, FileText, Loader2 } from "lucide-react";
+import { UploadIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
+import UploadProgress from "./UploadProgress";
+import UploadedFileDisplay from "./UploadedFileDisplay";
+import { uploadAndProcessFile, MAX_FILE_SIZE } from "@/services/fileProcessing";
 
 type FileUploaderProps = {
   onGenerateRules: (text: string) => Promise<void>;
 };
 
-const MAX_FILE_SIZE = 2.7 * 1024 * 1024; // ~2.7MB in bytes (2 times 1,336 KB)
-const CHUNK_SIZE = 4000; // characters per chunk for OpenAI API
-
 const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
   const [uploadedFile, setUploadedFile] = useState<{ text: string; name: string } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-
-  const splitTextIntoChunks = (text: string): string[] => {
-    const chunks: string[] = [];
-    let currentChunk = '';
-
-    const sentences = text.split(/(?<=[.!?])\s+/);
-
-    for (const sentence of sentences) {
-      if ((currentChunk + sentence).length <= CHUNK_SIZE) {
-        currentChunk += (currentChunk ? ' ' : '') + sentence;
-      } else {
-        if (currentChunk) chunks.push(currentChunk);
-        currentChunk = sentence;
-      }
-    }
-
-    if (currentChunk) chunks.push(currentChunk);
-    return chunks;
-  };
-
-  const processBatchedText = async (text: string): Promise<string> => {
-    const chunks = splitTextIntoChunks(text);
-    const processedChunks: string[] = [];
-    
-    console.log(`Processing ${chunks.length} chunks of text`);
-
-    for (let i = 0; i < chunks.length; i++) {
-      try {
-        const { data, error } = await supabase.functions.invoke('process-document', {
-          body: { text: chunks[i] },
-          headers: { 'Content-Type': 'application/json' }
-        });
-
-        if (error) throw error;
-        
-        processedChunks.push(data.text);
-        setProgress(Math.round(((i + 1) / chunks.length) * 100));
-        
-        if (i < chunks.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      } catch (error) {
-        console.error(`Error processing chunk ${i}:`, error);
-        toast.error(`Error processing document chunk ${i + 1}`);
-      }
-    }
-
-    return processedChunks.join(' ');
-  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) {
@@ -85,53 +35,10 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     try {
       setIsProcessing(true);
       setProgress(0);
-
-      // Upload file to Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        throw new Error(`Error uploading file: ${uploadError.message}`);
-      }
-
-      // Get public URL for the uploaded file
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(filePath);
-
-      console.log("File uploaded successfully, processing document...");
-
-      // Process the file using the edge function
-      const { data, error } = await supabase.functions.invoke('process-document', {
-        body: { fileUrl: publicUrl },
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      const processedText = await processBatchedText(data.text);
-
-      setUploadedFile({
-        text: processedText,
-        name: file.name
-      });
+      
+      const processedFile = await uploadAndProcessFile(file, setProgress);
+      setUploadedFile(processedFile);
       toast.success("Document processed successfully");
-
-      // Clean up: remove the temporary file from storage
-      await supabase.storage
-        .from('documents')
-        .remove([filePath]);
-
     } catch (error) {
       console.error("Error processing file:", error);
       toast.error(error instanceof Error ? error.message : "Error processing document");
@@ -170,7 +77,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     try {
       setIsProcessing(true);
       await onGenerateRules(uploadedFile.text);
-      setUploadedFile(null); // Reset after successful processing
+      setUploadedFile(null);
     } catch (error) {
       console.error("Error generating rules:", error);
       toast.error("Failed to generate rules from document");
@@ -190,11 +97,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       >
         <input {...getInputProps()} />
         {uploadedFile ? (
-          <div className="flex flex-col items-center gap-2">
-            <FileText className="w-8 h-8 text-green-500" />
-            <p className="text-sm font-medium">{uploadedFile.name}</p>
-            <p className="text-sm text-muted-foreground">File uploaded successfully</p>
-          </div>
+          <UploadedFileDisplay fileName={uploadedFile.name} />
         ) : (
           <>
             <UploadIcon className="w-8 h-8 mb-2 text-muted-foreground" />
@@ -205,16 +108,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
                   ? `Processing document... ${progress}%`
                   : "Upload PDF, DOCX, or TXT files (max 2.7MB)"}
             </p>
-            {isProcessing && (
-              <div className="w-full max-w-xs mt-4">
-                <div className="h-2 bg-gray-200 rounded">
-                  <div 
-                    className="h-full bg-primary rounded transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-            )}
+            {isProcessing && <UploadProgress progress={progress} />}
           </>
         )}
       </div>
