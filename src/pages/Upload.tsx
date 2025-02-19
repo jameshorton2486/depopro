@@ -11,7 +11,7 @@ import ModelTraining from "@/components/upload/ModelTraining";
 import SingleTextInput from "@/components/upload/SingleTextInput";
 import TextComparison from "@/components/upload/TextComparison";
 import FileUploader from "@/components/upload/FileUploader";
-import { openAIService, type TrainingRules } from "@/services/openai";
+import { openAIService, type TrainingRules, type TrainingRule } from "@/services/openai";
 
 type TimestampedWord = {
   start_time: string;
@@ -36,22 +36,6 @@ type RequiredFiles = {
   audio?: File;
   json?: File;
   docx?: File;
-};
-
-type TrainingRule = {
-  type: string;
-  pattern: string;
-  correction: string;
-  description: string;
-};
-
-type TrainingRules = {
-  rules: TrainingRule[];
-  general_instructions: {
-    capitalization: string;
-    formatting: string;
-    punctuation: string;
-  };
 };
 
 const UploadPage = () => {
