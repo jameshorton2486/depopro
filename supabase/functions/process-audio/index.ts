@@ -14,37 +14,58 @@ serve(async (req) => {
   }
 
   try {
-    const { audio, mime_type, options } = await req.json();
-
-    if (!audio || !mime_type) {
-      console.error('Missing required audio data or mime type');
-      return new Response(
-        JSON.stringify({ error: 'Missing required audio data or mime type' }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
+    console.log("Starting audio processing...");
+    
+    // Log API key presence (safely)
     const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
+    console.log("Deepgram API Key status:", deepgramKey ? "Present" : "Missing");
+    
     if (!deepgramKey) {
-      console.error('Deepgram API key not configured');
       throw new Error('Deepgram API key not configured');
     }
 
-    console.log('Initializing Deepgram with provided credentials');
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+      console.log("Request body parsed successfully");
+    } catch (error) {
+      console.error("Error parsing request body:", error);
+      throw new Error(`Invalid request body: ${error.message}`);
+    }
+
+    const { audio, mime_type, options } = body;
+
+    // Validate inputs
+    if (!audio) {
+      throw new Error('Audio data is required');
+    }
+    if (!mime_type) {
+      throw new Error('MIME type is required');
+    }
+    console.log("Input validation passed");
+
+    // Initialize Deepgram
+    console.log("Initializing Deepgram client...");
     const deepgram = new Deepgram(deepgramKey);
 
-    const audioData = new Uint8Array(audio);
-    console.log('Processing audio file of size:', audioData.length, 'bytes');
+    // Process audio data
+    console.log("Processing audio data...");
+    let audioData;
+    try {
+      audioData = new Uint8Array(audio);
+      console.log("Audio data processed, size:", audioData.length, "bytes");
+    } catch (error) {
+      console.error("Error processing audio data:", error);
+      throw new Error(`Failed to process audio data: ${error.message}`);
+    }
 
     const source = {
       buffer: audioData,
       mimetype: mime_type,
     };
 
-    // Use provided options with safe defaults
+    // Prepare Deepgram options
     const deepgramOptions = {
       model: options?.model || "nova-3",
       language: options?.language || "en-US",
@@ -55,19 +76,27 @@ serve(async (req) => {
       filler_words: options?.filler_words ?? true,
       detect_language: options?.detect_language ?? true
     };
+    console.log("Using Deepgram options:", JSON.stringify(deepgramOptions));
 
-    console.log('Sending request to Deepgram with options:', JSON.stringify(deepgramOptions));
+    // Make Deepgram API request
+    console.log("Sending request to Deepgram...");
+    let response;
+    try {
+      response = await deepgram.transcription.preRecorded(source, deepgramOptions);
+      console.log("Received response from Deepgram");
+    } catch (error) {
+      console.error("Deepgram API error:", error);
+      throw new Error(`Deepgram API error: ${JSON.stringify(error)}`);
+    }
 
-    const response = await deepgram.transcription.preRecorded(source, deepgramOptions);
-    console.log('Received response from Deepgram');
-
+    // Validate Deepgram response
     if (!response?.results?.channels?.[0]?.alternatives?.[0]) {
-      console.error('Invalid response from Deepgram API:', response);
-      throw new Error('Invalid response from Deepgram API');
+      console.error("Invalid Deepgram response structure:", response);
+      throw new Error('Invalid response structure from Deepgram API');
     }
 
     const result = response.results.channels[0].alternatives[0];
-    console.log('Successfully processed transcript with confidence:', result.confidence);
+    console.log("Successfully processed transcript with confidence:", result.confidence);
 
     return new Response(
       JSON.stringify({
@@ -82,11 +111,17 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error processing audio:', error);
+    console.error("Full error details:", {
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    });
+
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        details: error.stack
       }),
       { 
         status: 500,
