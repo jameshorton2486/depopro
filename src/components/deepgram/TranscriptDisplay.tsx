@@ -34,17 +34,25 @@ const formatTime = (seconds: number): string => {
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
-export const TranscriptDisplay = ({ transcript, utterances, onDownload }: TranscriptDisplayProps) => {
+export const TranscriptDisplay = ({ transcript, utterances = [], onDownload }: TranscriptDisplayProps) => {
   if (!transcript) return null;
+
+  const hasUtterances = Array.isArray(utterances) && utterances.length > 0;
+  const speakerCount = hasUtterances 
+    ? Array.from(new Set(utterances.map(u => u.speaker))).length 
+    : 0;
+  const avgConfidence = hasUtterances
+    ? Math.round((utterances.reduce((acc, u) => acc + u.confidence, 0) / utterances.length) * 100)
+    : 0;
 
   return (
     <div className="mt-6 space-y-4">
       <div className="flex justify-between items-center mb-4">
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">Transcript</h3>
-          {utterances && utterances.length > 0 && (
+          {hasUtterances && (
             <p className="text-sm text-muted-foreground">
-              {utterances.length} segments detected with {Array.from(new Set(utterances.map(u => u.speaker))).length} speakers
+              {utterances.length} segments detected with {speakerCount} speakers
             </p>
           )}
         </div>
@@ -68,39 +76,36 @@ export const TranscriptDisplay = ({ transcript, utterances, onDownload }: Transc
         </div>
       </div>
 
-      <div className="bg-muted/30 rounded-lg p-4 space-y-2">
-        <h4 className="text-sm font-medium">Transcript Summary</h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Total Duration</p>
-            <p className="text-sm font-medium">
-              {formatTime(utterances?.[utterances.length - 1]?.end || 0)}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Total Segments</p>
-            <p className="text-sm font-medium">{utterances?.length || 0}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Speakers</p>
-            <p className="text-sm font-medium">
-              {Array.from(new Set(utterances?.map(u => u.speaker) || [])).length}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Avg. Confidence</p>
-            <p className="text-sm font-medium">
-              {utterances?.length 
-                ? `${Math.round((utterances.reduce((acc, u) => acc + u.confidence, 0) / utterances.length) * 100)}%`
-                : 'N/A'
-              }
-            </p>
+      {hasUtterances && (
+        <div className="bg-muted/30 rounded-lg p-4 space-y-2">
+          <h4 className="text-sm font-medium">Transcript Summary</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Total Duration</p>
+              <p className="text-sm font-medium">
+                {formatTime(utterances[utterances.length - 1]?.end || 0)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Total Segments</p>
+              <p className="text-sm font-medium">{utterances.length}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Speakers</p>
+              <p className="text-sm font-medium">{speakerCount}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Avg. Confidence</p>
+              <p className="text-sm font-medium">
+                {avgConfidence ? `${avgConfidence}%` : 'N/A'}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <ScrollArea className="h-[500px] w-full rounded-md border">
-        {utterances && utterances.length > 0 ? (
+        {hasUtterances ? (
           <div className="divide-y">
             {utterances.map((utterance, index) => (
               <div key={index} className="p-4 space-y-3 hover:bg-muted/30">
@@ -128,7 +133,7 @@ export const TranscriptDisplay = ({ transcript, utterances, onDownload }: Transc
                     {utterance.text}
                   </p>
                   
-                  {utterance.fillerWords.length > 0 && (
+                  {utterance.fillerWords?.length > 0 && (
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">Filler words:</p>
                       <div className="flex flex-wrap gap-1">
