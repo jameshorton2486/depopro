@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 
 const Navbar = () => {
   return (
-    <nav className="flex flex-col items-center mb-16 animate-fade-down">
-      <h1 className="text-6xl font-semibold text-center mb-8 text-blue-500">
+    <nav className="flex flex-col items-center mb-8 animate-fade-down">
+      <h1 className="text-6xl font-semibold text-center mb-6 text-blue-500">
         Transcript Generator
       </h1>
-      <div className="flex flex-wrap justify-center gap-4 mb-6">
+      <div className="flex flex-wrap justify-center gap-4">
         <Link to="/">
           <Button
             variant="outline"
