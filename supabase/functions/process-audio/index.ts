@@ -39,7 +39,7 @@ serve(async (req) => {
 
     // Use options from the request, with some additional parameters for better results
     const queryParams = new URLSearchParams({
-      model: options.model || "nova-2",
+      model: options.model || "nova-3",
       language: options.language || "en-US",
       smart_format: options.smart_format?.toString() || "true",
       punctuate: options.punctuate?.toString() || "true",
