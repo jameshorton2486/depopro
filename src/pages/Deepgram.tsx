@@ -1,5 +1,4 @@
-
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useDropzone } from "react-dropzone";
@@ -26,6 +25,44 @@ const DeepgramPage = () => {
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const [model, setModel] = useState<string>("nova-3");
   const [language, setLanguage] = useState<string>("en");
+
+  // Add API key verification
+  const testApiKey = async () => {
+    const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
+    console.log("Testing API key:", apiKey ? "Key present" : "Key missing");
+
+    if (!apiKey) {
+      toast.error("Deepgram API key is not configured");
+      return;
+    }
+
+    try {
+      const response = await fetch("https://api.deepgram.com/v1/projects", {
+        method: "GET",
+        headers: {
+          "Authorization": `Token ${apiKey}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.ok) {
+        toast.success("Deepgram API key is valid!");
+        console.log("API key test successful");
+      } else {
+        const error = await response.text();
+        console.error("API key test failed:", error);
+        toast.error("Invalid Deepgram API key");
+      }
+    } catch (error) {
+      console.error("API key test error:", error);
+      toast.error("Failed to verify Deepgram API key");
+    }
+  };
+
+  // Test API key on component mount
+  useEffect(() => {
+    testApiKey();
+  }, []);
 
   const processAudioChunk = async (chunk: Blob) => {
     try {
@@ -317,6 +354,13 @@ const DeepgramPage = () => {
                   Upload your audio or video files for advanced speech-to-text transcription.
                 </p>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={testApiKey}
+              >
+                Test API Key
+              </Button>
               <div className="flex gap-4">
                 <div className="w-40">
                   <Select value={model} onValueChange={setModel}>
