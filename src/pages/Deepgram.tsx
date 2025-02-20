@@ -47,10 +47,11 @@ export default function Deepgram() {
         <FileUploadArea
           uploadedFile={transcription.uploadedFile}
           isProcessing={transcription.isProcessing}
+          processingStatus={transcription.processingStatus}
+          progress={transcription.progress}
           onDrop={transcription.onDrop}
         />
         <TranscriptionControls
-          isProcessing={transcription.isProcessing}
           uploadedFile={transcription.uploadedFile}
           model={transcription.model}
           language={transcription.language}
@@ -62,14 +63,12 @@ export default function Deepgram() {
         />
         {transcription.isProcessing && (
           <ProcessingOverlay
-            progress={transcription.progress}
-            status={transcription.processingStatus}
+            processingStatus={transcription.processingStatus}
           />
         )}
         {transcription.transcript && (
           <TranscriptDisplay
             transcript={transcription.transcript}
-            downloadTranscript={transcription.downloadTranscript}
           />
         )}
       </div>
