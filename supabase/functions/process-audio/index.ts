@@ -7,60 +7,60 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
     console.log('Starting audio processing...');
-
+    
     const apiKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!apiKey) {
-      console.error('Deepgram API key is missing');
-      throw new Error('API key configuration error');
+      throw new Error('Deepgram API key is not configured');
     }
 
-    const requestData = await req.json();
-    console.log('Received request data:', {
-      hasAudio: !!requestData.audio,
-      audioLength: requestData.audio?.length,
-      mimeType: requestData.mime_type,
-      options: requestData.options
+    // Parse the request body
+    const { audio, mime_type, options } = await req.json();
+    
+    if (!audio || !mime_type) {
+      throw new Error('Missing required audio data or mime type');
+    }
+
+    console.log('Received audio data:', {
+      mimeType: mime_type,
+      options: options
     });
 
-    const { audio, mime_type, options } = requestData;
-
-    if (!audio || !Array.isArray(audio)) {
-      throw new Error('Invalid or missing audio data');
-    }
-
+    // Convert audio data to Uint8Array
     const audioData = new Uint8Array(audio);
-    console.log(`Reconstructed audio data, size: ${audioData.length} bytes`);
+    
+    // Set up API request parameters
+    const features = {
+      model: options?.model || 'nova-2',
+      language: options?.language || 'en-US',
+      smart_format: true,
+      punctuate: true,
+      diarize: true,
+      utterances: true
+    };
 
-    // Use options from the request, with some additional parameters for better results
-    const queryParams = new URLSearchParams({
-      model: options.model || "nova-3",
-      language: options.language || "en-US",
-      smart_format: options.smart_format?.toString() || "true",
-      punctuate: options.punctuate?.toString() || "true",
-      diarize: options.diarize?.toString() || "true",
-      utterances: options.utterances?.toString() || "true",
-      filler_words: options.filler_words?.toString() || "true",
-      detect_language: options.detect_language?.toString() || "true",
-      tier: "enhanced",
-      version: "latest"
-    });
+    const queryString = new URLSearchParams(
+      Object.entries(features).map(([key, value]) => [key, String(value)])
+    ).toString();
 
-    console.log('Making request to Deepgram with params:', Object.fromEntries(queryParams.entries()));
+    console.log('Making request to Deepgram with features:', features);
+
+    // Make request to Deepgram API
     const response = await fetch(
-      `https://api.deepgram.com/v1/listen?${queryParams}`,
+      `https://api.deepgram.com/v1/listen?${queryString}`,
       {
         method: 'POST',
         headers: {
           'Authorization': `Token ${apiKey}`,
           'Content-Type': mime_type,
         },
-        body: audioData,
+        body: audioData
       }
     );
 
@@ -68,100 +68,44 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error('Deepgram API error:', {
         status: response.status,
-        statusText: response.statusText,
-        error: errorText
+        text: errorText
       });
-      throw new Error(`Deepgram API error: ${response.status} - ${errorText}`);
+      throw new Error(`Deepgram API error: ${response.status}`);
     }
 
-    const result = await response.json();
-    console.log('Deepgram raw response:', JSON.stringify(result, null, 2));
+    const data = await response.json();
     
-    if (!result.results?.channels?.[0]?.alternatives?.[0]) {
-      console.error('Invalid response structure:', result);
-      throw new Error('Invalid response structure from Deepgram');
+    if (!data.results?.channels?.[0]?.alternatives?.[0]) {
+      throw new Error('Invalid response from Deepgram');
     }
 
-    const alternative = result.results.channels[0].alternatives[0];
-    
-    // Enhanced speaker diarization with word-level processing
-    let utterances = [];
-    let currentUtterance = null;
-
-    if (alternative.words) {
-      alternative.words.forEach((word: any) => {
-        if (!currentUtterance || currentUtterance.speaker !== `Speaker ${word.speaker}`) {
-          if (currentUtterance) {
-            utterances.push(currentUtterance);
-          }
-          currentUtterance = {
-            speaker: `Speaker ${word.speaker}`,
-            text: word.word,
-            start: word.start,
-            end: word.end,
-            confidence: word.confidence,
-            words: [word],
-            fillerWords: word.type === 'filler' ? [word] : []
-          };
-        } else {
-          currentUtterance.text += ` ${word.word}`;
-          currentUtterance.end = word.end;
-          currentUtterance.words.push(word);
-          if (word.type === 'filler') {
-            currentUtterance.fillerWords.push(word);
-          }
-        }
-      });
-
-      if (currentUtterance) {
-        utterances.push(currentUtterance);
-      }
-    }
-
-    // Clean and format utterances
-    utterances = utterances.map(utterance => ({
-      ...utterance,
-      text: utterance.text
-        .trim()
-        .replace(/\s+/g, ' ')
-        .replace(/([.!?])\s*(?=[A-Z])/g, '$1\n\n')
-    }));
-
-    // Format transcript with enhanced spacing and line breaks
-    const formattedTranscript = utterances
-      .map(u => `${u.speaker}:\n\n${u.text}\n`)
-      .join('\n');
-
-    console.log('Successfully processed audio:', {
-      transcriptLength: formattedTranscript.length,
-      utteranceCount: utterances.length,
-      hasWords: utterances.some(u => u.words.length > 0),
-      hasFillerWords: utterances.some(u => u.fillerWords.length > 0),
-      diarizationEnabled: true,
-      speakersDetected: new Set(utterances.map(u => u.speaker)).size
-    });
+    const result = data.results.channels[0].alternatives[0];
+    console.log('Successfully processed audio');
 
     return new Response(
-      JSON.stringify({ 
-        transcript: formattedTranscript,
-        utterances,
-        metadata: {
-          duration: result.metadata?.duration,
-          channels: result.metadata?.channels,
-          model: result.metadata?.model,
-          language: result.metadata?.language,
-          speakerCount: new Set(utterances.map(u => u.speaker)).size
-        }
+      JSON.stringify({
+        transcript: result.transcript,
+        utterances: result.paragraphs?.paragraphs || [],
+        metadata: data.metadata
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        } 
+      }
     );
+
   } catch (error) {
-    console.error('Processing error:', error);
+    console.error('Error processing audio:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
       }
     );
   }
