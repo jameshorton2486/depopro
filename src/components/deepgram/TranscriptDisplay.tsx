@@ -39,8 +39,15 @@ export const TranscriptDisplay = ({ transcript, utterances, onDownload }: Transc
 
   return (
     <div className="mt-6 space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Transcript</h3>
+      <div className="flex justify-between items-center mb-4">
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold">Transcript</h3>
+          {utterances && utterances.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {utterances.length} segments detected with {Array.from(new Set(utterances.map(u => u.speaker))).length} speakers
+            </p>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -60,35 +67,74 @@ export const TranscriptDisplay = ({ transcript, utterances, onDownload }: Transc
           </Button>
         </div>
       </div>
-      <ScrollArea className="h-[500px] w-full rounded-md border p-4">
+
+      <div className="bg-muted/30 rounded-lg p-4 space-y-2">
+        <h4 className="text-sm font-medium">Transcript Summary</h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Total Duration</p>
+            <p className="text-sm font-medium">{formatTime(utterances?.[utterances.length - 1]?.end || 0)}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Total Segments</p>
+            <p className="text-sm font-medium">{utterances?.length || 0}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Speakers</p>
+            <p className="text-sm font-medium">{Array.from(new Set(utterances?.map(u => u.speaker) || [])).length}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Avg. Confidence</p>
+            <p className="text-sm font-medium">
+              {utterances?.length 
+                ? `${Math.round((utterances.reduce((acc, u) => acc + u.confidence, 0) / utterances.length) * 100)}%`
+                : 'N/A'
+              }
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <ScrollArea className="h-[500px] w-full rounded-md border">
         {utterances && utterances.length > 0 ? (
-          <div className="space-y-6">
+          <div className="divide-y">
             {utterances.map((utterance, index) => (
-              <div key={index} className="space-y-2 border-b pb-4 last:border-0">
-                <div className="flex items-center justify-between">
+              <div key={index} className="p-4 space-y-3 hover:bg-muted/30">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-primary bg-primary/10 px-2 py-1 rounded">
+                    <Badge variant="outline" className="font-medium">
                       {utterance.speaker}
-                    </span>
+                    </Badge>
                     <span className="text-xs text-muted-foreground">
                       {formatTime(utterance.start)} - {formatTime(utterance.end)}
                     </span>
                   </div>
-                  <Badge variant="secondary">
-                    Confidence: {Math.round(utterance.confidence * 100)}%
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge 
+                      variant={utterance.confidence > 0.9 ? "default" : "secondary"}
+                      className="text-xs"
+                    >
+                      Confidence: {Math.round(utterance.confidence * 100)}%
+                    </Badge>
+                  </div>
                 </div>
-                <div className="pl-4">
+
+                <div className="pl-4 space-y-2">
                   <p className="text-sm leading-relaxed">
                     {utterance.text}
                   </p>
+                  
                   {utterance.fillerWords.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-muted-foreground">Filler words detected:</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Filler words:</p>
+                      <div className="flex flex-wrap gap-1">
                         {utterance.fillerWords.map((word, wordIndex) => (
-                          <Badge key={wordIndex} variant="outline" className="text-xs">
-                            {word.word}
+                          <Badge 
+                            key={wordIndex} 
+                            variant="outline" 
+                            className="text-xs bg-yellow-500/10"
+                          >
+                            {word.word} ({formatTime(word.start)})
                           </Badge>
                         ))}
                       </div>
@@ -99,7 +145,9 @@ export const TranscriptDisplay = ({ transcript, utterances, onDownload }: Transc
             ))}
           </div>
         ) : (
-          <p className="text-sm">{transcript}</p>
+          <div className="p-4">
+            <p className="text-sm whitespace-pre-wrap">{transcript}</p>
+          </div>
         )}
       </ScrollArea>
     </div>
