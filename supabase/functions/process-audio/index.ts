@@ -25,12 +25,10 @@ serve(async (req) => {
       hasAudio: !!requestData.audio,
       audioLength: requestData.audio?.length,
       mimeType: requestData.mime_type,
-      model: requestData.model,
-      language: requestData.language,
       options: requestData.options
     });
 
-    const { audio, mime_type } = requestData;
+    const { audio, mime_type, options } = requestData;
 
     if (!audio || !Array.isArray(audio)) {
       throw new Error('Invalid or missing audio data');
@@ -39,17 +37,18 @@ serve(async (req) => {
     const audioData = new Uint8Array(audio);
     console.log(`Reconstructed audio data, size: ${audioData.length} bytes`);
 
-    // Simplified query parameters focusing on core functionality
+    // Use options from the request, with some additional parameters for better results
     const queryParams = new URLSearchParams({
-      model: "nova-2",
-      language: "en-US",
-      smart_format: "true",
-      punctuate: "true",
-      diarize: "true",
-      utterances: "true",
-      filler_words: "true",
-      detect_language: "true",
-      utt_split: "1.5"
+      model: options.model || "nova-2",
+      language: options.language || "en-US",
+      smart_format: options.smart_format?.toString() || "true",
+      punctuate: options.punctuate?.toString() || "true",
+      diarize: options.diarize?.toString() || "true",
+      utterances: options.utterances?.toString() || "true",
+      filler_words: options.filler_words?.toString() || "true",
+      detect_language: options.detect_language?.toString() || "true",
+      tier: "enhanced",
+      version: "latest"
     });
 
     console.log('Making request to Deepgram with params:', Object.fromEntries(queryParams.entries()));
@@ -125,9 +124,10 @@ serve(async (req) => {
       text: utterance.text
         .trim()
         .replace(/\s+/g, ' ')
+        .replace(/([.!?])\s*(?=[A-Z])/g, '$1\n\n')
     }));
 
-    // Format transcript with enhanced spacing
+    // Format transcript with enhanced spacing and line breaks
     const formattedTranscript = utterances
       .map(u => `${u.speaker}:\n\n${u.text}\n`)
       .join('\n');

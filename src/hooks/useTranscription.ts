@@ -42,11 +42,11 @@ export const useTranscription = () => {
   const [transcript, setTranscript] = useState<string>("");
   const [utterances, setUtterances] = useState<TranscriptUtterance[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string>("");
-  const [model, setModel] = useState<string>("nova-3");
-  const [language, setLanguage] = useState<string>("en");
+  const [model, setModel] = useState<string>("nova-2");
+  const [language, setLanguage] = useState<string>("en-US");
   const [options, setOptions] = useState<DeepgramOptions>({
-    model: "nova-3",
-    language: "en",
+    model: "nova-2",
+    language: "en-US",
     smart_format: true,
     punctuate: true,
     diarize: true,
@@ -72,10 +72,10 @@ export const useTranscription = () => {
       const { data, error } = await supabase.functions.invoke('process-audio', {
         body: {
           audio: Array.from(new Uint8Array(arrayBuffer)),
-          model: options.model,
-          language: options.language,
           mime_type: chunk.type,
           options: {
+            model: options.model,
+            language: options.language,
             smart_format: options.smart_format,
             punctuate: options.punctuate,
             diarize: options.diarize,
