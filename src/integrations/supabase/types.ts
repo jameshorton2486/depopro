@@ -66,6 +66,33 @@ export type Database = {
         }
         Relationships: []
       }
+      transcription_data: {
+        Row: {
+          created_at: string | null
+          file_name: string
+          file_path: string
+          id: string
+          metadata: Json | null
+          raw_response: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          file_name: string
+          file_path: string
+          id?: string
+          metadata?: Json | null
+          raw_response?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          file_name?: string
+          file_path?: string
+          id?: string
+          metadata?: Json | null
+          raw_response?: Json | null
+        }
+        Relationships: []
+      }
       transcripts: {
         Row: {
           audio_url: string | null

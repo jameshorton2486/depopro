@@ -1,5 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -75,6 +76,45 @@ serve(async (req) => {
       throw new Error('Invalid response from Deepgram');
     }
 
+    // Initialize Supabase client
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Store raw JSON response in storage
+    const fileName = `transcript-${Date.now()}.json`;
+    const { error: uploadError } = await supabase.storage
+      .from('transcriptions')
+      .upload(fileName, JSON.stringify(data, null, 2), {
+        contentType: 'application/json',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Error uploading JSON:', uploadError);
+      throw new Error('Failed to store transcription data');
+    }
+
+    // Store metadata in database
+    const { error: dbError } = await supabase
+      .from('transcription_data')
+      .insert({
+        file_name: fileName,
+        file_path: fileName,
+        metadata: {
+          duration: data.metadata?.duration,
+          channels: data.metadata?.channels,
+          model: data.metadata?.model
+        },
+        raw_response: data
+      });
+
+    if (dbError) {
+      console.error('Error storing metadata:', dbError);
+      throw new Error('Failed to store transcription metadata');
+    }
+
     const transcript = data.results.channels[0].alternatives[0];
     const words = transcript.words || [];
     
@@ -130,7 +170,8 @@ serve(async (req) => {
     console.log('Processing complete:', {
       utteranceCount: utterances.length,
       speakerCount: new Set(utterances.map(u => u.speaker)).size,
-      transcriptLength: formattedTranscript.length
+      transcriptLength: formattedTranscript.length,
+      storedFileName: fileName
     });
 
     return new Response(
@@ -142,7 +183,8 @@ serve(async (req) => {
           channels: data.metadata?.channels,
           model: data.metadata?.model,
           speakerCount: new Set(utterances.map(u => u.speaker)).size
-        }
+        },
+        storedFileName: fileName
       }),
       { 
         headers: { 
