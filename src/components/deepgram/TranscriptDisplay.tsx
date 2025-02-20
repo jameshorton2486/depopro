@@ -104,60 +104,10 @@ export const TranscriptDisplay = ({ transcript, utterances = [], onDownload }: T
         </div>
       )}
 
-      <ScrollArea className="h-[500px] w-full rounded-md border">
-        {hasUtterances ? (
-          <div className="divide-y">
-            {utterances.map((utterance, index) => (
-              <div key={index} className="p-4 space-y-3 hover:bg-muted/30">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="font-medium">
-                      {utterance.speaker}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {formatTime(utterance.start)} - {formatTime(utterance.end)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge 
-                      variant={utterance.confidence > 0.9 ? "default" : "secondary"}
-                      className="text-xs"
-                    >
-                      Confidence: {Math.round(utterance.confidence * 100)}%
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="pl-4 space-y-2">
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {utterance.text}
-                  </p>
-                  
-                  {utterance.fillerWords?.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Filler words:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {utterance.fillerWords.map((word, wordIndex) => (
-                          <Badge 
-                            key={wordIndex} 
-                            variant="outline" 
-                            className="text-xs bg-yellow-500/10"
-                          >
-                            {word.word} ({formatTime(word.start)})
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="p-4">
-            <p className="text-sm whitespace-pre-wrap">{transcript}</p>
-          </div>
-        )}
+      <ScrollArea className="h-[500px] w-full rounded-md border p-4">
+        <pre className="whitespace-pre-wrap font-mono text-sm">
+          {transcript}
+        </pre>
       </ScrollArea>
     </div>
   );
