@@ -12,16 +12,10 @@ serve(async (req) => {
   }
 
   try {
-    const key = Deno.env.get('DEEPGRAM_API_KEY');
-    if (!key) {
-      throw new Error('Deepgram API key not found');
-    }
-
-    // Test the key by making a simple request to Deepgram
     const response = await fetch("https://api.deepgram.com/v1/projects", {
       method: "GET",
       headers: {
-        "Authorization": `Token ${key}`,
+        "Authorization": `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
         "Content-Type": "application/json"
       }
     });
@@ -30,16 +24,11 @@ serve(async (req) => {
       throw new Error(`Deepgram API error: ${response.status}`);
     }
 
-    // Return success without exposing the key
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        key // This will be used by the frontend but should not be logged
-      }),
+      JSON.stringify({ success: true }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error testing Deepgram key:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 

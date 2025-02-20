@@ -2,21 +2,47 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { DeepgramOptions } from "@/types/deepgram";
-import { supabase } from "@/lib/supabase";
+
+const getStoredApiKey = () => localStorage.getItem('deepgram_api_key');
+const setStoredApiKey = (key: string) => localStorage.setItem('deepgram_api_key', key);
 
 export const useDeepgramAPI = () => {
   const [showApiKeyForm, setShowApiKeyForm] = useState(false);
 
-  const getApiKey = async () => {
-    const { data: secretData, error: secretError } = await supabase.functions.invoke('test-deepgram-key');
-    
-    if (secretError) {
-      console.error('Error fetching API key:', secretError);
-      toast.error('Failed to fetch API key');
-      return null;
+  const validateApiKey = async (apiKey: string): Promise<boolean> => {
+    try {
+      const response = await fetch('https://api.deepgram.com/v1/projects', {
+        headers: {
+          'Authorization': `Token ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        setStoredApiKey(apiKey);
+        toast.success('API key validated successfully');
+        return true;
+      } else {
+        const errorData = await response.text();
+        console.error('API validation failed:', {
+          status: response.status,
+          error: errorData
+        });
+        toast.error(`Invalid API key: ${response.status} ${response.statusText}`);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error validating API key:', error);
+      toast.error(`Failed to validate API key: ${error.message}`);
+      return false;
     }
+  };
 
-    return secretData?.key;
+  const handleApiKeySubmit = async (apiKey: string): Promise<void> => {
+    const isValid = await validateApiKey(apiKey);
+    if (!isValid) {
+      throw new Error('Invalid API key');
+    }
   };
 
   const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) => {
@@ -25,9 +51,10 @@ export const useDeepgramAPI = () => {
         throw new Error('Invalid audio chunk');
       }
 
-      const apiKey = await getApiKey();
+      const apiKey = getStoredApiKey();
       if (!apiKey) {
-        throw new Error('Could not retrieve Deepgram API key');
+        setShowApiKeyForm(true);
+        throw new Error('Deepgram API key is required');
       }
 
       console.debug('Sending audio chunk to Deepgram:', {
@@ -72,6 +99,11 @@ export const useDeepgramAPI = () => {
           error: errorText
         });
         
+        if (response.status === 401) {
+          localStorage.removeItem('deepgram_api_key');
+          setShowApiKeyForm(true);
+        }
+        
         throw new Error(`Deepgram API error: ${response.status} - ${errorText}`);
       }
 
@@ -100,12 +132,9 @@ export const useDeepgramAPI = () => {
     }
   };
 
-  // These are kept for compatibility but won't be used
-  const handleApiKeySubmit = async () => {};
-
   return {
     processAudioChunk,
-    showApiKeyForm: false, // Always false since we don't need the form anymore
+    showApiKeyForm,
     setShowApiKeyForm,
     handleApiKeySubmit
   };

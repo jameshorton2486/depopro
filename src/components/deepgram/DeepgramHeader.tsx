@@ -2,7 +2,7 @@
 import { AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-const DeepgramHeader = () => {
+export const DeepgramHeader = () => {
   return (
     <Alert className="mb-6">
       <AlertTriangle className="h-4 w-4" />
@@ -12,5 +12,3 @@ const DeepgramHeader = () => {
     </Alert>
   );
 };
-
-export default DeepgramHeader;
