@@ -6,7 +6,7 @@ import { Upload, FileAudio, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { createClient } from "@deepgram/sdk";
+import { Deepgram } from "@deepgram/sdk";
 
 const CHUNK_SIZE = 300; // 5 minutes in seconds
 const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
@@ -17,16 +17,23 @@ const DeepgramPage = () => {
   const [progress, setProgress] = useState(0);
   const [transcript, setTranscript] = useState<string>("");
 
-  const processAudioChunk = async (chunk: Blob, deepgram: any) => {
+  const processAudioChunk = async (chunk: Blob) => {
     try {
       const arrayBuffer = await chunk.arrayBuffer();
-      const { result } = await deepgram.listen.prerecorded.transcribeFile(
-        new Uint8Array(arrayBuffer),
-        {
-          model: "nova-3",
-          smart_format: true,
-        }
-      );
+      const response = await fetch("https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true", {
+        method: "POST",
+        headers: {
+          "Authorization": `Token ${import.meta.env.VITE_DEEPGRAM_API_KEY}`,
+          "Content-Type": "audio/wav",
+        },
+        body: new Uint8Array(arrayBuffer),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Deepgram API error: ${response.statusText}`);
+      }
+
+      const result = await response.json();
       return result.results?.channels[0]?.alternatives[0]?.transcript || "";
     } catch (error) {
       console.error("Error processing chunk:", error);
@@ -45,7 +52,6 @@ const DeepgramPage = () => {
       setProgress(0);
       setTranscript("");
 
-      const deepgram = createClient(import.meta.env.VITE_DEEPGRAM_API_KEY);
       const duration = await getAudioDuration(uploadedFile);
       const numberOfChunks = Math.ceil(duration / CHUNK_SIZE);
       let fullTranscript = "";
@@ -55,7 +61,7 @@ const DeepgramPage = () => {
         const end = Math.min((i + 1) * CHUNK_SIZE, duration);
         
         const chunk = await extractAudioChunk(uploadedFile, start, end);
-        const chunkTranscript = await processAudioChunk(chunk, deepgram);
+        const chunkTranscript = await processAudioChunk(chunk);
         
         fullTranscript += chunkTranscript + " ";
         setProgress(((i + 1) / numberOfChunks) * 100);
