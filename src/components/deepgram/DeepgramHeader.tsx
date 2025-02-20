@@ -1,26 +1,14 @@
 
-import { Button } from "@/components/ui/button";
+import { AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-interface DeepgramHeaderProps {
-  onTestApiKey: () => Promise<void>;
-}
-
-export const DeepgramHeader = ({ onTestApiKey }: DeepgramHeaderProps) => {
+export const DeepgramHeader = () => {
   return (
-    <div className="flex justify-between items-center mb-6">
-      <div>
-        <h2 className="text-xl font-semibold">Deepgram Audio Processing</h2>
-        <p className="text-muted-foreground mt-2">
-          Upload your audio or video files for advanced speech-to-text transcription.
-        </p>
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onTestApiKey}
-      >
-        Test API Key
-      </Button>
-    </div>
+    <Alert className="mb-6">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription>
+        Choose a model and language, then upload an audio file to begin transcription.
+      </AlertDescription>
+    </Alert>
   );
 };
