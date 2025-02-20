@@ -9,13 +9,16 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
       throw new Error('Invalid audio chunk');
     }
 
-    console.debug('Sending audio chunk to Deepgram:', {
+    console.debug('Starting audio processing:', {
       size: `${(chunk.size / (1024 * 1024)).toFixed(2)}MB`,
       type: chunk.type,
       options: JSON.stringify(options, null, 2)
     });
 
     const arrayBuffer = await chunk.arrayBuffer();
+    console.debug('Audio converted to array buffer:', {
+      bufferSize: `${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`
+    });
 
     // Preserve user options while ensuring diarize_version when diarize is true
     const requestOptions = {
@@ -23,7 +26,8 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
       diarize_version: options.diarize ? "3" : undefined
     };
 
-    console.debug('Sending request with options:', requestOptions);
+    console.debug('Sending request to Deepgram with options:', requestOptions);
+    console.time('deepgramProcessing');
 
     try {
       const { data, error } = await supabase.functions.invoke('process-audio', {
@@ -33,6 +37,8 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
           options: requestOptions
         }
       });
+
+      console.timeEnd('deepgramProcessing');
 
       if (error) {
         console.error('Supabase function error:', error);
@@ -48,8 +54,9 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
         throw new Error('No transcript received from Deepgram');
       }
 
-      console.debug('Received response:', {
+      console.debug('Successfully received transcript:', {
         transcriptLength: data.transcript.length,
+        wordCount: data.transcript.split(' ').length,
         metadata: data.metadata,
         storedFileName: data.storedFileName
       });

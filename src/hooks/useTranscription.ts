@@ -76,17 +76,31 @@ export const useTranscription = () => {
     }
 
     try {
+      console.time('totalTranscriptionTime');
       setIsProcessing(true);
       setProgress(0);
       setTranscript("");
       setProcessingStatus("Processing audio file...");
 
+      console.debug('Starting transcription process:', {
+        fileName: uploadedFile.name,
+        fileSize: `${(uploadedFile.size / (1024 * 1024)).toFixed(2)}MB`,
+        fileType: uploadedFile.type
+      });
+
       if (!Object.keys(SUPPORTED_AUDIO_TYPES).includes(uploadedFile.type)) {
         throw new Error(`Unsupported file type. Supported formats are: ${Object.values(SUPPORTED_AUDIO_TYPES).flat().join(', ')}`);
       }
 
+      console.debug('Extracting audio chunk...');
+      setProcessingStatus("Extracting audio data...");
       const chunk = await extractAudioChunk(uploadedFile);
+      console.debug('Audio chunk extracted:', {
+        chunkSize: `${(chunk.size / (1024 * 1024)).toFixed(2)}MB`
+      });
+
       setProcessingStatus("Sending audio to Deepgram...");
+      setProgress(30);
 
       // Enhanced Deepgram options
       const deepgramOptions = {
@@ -101,8 +115,11 @@ export const useTranscription = () => {
         language: language
       };
       
+      console.debug('Processing with Deepgram options:', deepgramOptions);
+      setProgress(50);
+      
       const result = await processAudioChunk(chunk, deepgramOptions);
-      console.log('Received transcript:', {
+      console.debug('Received transcript:', {
         length: result.transcript.length,
         preview: result.transcript.substring(0, 100) + '...',
         metadata: result.metadata,
@@ -113,6 +130,7 @@ export const useTranscription = () => {
       setStoredFileName(result.storedFileName);
       setProgress(100);
       setProcessingStatus("Transcription completed!");
+      console.timeEnd('totalTranscriptionTime');
       toast.success("Transcription completed and saved successfully!");
     } catch (error) {
       console.error("Transcription error:", error);
