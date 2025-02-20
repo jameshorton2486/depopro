@@ -26,10 +26,11 @@ serve(async (req) => {
       audioLength: requestData.audio?.length,
       mimeType: requestData.mime_type,
       model: requestData.model,
-      language: requestData.language
+      language: requestData.language,
+      options: requestData.options
     });
 
-    const { audio, model, language, mime_type } = requestData;
+    const { audio, model, language, mime_type, options } = requestData;
 
     if (!audio || !Array.isArray(audio)) {
       throw new Error('Invalid or missing audio data');
@@ -41,12 +42,12 @@ serve(async (req) => {
     const queryParams = new URLSearchParams({
       model: model || 'nova-3',
       language: language || 'en',
-      smart_format: 'true',
-      punctuate: 'true',
-      paragraphs: 'true',
-      filler_words: 'true',
-      diarize: 'true',
-      utterances: 'true'
+      smart_format: String(options?.smart_format ?? true),
+      punctuate: String(options?.punctuate ?? true),
+      paragraphs: String(options?.paragraphs ?? true),
+      filler_words: String(options?.filler_words ?? true),
+      diarize: String(options?.diarize ?? true),
+      utterances: String(options?.utterances ?? true)
     });
 
     console.log('Making request to Deepgram with params:', Object.fromEntries(queryParams.entries()));
@@ -93,7 +94,12 @@ serve(async (req) => {
       fillerWords: utterance.words?.filter((word: any) => word.type === 'filler') || []
     }));
 
-    console.log('Successfully processed audio with all options');
+    console.log('Successfully processed audio:', {
+      transcriptLength: alternative.transcript.length,
+      utteranceCount: formattedUtterances.length,
+      hasWords: formattedUtterances.some(u => u.words.length > 0),
+      hasFillerWords: formattedUtterances.some(u => u.fillerWords.length > 0)
+    });
 
     return new Response(
       JSON.stringify({ 

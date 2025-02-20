@@ -19,8 +19,10 @@ const DeepgramPage = () => {
     processingStatus,
     model,
     language,
+    options,
     setModel,
     setLanguage,
+    handleOptionsChange,
     testApiKey,
     handleTranscribe,
     onDrop,
@@ -55,8 +57,10 @@ const DeepgramPage = () => {
             <TranscriptionControls
               model={model}
               language={language}
+              options={options}
               onModelChange={setModel}
               onLanguageChange={setLanguage}
+              onOptionsChange={handleOptionsChange}
             />
             <FileUploadArea
               uploadedFile={uploadedFile}
