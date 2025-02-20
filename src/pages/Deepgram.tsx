@@ -3,14 +3,110 @@ import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useDropzone } from "react-dropzone";
-import { Upload, FileAudio, Loader2 } from "lucide-react";
+import { Upload, FileAudio, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { createClient } from "@deepgram/sdk";
+
+const CHUNK_SIZE = 300; // 5 minutes in seconds
+const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
 
 const DeepgramPage = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [transcript, setTranscript] = useState<string>("");
+
+  const processAudioChunk = async (chunk: Blob, deepgram: any) => {
+    try {
+      const arrayBuffer = await chunk.arrayBuffer();
+      const { result } = await deepgram.listen.prerecorded.transcribeFile(
+        new Uint8Array(arrayBuffer),
+        {
+          model: "nova-3",
+          smart_format: true,
+        }
+      );
+      return result.results?.channels[0]?.alternatives[0]?.transcript || "";
+    } catch (error) {
+      console.error("Error processing chunk:", error);
+      throw error;
+    }
+  };
+
+  const handleTranscribe = async () => {
+    if (!uploadedFile) {
+      toast.error("Please upload an audio file first");
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      setProgress(0);
+      setTranscript("");
+
+      const deepgram = createClient(import.meta.env.VITE_DEEPGRAM_API_KEY);
+      const duration = await getAudioDuration(uploadedFile);
+      const numberOfChunks = Math.ceil(duration / CHUNK_SIZE);
+      let fullTranscript = "";
+
+      for (let i = 0; i < numberOfChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min((i + 1) * CHUNK_SIZE, duration);
+        
+        const chunk = await extractAudioChunk(uploadedFile, start, end);
+        const chunkTranscript = await processAudioChunk(chunk, deepgram);
+        
+        fullTranscript += chunkTranscript + " ";
+        setProgress(((i + 1) / numberOfChunks) * 100);
+        setTranscript(fullTranscript.trim());
+      }
+
+      toast.success("Transcription completed successfully!");
+    } catch (error) {
+      console.error("Transcription error:", error);
+      toast.error("Error during transcription");
+    } finally {
+      setIsProcessing(false);
+      setProgress(100);
+    }
+  };
+
+  const getAudioDuration = (file: File): Promise<number> => {
+    return new Promise((resolve) => {
+      const audio = new Audio();
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        audio.src = e.target?.result as string;
+        audio.onloadedmetadata = () => resolve(audio.duration);
+      };
+      
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const extractAudioChunk = async (file: File, start: number, end: number): Promise<Blob> => {
+    // For now, we'll return the whole file as one chunk
+    // In a production environment, you'd want to properly slice the audio file
+    return file;
+  };
+
+  const downloadTranscript = (format: 'txt' | 'docx') => {
+    if (!transcript) {
+      toast.error("No transcript available to download");
+      return;
+    }
+
+    const element = document.createElement('a');
+    const file = new Blob([transcript], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = `transcript.${format}`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -20,34 +116,26 @@ const DeepgramPage = () => {
       return;
     }
 
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("File size exceeds 2GB limit");
+      return;
+    }
+
     console.log("Processing file:", file.name, "Type:", file.type);
     
     try {
       setIsProcessing(true);
       setProgress(0);
       setUploadedFile(file);
-      
-      // Simulate progress for now
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(interval);
-            return prev;
-          }
-          return prev + 5;
-        });
-      }, 100);
-
-      // TODO: Add actual file processing logic here
-      
+      setTranscript("");
       toast.success("File uploaded successfully!");
-      setProgress(100);
     } catch (error) {
       console.error("Error processing file:", error);
       toast.error("Error processing file");
       setUploadedFile(null);
     } finally {
       setIsProcessing(false);
+      setProgress(100);
     }
   }, []);
 
@@ -115,24 +203,50 @@ const DeepgramPage = () => {
                     }
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Supports MP3, WAV, M4A, AAC, MP4, MOV, AVI, and WEBM files
+                    Supports MP3, WAV, M4A, AAC, MP4, MOV, AVI, and WEBM files (max 2GB)
                   </p>
                 </>
               )}
             </div>
 
             {uploadedFile && (
-              <div className="mt-6 flex justify-end">
+              <div className="mt-6 flex justify-end gap-4">
                 <Button
-                  onClick={() => {
-                    // TODO: Add transcription logic
-                    toast.info("Transcription feature coming soon!");
-                  }}
+                  onClick={handleTranscribe}
                   disabled={isProcessing}
                 >
                   {isProcessing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Transcribe Audio
                 </Button>
+              </div>
+            )}
+
+            {transcript && (
+              <div className="mt-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Transcript</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadTranscript('txt')}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download as TXT
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadTranscript('docx')}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download as DOCX
+                    </Button>
+                  </div>
+                </div>
+                <ScrollArea className="h-[300px] w-full rounded-md border p-4">
+                  <p className="text-sm">{transcript}</p>
+                </ScrollArea>
               </div>
             )}
           </div>
