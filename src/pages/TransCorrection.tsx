@@ -1,13 +1,15 @@
+
 import { Link } from "react-router-dom";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import UploadProgress from "@/components/upload/UploadProgress";
 import { uploadAndProcessFile } from "@/services/fileProcessing";
 import { openAIService } from "@/services/openai";
 import { supabase } from "@/integrations/supabase/client";
+import UploadArea from "@/components/transcript/UploadArea";
+import FormattingButtons from "@/components/transcript/FormattingButtons";
+import CorrectedTextDisplay from "@/components/transcript/CorrectedTextDisplay";
 
 const TransCorrection = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -186,75 +188,24 @@ const TransCorrection = () => {
             </p>
           </div>
 
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-colors
-              ${isDragActive ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}
-              ${uploadedFile ? 'border-green-500 bg-green-50/10' : ''}`}
-          >
-            <input {...getInputProps()} />
-            <Upload className="w-12 h-12 mb-4 text-muted-foreground" />
-            
-            {uploadedFile ? (
-              <div className="text-center">
-                <p className="font-medium">{uploadedFile.name}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  File uploaded successfully
-                </p>
-              </div>
-            ) : (
-              <div className="text-center">
-                <p className="text-muted-foreground mb-2">
-                  {isDragActive 
-                    ? "Drop the file here..."
-                    : "Drag and drop your transcript file here, or click to browse"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Supports DOCX and TXT files (max 10MB)
-                </p>
-              </div>
-            )}
-
-            {isProcessing && (
-              <div className="w-full max-w-xs mt-4">
-                <UploadProgress progress={progress} />
-              </div>
-            )}
-          </div>
+          <UploadArea
+            getRootProps={getRootProps}
+            getInputProps={getInputProps}
+            isDragActive={isDragActive}
+            uploadedFile={uploadedFile}
+            isProcessing={isProcessing}
+            progress={progress}
+          />
 
           {uploadedFile && !isProcessing && (
-            <div className="flex justify-center gap-4 mt-4">
-              <Button
-                onClick={handleInitialFormatting}
-                variant="outline"
-              >
-                Initial Formatting
-              </Button>
-              <Button
-                onClick={handleRulesFormatting}
-              >
-                Rules-Based Formatting
-              </Button>
-            </div>
+            <FormattingButtons
+              onInitialFormat={handleInitialFormatting}
+              onRulesFormat={handleRulesFormatting}
+            />
           )}
 
           {correctedText && !isProcessing && (
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-2">Corrected Transcript</h3>
-              <div className="p-4 bg-muted rounded-lg">
-                <pre className="whitespace-pre-wrap text-sm">{correctedText}</pre>
-              </div>
-              <div className="flex justify-center mt-4">
-                <Button
-                  onClick={() => {
-                    navigator.clipboard.writeText(correctedText);
-                    toast.success("Copied to clipboard!");
-                  }}
-                >
-                  Copy to Clipboard
-                </Button>
-              </div>
-            </div>
+            <CorrectedTextDisplay text={correctedText} />
           )}
         </div>
       </div>
