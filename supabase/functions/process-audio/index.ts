@@ -45,11 +45,14 @@ serve(async (req) => {
       model: model || 'nova-3',
       language: language || 'en',
       smart_format: 'true',
-      utterances: 'true',
       punctuate: 'true',
+      paragraphs: 'true',
+      filler_words: 'true',
+      diarize: 'true',
+      utterances: 'true'
     });
 
-    console.log('Making request to Deepgram...');
+    console.log('Making request to Deepgram with params:', Object.fromEntries(queryParams.entries()));
     const response = await fetch(
       `https://api.deepgram.com/v1/listen?${queryParams}`,
       {
