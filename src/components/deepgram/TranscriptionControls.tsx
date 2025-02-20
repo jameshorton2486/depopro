@@ -2,7 +2,6 @@
 import { DeepgramOptions } from "@/types/deepgram";
 import { ModelSelect } from "./ModelSelect";
 import { LanguageSelect } from "./LanguageSelect";
-import { TranscriptionOptions } from "./TranscriptionOptions";
 
 interface TranscriptionControlsProps {
   model: string;
@@ -16,10 +15,8 @@ interface TranscriptionControlsProps {
 export const TranscriptionControls = ({
   model,
   language,
-  options,
   onModelChange,
   onLanguageChange,
-  onOptionsChange,
 }: TranscriptionControlsProps) => {
   return (
     <div className="space-y-4">
@@ -27,7 +24,6 @@ export const TranscriptionControls = ({
         <ModelSelect model={model} onModelChange={onModelChange} />
         <LanguageSelect language={language} onLanguageChange={onLanguageChange} />
       </div>
-      <TranscriptionOptions options={options} onOptionsChange={onOptionsChange} />
     </div>
   );
 };
