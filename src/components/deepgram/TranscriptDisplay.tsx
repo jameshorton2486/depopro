@@ -73,7 +73,9 @@ export const TranscriptDisplay = ({ transcript, utterances, onDownload }: Transc
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Total Duration</p>
-            <p className="text-sm font-medium">{formatTime(utterances?.[utterances.length - 1]?.end || 0)}</p>
+            <p className="text-sm font-medium">
+              {formatTime(utterances?.[utterances.length - 1]?.end || 0)}
+            </p>
           </div>
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Total Segments</p>
@@ -81,7 +83,9 @@ export const TranscriptDisplay = ({ transcript, utterances, onDownload }: Transc
           </div>
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Speakers</p>
-            <p className="text-sm font-medium">{Array.from(new Set(utterances?.map(u => u.speaker) || [])).length}</p>
+            <p className="text-sm font-medium">
+              {Array.from(new Set(utterances?.map(u => u.speaker) || [])).length}
+            </p>
           </div>
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Avg. Confidence</p>
@@ -120,7 +124,7 @@ export const TranscriptDisplay = ({ transcript, utterances, onDownload }: Transc
                 </div>
 
                 <div className="pl-4 space-y-2">
-                  <p className="text-sm leading-relaxed">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
                     {utterance.text}
                   </p>
                   

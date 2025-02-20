@@ -30,7 +30,7 @@ serve(async (req) => {
       options: requestData.options
     });
 
-    const { audio, model, language, mime_type, options } = requestData;
+    const { audio, mime_type } = requestData;
 
     if (!audio || !Array.isArray(audio)) {
       throw new Error('Invalid or missing audio data');
@@ -39,17 +39,17 @@ serve(async (req) => {
     const audioData = new Uint8Array(audio);
     console.log(`Reconstructed audio data, size: ${audioData.length} bytes`);
 
-    // Enhanced query parameters for better diarization
+    // Enhanced query parameters optimized for diarization
     const queryParams = new URLSearchParams({
-      model: model || 'nova-3',
-      language: language || 'en',
+      model: "nova-2", // Use nova-2 for better diarization
+      language: "en-US", // Specify exact language for better results
       smart_format: "true",
       punctuate: "true",
       diarize: "true",
       utterances: "true",
-      filler_words: String(options?.filler_words ?? true),
-      detect_language: String(options?.detect_language ?? true),
-      utt_split: "1.0" // Add utterance split threshold for better segmentation
+      filler_words: "true",
+      detect_language: "true",
+      utt_split: "1.5" // Increased split threshold for better segmentation
     });
 
     console.log('Making request to Deepgram with params:', Object.fromEntries(queryParams.entries()));
@@ -85,48 +85,48 @@ serve(async (req) => {
 
     const alternative = result.results.channels[0].alternatives[0];
     
-    // Enhanced speaker diarization and formatting
+    // Enhanced speaker diarization with word-level processing
     let utterances = [];
-    let speakerMap = new Map();
-    let nextSpeakerId = 0;
+    let currentUtterance = null;
 
-    if (alternative.utterances) {
-      utterances = alternative.utterances.map((utterance: any) => {
-        // Get or assign consistent speaker number
-        let speakerId = utterance.speaker;
-        if (!speakerMap.has(speakerId)) {
-          speakerMap.set(speakerId, nextSpeakerId++);
+    if (alternative.words) {
+      alternative.words.forEach((word: any) => {
+        if (!currentUtterance || currentUtterance.speaker !== `Speaker ${word.speaker}`) {
+          if (currentUtterance) {
+            utterances.push(currentUtterance);
+          }
+          currentUtterance = {
+            speaker: `Speaker ${word.speaker}`,
+            text: word.word,
+            start: word.start,
+            end: word.end,
+            confidence: word.confidence,
+            words: [word],
+            fillerWords: word.type === 'filler' ? [word] : []
+          };
+        } else {
+          currentUtterance.text += ` ${word.word}`;
+          currentUtterance.end = word.end;
+          currentUtterance.words.push(word);
+          if (word.type === 'filler') {
+            currentUtterance.fillerWords.push(word);
+          }
         }
-        speakerId = speakerMap.get(speakerId);
-
-        // Clean and format the text
-        const text = utterance.text
-          .trim()
-          .replace(/\s+/g, ' ') // Normalize whitespace
-          .replace(/([.!?])\s*(?=[A-Z])/g, '$1\n\n'); // Add line breaks after sentences
-
-        return {
-          speaker: `Speaker ${speakerId}`,
-          text,
-          start: utterance.start,
-          end: utterance.end,
-          confidence: utterance.confidence,
-          words: utterance.words || [],
-          fillerWords: (utterance.words || []).filter((word: any) => word.type === 'filler')
-        };
       });
-    } else if (alternative.words && alternative.words.length > 0) {
-      // If not diarized but we have words, create a single utterance
-      utterances = [{
-        speaker: 'Speaker 0',
-        text: alternative.transcript.trim(),
-        start: alternative.words[0].start,
-        end: alternative.words[alternative.words.length - 1].end,
-        confidence: alternative.confidence,
-        words: alternative.words,
-        fillerWords: alternative.words.filter((word: any) => word.type === 'filler')
-      }];
+
+      if (currentUtterance) {
+        utterances.push(currentUtterance);
+      }
     }
+
+    // Clean and format utterances
+    utterances = utterances.map(utterance => ({
+      ...utterance,
+      text: utterance.text
+        .trim()
+        .replace(/\s+/g, ' ')
+        .replace(/([.!?])\s*(?=[A-Z])/g, '$1\n\n')
+    }));
 
     // Format transcript with enhanced spacing and line breaks
     const formattedTranscript = utterances
@@ -139,7 +139,7 @@ serve(async (req) => {
       hasWords: utterances.some(u => u.words.length > 0),
       hasFillerWords: utterances.some(u => u.fillerWords.length > 0),
       diarizationEnabled: true,
-      speakersDetected: speakerMap.size
+      speakersDetected: new Set(utterances.map(u => u.speaker)).size
     });
 
     return new Response(
@@ -151,7 +151,7 @@ serve(async (req) => {
           channels: result.metadata?.channels,
           model: result.metadata?.model,
           language: result.metadata?.language,
-          speakerCount: speakerMap.size
+          speakerCount: new Set(utterances.map(u => u.speaker)).size
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
