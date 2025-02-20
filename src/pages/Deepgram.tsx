@@ -1,84 +1,78 @@
 
-import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import { useTranscription } from "@/hooks/useTranscription";
 import { DeepgramHeader } from "@/components/deepgram/DeepgramHeader";
-import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
 import { FileUploadArea } from "@/components/deepgram/FileUploadArea";
 import { TranscriptDisplay } from "@/components/deepgram/TranscriptDisplay";
 import { ProcessingOverlay } from "@/components/deepgram/ProcessingOverlay";
-import { useTranscription } from "@/hooks/useTranscription";
+import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
-const DeepgramPage = () => {
-  const {
-    uploadedFile,
-    isProcessing,
-    progress,
-    transcript,
-    processingStatus,
-    model,
-    language,
-    options,
-    setModel,
-    setLanguage,
-    handleOptionsChange,
-    handleTranscribe,
-    onDrop,
-    downloadTranscript,
-  } = useTranscription();
+export default function Deepgram() {
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const transcription = useTranscription();
+
+  useEffect(() => {
+    testSupabaseConnection();
+  }, []);
+
+  const testSupabaseConnection = async () => {
+    try {
+      setIsTestingConnection(true);
+      const { data, error } = await supabase
+        .from('transcripts')
+        .select('id')
+        .limit(1);
+
+      if (error) {
+        console.error("Supabase connection error:", error);
+        toast.error("Failed to connect to Supabase: " + error.message);
+      } else {
+        console.debug("Supabase connection successful:", data);
+        toast.success("Successfully connected to Supabase!");
+      }
+    } catch (err) {
+      console.error("Unexpected error testing Supabase connection:", err);
+      toast.error("Unexpected error testing Supabase connection");
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
-      <div className="container mx-auto px-4 py-16 max-w-6xl">
-        <motion.main
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="space-y-6"
-          aria-live="polite"
-        >
-          <div className="bg-background border rounded-lg p-6">
-            <DeepgramHeader />
-            <TranscriptionControls
-              model={model}
-              language={language}
-              options={options}
-              onModelChange={setModel}
-              onLanguageChange={setLanguage}
-              onOptionsChange={handleOptionsChange}
-            />
-            <FileUploadArea
-              uploadedFile={uploadedFile}
-              isProcessing={isProcessing}
-              processingStatus={processingStatus}
-              progress={progress}
-              onDrop={onDrop}
-            />
-            {uploadedFile && (
-              <div className="mt-6 flex justify-end gap-4">
-                <Button
-                  onClick={handleTranscribe}
-                  disabled={isProcessing}
-                  aria-busy={isProcessing}
-                >
-                  {isProcessing && <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />}
-                  {isProcessing ? "Transcribing..." : "Transcribe Audio"}
-                </Button>
-              </div>
-            )}
-            <ProcessingOverlay
-              isProcessing={isProcessing}
-              processingStatus={processingStatus}
-            />
-            <TranscriptDisplay
-              transcript={transcript}
-              onDownload={downloadTranscript}
-            />
-          </div>
-        </motion.main>
+    <div className="container mx-auto px-4 py-8">
+      <DeepgramHeader />
+      <div className="mt-8 space-y-8">
+        <FileUploadArea
+          uploadedFile={transcription.uploadedFile}
+          isProcessing={transcription.isProcessing}
+          onDrop={transcription.onDrop}
+        />
+        <TranscriptionControls
+          isProcessing={transcription.isProcessing}
+          uploadedFile={transcription.uploadedFile}
+          model={transcription.model}
+          language={transcription.language}
+          options={transcription.options}
+          setModel={transcription.setModel}
+          setLanguage={transcription.setLanguage}
+          handleOptionsChange={transcription.handleOptionsChange}
+          handleTranscribe={transcription.handleTranscribe}
+        />
+        {transcription.isProcessing && (
+          <ProcessingOverlay
+            progress={transcription.progress}
+            status={transcription.processingStatus}
+          />
+        )}
+        {transcription.transcript && (
+          <TranscriptDisplay
+            transcript={transcription.transcript}
+            downloadTranscript={transcription.downloadTranscript}
+          />
+        )}
       </div>
     </div>
   );
-};
-
-export default DeepgramPage;
+}
