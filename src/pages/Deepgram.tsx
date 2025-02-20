@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -9,9 +8,8 @@ import { DeepgramHeader } from "@/components/deepgram/DeepgramHeader";
 import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
 import { FileUploadArea } from "@/components/deepgram/FileUploadArea";
 import { TranscriptDisplay } from "@/components/deepgram/TranscriptDisplay";
-import { getAudioDuration, extractAudioChunk } from "@/utils/audioUtils";
+import { getAudioDuration, extractAudioChunk, SUPPORTED_AUDIO_TYPES } from "@/utils/audioUtils";
 
-const CHUNK_SIZE = 300; // 5 minutes in seconds
 const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
 
 const DeepgramPage = () => {
@@ -29,16 +27,12 @@ const DeepgramPage = () => {
   // Handle focus management during processing
   useEffect(() => {
     if (isProcessing) {
-      // When processing starts, make non-essential elements inert
       const mainContent = document.querySelector('main');
       if (mainContent) {
         mainContent.setAttribute('inert', '');
       }
-      
-      // Focus the processing status for screen readers
       processingRef.current?.focus();
     } else {
-      // Remove inert when processing is done
       const mainContent = document.querySelector('main');
       if (mainContent) {
         mainContent.removeAttribute('inert');
@@ -46,22 +40,10 @@ const DeepgramPage = () => {
     }
   }, [isProcessing]);
 
-  const testApiKey = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('test-deepgram-key');
-      
-      if (error) throw error;
-      toast.success("Deepgram API key is valid!");
-    } catch (error) {
-      console.error("API key test error:", error);
-      toast.error("Failed to verify Deepgram API key");
-    }
-  };
-
   const processAudioChunk = async (chunk: Blob) => {
     try {
-      console.log('Sending audio chunk:', {
-        size: chunk.size,
+      console.log('Sending audio chunk to Deepgram:', {
+        size: `${(chunk.size / (1024 * 1024)).toFixed(2)}MB`,
         type: chunk.type,
       });
 
@@ -87,7 +69,7 @@ const DeepgramPage = () => {
       return data.transcript;
     } catch (error) {
       console.error("Error processing chunk:", error);
-      throw new Error(`Transcription failed: ${error.message}`);
+      throw error;
     }
   };
 
@@ -101,13 +83,7 @@ const DeepgramPage = () => {
       setIsProcessing(true);
       setProgress(0);
       setTranscript("");
-      setProcessingStatus("Initializing transcription...");
-
-      console.log('Starting transcription for file:', {
-        name: uploadedFile.name,
-        size: uploadedFile.size,
-        type: uploadedFile.type,
-      });
+      setProcessingStatus("Processing audio file...");
 
       const chunk = await extractAudioChunk(uploadedFile);
       setProcessingStatus("Sending audio to Deepgram...");
@@ -147,16 +123,22 @@ const DeepgramPage = () => {
     try {
       setIsProcessing(true);
       setProgress(0);
+      setProcessingStatus("Validating file...");
+      
+      // Attempt to validate and play the audio file
+      await getAudioDuration(file);
+      
       setUploadedFile(file);
       setTranscript("");
-      toast.success("File uploaded successfully!");
+      toast.success("File validated and ready for transcription");
     } catch (error) {
       console.error("Error processing file:", error);
-      toast.error("Error processing file");
+      toast.error(`Error processing file: ${error.message}`);
       setUploadedFile(null);
     } finally {
       setIsProcessing(false);
       setProgress(100);
+      setProcessingStatus("");
     }
   }, []);
 
@@ -225,7 +207,6 @@ const DeepgramPage = () => {
                 </Button>
               </div>
             )}
-            {/* Processing status container - focusable for screen readers */}
             <div
               ref={processingRef}
               tabIndex={-1}

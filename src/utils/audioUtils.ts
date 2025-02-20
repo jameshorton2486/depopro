@@ -1,4 +1,15 @@
 
+export const SUPPORTED_AUDIO_TYPES = {
+  'audio/mpeg': ['.mp3'],
+  'audio/wav': ['.wav'],
+  'audio/x-m4a': ['.m4a'],
+  'audio/aac': ['.aac'],
+  'video/mp4': ['.mp4'],
+  'video/quicktime': ['.mov'],
+  'video/x-msvideo': ['.avi'],
+  'video/webm': ['.webm']
+} as const;
+
 export const getAudioDuration = (file: File): Promise<number> => {
   return new Promise((resolve, reject) => {
     const audio = new Audio();
@@ -26,9 +37,32 @@ export const getAudioDuration = (file: File): Promise<number> => {
   });
 };
 
+export const validateAudioFile = async (file: File): Promise<void> => {
+  // Check if file type is supported
+  if (!Object.keys(SUPPORTED_AUDIO_TYPES).includes(file.type)) {
+    throw new Error(
+      `Unsupported file type. Supported formats are: ${Object.values(SUPPORTED_AUDIO_TYPES).flat().join(', ')}`
+    );
+  }
+
+  // Check if file is readable and not corrupt
+  try {
+    await getAudioDuration(file);
+  } catch (error) {
+    throw new Error(`Failed to validate audio file: ${error.message}`);
+  }
+};
+
 export const extractAudioChunk = async (file: File): Promise<Blob> => {
   try {
-    console.log('Starting audio chunk extraction for file:', file.name);
+    console.log('Starting audio chunk extraction for file:', {
+      name: file.name,
+      type: file.type,
+      size: `${(file.size / (1024 * 1024)).toFixed(2)}MB`
+    });
+    
+    // Validate the file first
+    await validateAudioFile(file);
     
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -39,7 +73,7 @@ export const extractAudioChunk = async (file: File): Promise<Blob> => {
           const arrayBuffer = reader.result as ArrayBuffer;
           const blob = new Blob([arrayBuffer], { type: file.type });
           console.log('Blob created successfully:', {
-            size: blob.size,
+            size: `${(blob.size / (1024 * 1024)).toFixed(2)}MB`,
             type: blob.type
           });
           resolve(blob);
