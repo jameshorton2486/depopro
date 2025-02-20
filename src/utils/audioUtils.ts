@@ -19,18 +19,25 @@ export const getAudioDuration = (file: File): Promise<number> => {
 };
 
 export const extractAudioChunk = async (file: File, start: number, end: number): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
+  try {
     const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const arrayBuffer = reader.result as ArrayBuffer;
-        const blob = new Blob([arrayBuffer], { type: file.type });
-        resolve(blob);
-      } catch (error) {
-        reject(error);
-      }
-    };
-    reader.onerror = (error) => reject(error);
-    reader.readAsArrayBuffer(file);
-  });
+    const chunk = file.slice(0, file.size); // For now, send the entire file as we can't easily slice audio
+    
+    return new Promise((resolve, reject) => {
+      reader.onload = () => {
+        try {
+          const arrayBuffer = reader.result as ArrayBuffer;
+          const blob = new Blob([arrayBuffer], { type: file.type });
+          resolve(blob);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = (error) => reject(error);
+      reader.readAsArrayBuffer(chunk);
+    });
+  } catch (error) {
+    console.error("Error extracting audio chunk:", error);
+    throw error;
+  }
 };
