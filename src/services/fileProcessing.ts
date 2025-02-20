@@ -1,8 +1,9 @@
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { splitTextIntoChunks } from "@/utils/textProcessing";
 
-export const MAX_FILE_SIZE = 3 * 1024 * 1024 * 1024; // 3GB in bytes
+export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 
 export const processTextInBatches = async (
   text: string,
