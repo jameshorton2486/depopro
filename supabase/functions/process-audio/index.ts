@@ -39,15 +39,16 @@ serve(async (req) => {
     const audioData = new Uint8Array(audio);
     console.log(`Reconstructed audio data, size: ${audioData.length} bytes`);
 
+    // Ensure diarize is a string "true" or "false"
     const queryParams = new URLSearchParams({
       model: model || 'nova-3',
       language: language || 'en',
       smart_format: String(options?.smart_format ?? true),
       punctuate: String(options?.punctuate ?? true),
-      paragraphs: String(options?.paragraphs ?? true),
+      diarize: String(options?.diarize ?? true), // Explicitly ensure boolean conversion
+      utterances: String(options?.utterances ?? true),
       filler_words: String(options?.filler_words ?? true),
-      diarize: String(options?.diarize ?? true),
-      utterances: String(options?.utterances ?? true)
+      detect_language: String(options?.detect_language ?? true)
     });
 
     console.log('Making request to Deepgram with params:', Object.fromEntries(queryParams.entries()));
@@ -74,6 +75,7 @@ serve(async (req) => {
     }
 
     const result = await response.json();
+    console.log('Deepgram raw response:', JSON.stringify(result, null, 2));
     
     if (!result.results?.channels?.[0]?.alternatives?.[0]) {
       console.error('Invalid response structure:', result);
@@ -81,35 +83,51 @@ serve(async (req) => {
     }
 
     const alternative = result.results.channels[0].alternatives[0];
-    const utterances = alternative.utterances || [];
     
-    // Process utterances with all available information
-    const formattedUtterances = utterances.map((utterance: any) => ({
-      speaker: utterance.speaker || 'Unknown Speaker',
-      text: utterance.text,
-      start: utterance.start,
-      end: utterance.end,
-      confidence: utterance.confidence,
-      words: utterance.words || [],
-      fillerWords: utterance.words?.filter((word: any) => word.type === 'filler') || []
-    }));
+    // Handle diarized utterances
+    let utterances = [];
+    if (options?.diarize && alternative.utterances) {
+      utterances = alternative.utterances.map((utterance: any) => ({
+        speaker: `Speaker ${utterance.speaker || 'Unknown'}`,
+        text: utterance.text,
+        start: utterance.start,
+        end: utterance.end,
+        confidence: utterance.confidence,
+        words: utterance.words || [],
+        fillerWords: (utterance.words || []).filter((word: any) => word.type === 'filler')
+      }));
+    } else if (alternative.words && alternative.words.length > 0) {
+      // If not diarized but we have words, create a single utterance
+      utterances = [{
+        speaker: 'Speaker',
+        text: alternative.transcript,
+        start: alternative.words[0].start,
+        end: alternative.words[alternative.words.length - 1].end,
+        confidence: alternative.confidence,
+        words: alternative.words,
+        fillerWords: alternative.words.filter((word: any) => word.type === 'filler')
+      }];
+    }
 
     console.log('Successfully processed audio:', {
       transcriptLength: alternative.transcript.length,
-      utteranceCount: formattedUtterances.length,
-      hasWords: formattedUtterances.some(u => u.words.length > 0),
-      hasFillerWords: formattedUtterances.some(u => u.fillerWords.length > 0)
+      utteranceCount: utterances.length,
+      hasWords: utterances.some(u => u.words.length > 0),
+      hasFillerWords: utterances.some(u => u.fillerWords.length > 0),
+      diarizationEnabled: options?.diarize,
+      speakersDetected: new Set(utterances.map(u => u.speaker)).size
     });
 
     return new Response(
       JSON.stringify({ 
         transcript: alternative.transcript,
-        utterances: formattedUtterances,
+        utterances,
         metadata: {
           duration: result.metadata?.duration,
           channels: result.metadata?.channels,
           model: result.metadata?.model,
-          language: result.metadata?.language
+          language: result.metadata?.language,
+          speakerCount: new Set(utterances.map(u => u.speaker)).size
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
