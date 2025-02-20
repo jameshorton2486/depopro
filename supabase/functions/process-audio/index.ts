@@ -43,23 +43,41 @@ serve(async (req) => {
     // Convert audio data to Uint8Array
     const audioData = new Uint8Array(audio);
 
-    // Construct Deepgram URL with validated options
-    const deepgramParams = new URLSearchParams({
-      model: options?.model || 'nova-3',
-      language: options?.language || 'en-US',
-      smart_format: String(options?.smart_format ?? true),
-      punctuate: String(options?.punctuate ?? true),
-      diarize: String(options?.diarize ?? true),
-      diarize_version: "3",
-      filler_words: String(options?.filler_words ?? true)
-    });
+    // Build Deepgram parameters with proper type conversion
+    const params = new URLSearchParams();
+    
+    // Required parameters with defaults
+    params.append('model', options?.model || 'nova-3');
+    params.append('language', options?.language || 'en-US');
+    
+    // Optional boolean parameters
+    if (options?.smart_format !== undefined) {
+      params.append('smart_format', options.smart_format ? 'true' : 'false');
+    }
+    if (options?.punctuate !== undefined) {
+      params.append('punctuate', options.punctuate ? 'true' : 'false');
+    }
+    if (options?.diarize !== undefined) {
+      params.append('diarize', options.diarize ? 'true' : 'false');
+      // Only add diarize_version if diarization is enabled
+      if (options.diarize) {
+        params.append('diarize_version', '3');
+      }
+    }
+    if (options?.filler_words !== undefined) {
+      params.append('filler_words', options.filler_words ? 'true' : 'false');
+    }
+    if (options?.detect_language !== undefined) {
+      params.append('detect_language', options.detect_language ? 'true' : 'false');
+    }
 
-    const deepgramUrl = `https://api.deepgram.com/v1/listen?${deepgramParams}`;
+    const deepgramUrl = `https://api.deepgram.com/v1/listen?${params.toString()}`;
 
     console.log('Sending request to Deepgram:', { 
       url: deepgramUrl,
       contentType: mime_type,
-      audioSize: audioData.length
+      audioSize: audioData.length,
+      params: Object.fromEntries(params.entries())
     });
 
     const response = await fetch(deepgramUrl, {
@@ -82,10 +100,14 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('Deepgram response received:', {
-      hasResults: !!data.results,
-      hasChannels: !!data.results?.channels,
-      hasAlternatives: !!data.results?.channels?.[0]?.alternatives
+    console.log('Deepgram API Response:', {
+      metadata: data.metadata,
+      results: {
+        channels: data.results?.channels?.length,
+        alternatives: data.results?.channels?.[0]?.alternatives?.length,
+        confidence: data.results?.channels?.[0]?.alternatives?.[0]?.confidence,
+        transcript_length: data.results?.channels?.[0]?.alternatives?.[0]?.transcript?.length
+      }
     });
     
     if (!data.results?.channels?.[0]?.alternatives?.[0]) {
@@ -169,7 +191,7 @@ serve(async (req) => {
           duration: data.metadata?.duration,
           channels: data.metadata?.channels,
           model: data.metadata?.model,
-          options_used: deepgramParams
+          options_used: Object.fromEntries(params.entries())
         },
         storedFileName: baseFileName
       }),
