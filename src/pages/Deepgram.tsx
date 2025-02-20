@@ -1,6 +1,6 @@
 
 import { motion } from "framer-motion";
-import { Loader2, FileText, Edit2, BookOpen, Settings } from "lucide-react";
+import { Loader2, FileText, Edit2, BookOpen, Settings, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DeepgramHeader } from "@/components/deepgram/DeepgramHeader";
 import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
@@ -34,9 +34,19 @@ const DeepgramPage = () => {
       <div className="container mx-auto px-4 py-16 max-w-4xl">
         <nav className="flex flex-col items-center mb-16 animate-fade-down">
           <h1 className="text-6xl font-semibold text-center mb-4 text-blue-500">
-            Deepgram Integration
+            Create Transcript
           </h1>
           <div className="flex flex-wrap justify-center gap-4 mb-6">
+            <Link to="/">
+              <Button
+                variant="outline"
+                size="lg"
+                className="bg-white/90 hover:bg-white/70 text-primary shadow-md hover:shadow-lg transition-all"
+              >
+                <Home className="mr-2" />
+                Home
+              </Button>
+            </Link>
             <Link to="/deepgram">
               <Button
                 variant="outline"
@@ -78,13 +88,6 @@ const DeepgramPage = () => {
               </Button>
             </Link>
           </div>
-          <Link 
-            to="/" 
-            className="text-sm hover:text-primary/80 transition-colors"
-            aria-label="Back to Home"
-          >
-            Back to Home
-          </Link>
         </nav>
 
         <motion.main
