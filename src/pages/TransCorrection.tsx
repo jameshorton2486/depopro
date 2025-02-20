@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useState } from "react";
-import { useDropzone } from "react-dropzone";
+import { useDropzone, DropzoneInputProps } from "react-dropzone";
 import { toast } from "sonner";
 import { uploadAndProcessFile } from "@/services/fileProcessing";
 import { openAIService } from "@/services/openai";
