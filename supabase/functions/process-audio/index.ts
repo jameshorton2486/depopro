@@ -39,15 +39,17 @@ serve(async (req) => {
     const audioData = new Uint8Array(audio);
     console.log(`Reconstructed audio data, size: ${audioData.length} bytes`);
 
+    // Enhanced query parameters for better diarization
     const queryParams = new URLSearchParams({
       model: model || 'nova-3',
       language: language || 'en',
-      smart_format: String(options?.smart_format ?? true),
-      punctuate: String(options?.punctuate ?? true),
-      diarize: "true", // Always enable diarization
-      utterances: "true", // Always enable utterances
+      smart_format: "true",
+      punctuate: "true",
+      diarize: "true",
+      utterances: "true",
       filler_words: String(options?.filler_words ?? true),
-      detect_language: String(options?.detect_language ?? true)
+      detect_language: String(options?.detect_language ?? true),
+      utt_split: "1.0" // Add utterance split threshold for better segmentation
     });
 
     console.log('Making request to Deepgram with params:', Object.fromEntries(queryParams.entries()));
@@ -83,9 +85,9 @@ serve(async (req) => {
 
     const alternative = result.results.channels[0].alternatives[0];
     
-    // Handle diarized utterances with improved formatting
+    // Enhanced speaker diarization and formatting
     let utterances = [];
-    let speakerMap = new Map(); // Track speakers to ensure consistent numbering
+    let speakerMap = new Map();
     let nextSpeakerId = 0;
 
     if (alternative.utterances) {
@@ -97,9 +99,15 @@ serve(async (req) => {
         }
         speakerId = speakerMap.get(speakerId);
 
+        // Clean and format the text
+        const text = utterance.text
+          .trim()
+          .replace(/\s+/g, ' ') // Normalize whitespace
+          .replace(/([.!?])\s*(?=[A-Z])/g, '$1\n\n'); // Add line breaks after sentences
+
         return {
           speaker: `Speaker ${speakerId}`,
-          text: utterance.text.trim(),
+          text,
           start: utterance.start,
           end: utterance.end,
           confidence: utterance.confidence,
@@ -120,7 +128,7 @@ serve(async (req) => {
       }];
     }
 
-    // Format transcript with speaker labels and proper spacing
+    // Format transcript with enhanced spacing and line breaks
     const formattedTranscript = utterances
       .map(u => `${u.speaker}:\n\n${u.text}\n`)
       .join('\n');
