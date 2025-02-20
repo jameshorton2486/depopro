@@ -33,12 +33,13 @@ const processChunkWithRetry = async (
 
   while (retries < MAX_RETRIES_PER_CHUNK) {
     try {
-      const abortController = new AbortController();
-      const timeoutId = setTimeout(() => abortController.abort(), TIMEOUT);
-
       console.debug(`Attempt ${retries + 1} for chunk ${chunkIndex + 1}/${totalChunks}`);
 
-      const { data, error } = await supabase.functions.invoke('process-audio', {
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), TIMEOUT);
+      });
+
+      const processPromise = supabase.functions.invoke('process-audio', {
         body: {
           audio: Array.from(new Uint8Array(chunkBuffer)),
           mime_type: mimeType,
@@ -49,11 +50,10 @@ const processChunkWithRetry = async (
           isPartialChunk: totalChunks > 1,
           chunkIndex,
           totalChunks
-        },
-        abortSignal: abortController.signal,
+        }
       });
 
-      clearTimeout(timeoutId);
+      const { data, error } = await Promise.race([processPromise, timeoutPromise]);
 
       if (error) {
         throw error;

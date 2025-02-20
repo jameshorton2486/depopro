@@ -15,64 +15,76 @@ serve(async (req) => {
   }
 
   try {
-    const processingPromise = processAudioRequest(req);
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Function timeout')), FUNCTION_TIMEOUT);
+    const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
+    if (!deepgramKey) {
+      console.error('Deepgram API key not configured');
+      return new Response(
+        JSON.stringify({ error: 'Deepgram API key not configured' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    const body = await req.json().catch(error => {
+      console.error('Failed to parse request body:', error);
+      throw new Error('Invalid request body');
     });
 
-    const response = await Promise.race([processingPromise, timeoutPromise]);
-    return response;
-  } catch (error) {
-    console.error("Processing error:", {
-      message: error.message,
-      stack: error.stack
+    const { audio, mime_type, options, isPartialChunk, chunkIndex, totalChunks } = body;
+
+    if (!audio || !Array.isArray(audio)) {
+      console.error('Invalid audio data format');
+      return new Response(
+        JSON.stringify({ error: 'Invalid audio data format' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    if (!mime_type) {
+      console.error('MIME type is required');
+      return new Response(
+        JSON.stringify({ error: 'MIME type is required' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    console.log(`Processing chunk ${chunkIndex + 1}/${totalChunks}`, {
+      mimeType: mime_type,
+      audioLength: audio.length,
+      options
     });
 
-    return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: error.stack
-      }),
-      { 
-        status: error.message === 'Function timeout' ? 408 : 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-  }
-});
+    const deepgram = new Deepgram(deepgramKey);
+    const audioData = new Uint8Array(audio);
 
-async function processAudioRequest(req: Request): Promise<Response> {
-  const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
-  if (!deepgramKey) {
-    throw new Error('Deepgram API key not configured');
-  }
+    const source = {
+      buffer: audioData,
+      mimetype: mime_type,
+    };
 
-  const body = await req.json();
-  const { audio, mime_type, options, isPartialChunk, chunkIndex, totalChunks } = body;
-
-  if (!audio || !mime_type) {
-    throw new Error('Audio data and MIME type are required');
-  }
-
-  console.log(`Processing chunk ${chunkIndex + 1}/${totalChunks}`);
-
-  const deepgram = new Deepgram(deepgramKey);
-  const audioData = new Uint8Array(audio);
-
-  const source = {
-    buffer: audioData,
-    mimetype: mime_type,
-  };
-
-  try {
-    const response = await deepgram.transcription.preRecorded(source, {
+    const transcriptionPromise = deepgram.transcription.preRecorded(source, {
       ...options,
       punctuate: true,
       utterances: true,
       numerals: true
     });
 
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Deepgram API timeout')), FUNCTION_TIMEOUT);
+    });
+
+    const response = await Promise.race([transcriptionPromise, timeoutPromise]);
+
     if (!response?.results?.channels?.[0]?.alternatives?.[0]) {
+      console.error('Invalid response structure from Deepgram API');
       throw new Error('Invalid response structure from Deepgram API');
     }
 
@@ -92,8 +104,22 @@ async function processAudioRequest(req: Request): Promise<Response> {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
+
   } catch (error) {
-    console.error(`Deepgram API error for chunk ${chunkIndex + 1}:`, error);
-    throw error;
+    console.error("Processing error:", {
+      message: error.message,
+      stack: error.stack
+    });
+
+    return new Response(
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
   }
-}
+});
