@@ -82,39 +82,38 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Store raw JSON response in storage
-    const fileName = `transcript-${Date.now()}.json`;
-    const { error: uploadError } = await supabase.storage
+    // Generate base filename without extension
+    const baseFileName = `transcript-${Date.now()}`;
+
+    // 1. Store audio file
+    const audioFileName = `${baseFileName}.audio${mime_type.includes('wav') ? '.wav' : '.mp3'}`;
+    const { error: audioUploadError } = await supabase.storage
       .from('transcriptions')
-      .upload(fileName, JSON.stringify(data, null, 2), {
+      .upload(audioFileName, audioData, {
+        contentType: mime_type,
+        upsert: false
+      });
+
+    if (audioUploadError) {
+      console.error('Error uploading audio:', audioUploadError);
+      throw new Error('Failed to store audio file');
+    }
+
+    // 2. Store raw JSON response
+    const jsonFileName = `${baseFileName}.json`;
+    const { error: jsonUploadError } = await supabase.storage
+      .from('transcriptions')
+      .upload(jsonFileName, JSON.stringify(data, null, 2), {
         contentType: 'application/json',
         upsert: false
       });
 
-    if (uploadError) {
-      console.error('Error uploading JSON:', uploadError);
+    if (jsonUploadError) {
+      console.error('Error uploading JSON:', jsonUploadError);
       throw new Error('Failed to store transcription data');
     }
 
-    // Store metadata in database
-    const { error: dbError } = await supabase
-      .from('transcription_data')
-      .insert({
-        file_name: fileName,
-        file_path: fileName,
-        metadata: {
-          duration: data.metadata?.duration,
-          channels: data.metadata?.channels,
-          model: data.metadata?.model
-        },
-        raw_response: data
-      });
-
-    if (dbError) {
-      console.error('Error storing metadata:', dbError);
-      throw new Error('Failed to store transcription metadata');
-    }
-
+    // Process the transcript text
     const transcript = data.results.channels[0].alternatives[0];
     const words = transcript.words || [];
     
@@ -167,11 +166,51 @@ serve(async (req) => {
       .map(u => `${u.speaker}:\n\n${u.text}\n`)
       .join('\n');
 
+    // 3. Store formatted transcript text
+    const textFileName = `${baseFileName}.txt`;
+    const { error: textUploadError } = await supabase.storage
+      .from('transcriptions')
+      .upload(textFileName, formattedTranscript, {
+        contentType: 'text/plain',
+        upsert: false
+      });
+
+    if (textUploadError) {
+      console.error('Error uploading transcript text:', textUploadError);
+      throw new Error('Failed to store transcript text');
+    }
+
+    // Store metadata in database
+    const { error: dbError } = await supabase
+      .from('transcription_data')
+      .insert({
+        file_name: baseFileName,
+        file_path: jsonFileName,
+        metadata: {
+          duration: data.metadata?.duration,
+          channels: data.metadata?.channels,
+          model: data.metadata?.model,
+          audioFile: audioFileName,
+          textFile: textFileName,
+          jsonFile: jsonFileName
+        },
+        raw_response: data
+      });
+
+    if (dbError) {
+      console.error('Error storing metadata:', dbError);
+      throw new Error('Failed to store transcription metadata');
+    }
+
     console.log('Processing complete:', {
       utteranceCount: utterances.length,
       speakerCount: new Set(utterances.map(u => u.speaker)).size,
       transcriptLength: formattedTranscript.length,
-      storedFileName: fileName
+      storedFiles: {
+        audio: audioFileName,
+        json: jsonFileName,
+        text: textFileName
+      }
     });
 
     return new Response(
@@ -182,9 +221,14 @@ serve(async (req) => {
           duration: data.metadata?.duration,
           channels: data.metadata?.channels,
           model: data.metadata?.model,
-          speakerCount: new Set(utterances.map(u => u.speaker)).size
+          speakerCount: new Set(utterances.map(u => u.speaker)).size,
+          files: {
+            audio: audioFileName,
+            json: jsonFileName,
+            text: textFileName
+          }
         },
-        storedFileName: fileName
+        storedFileName: baseFileName
       }),
       { 
         headers: { 
