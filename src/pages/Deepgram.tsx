@@ -16,25 +16,47 @@ const DeepgramPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcript, setTranscript] = useState<string>("");
+  const [processingStatus, setProcessingStatus] = useState<string>("");
 
   const processAudioChunk = async (chunk: Blob) => {
     try {
+      const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
+      console.log("API Key present:", !!apiKey);
+      
+      if (!apiKey) {
+        throw new Error("Deepgram API key is not configured");
+      }
+
       const arrayBuffer = await chunk.arrayBuffer();
+      console.log("Processing chunk size:", arrayBuffer.byteLength, "bytes");
+
+      setProcessingStatus("Sending chunk to Deepgram API...");
       const response = await fetch("https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true", {
         method: "POST",
         headers: {
-          "Authorization": `Token ${import.meta.env.VITE_DEEPGRAM_API_KEY}`,
+          "Authorization": `Token ${apiKey}`,
           "Content-Type": "audio/wav",
         },
         body: new Uint8Array(arrayBuffer),
       });
 
+      console.log("API Response status:", response.status);
+      
       if (!response.ok) {
-        throw new Error(`Deepgram API error: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error("Deepgram API error details:", errorText);
+        throw new Error(`Deepgram API error: ${response.status} - ${response.statusText}`);
       }
 
       const result = await response.json();
-      return result.results?.channels[0]?.alternatives[0]?.transcript || "";
+      console.log("Transcription result:", result);
+
+      if (!result.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
+        console.warn("Unexpected API response structure:", result);
+        throw new Error("Invalid API response format");
+      }
+
+      return result.results.channels[0].alternatives[0].transcript || "";
     } catch (error) {
       console.error("Error processing chunk:", error);
       throw error;
@@ -51,30 +73,46 @@ const DeepgramPage = () => {
       setIsProcessing(true);
       setProgress(0);
       setTranscript("");
+      setProcessingStatus("Initializing transcription...");
+
+      console.log("Starting transcription for file:", uploadedFile.name);
+      console.log("File type:", uploadedFile.type);
+      console.log("File size:", uploadedFile.size, "bytes");
 
       const duration = await getAudioDuration(uploadedFile);
+      console.log("Audio duration:", duration, "seconds");
+
       const numberOfChunks = Math.ceil(duration / CHUNK_SIZE);
+      console.log("Number of chunks to process:", numberOfChunks);
+
       let fullTranscript = "";
 
       for (let i = 0; i < numberOfChunks; i++) {
         const start = i * CHUNK_SIZE;
         const end = Math.min((i + 1) * CHUNK_SIZE, duration);
         
+        setProcessingStatus(`Processing chunk ${i + 1} of ${numberOfChunks}...`);
+        console.log(`Processing chunk ${i + 1}/${numberOfChunks} (${start}s to ${end}s)`);
+        
         const chunk = await extractAudioChunk(uploadedFile, start, end);
+        console.log(`Chunk ${i + 1} size:`, chunk.size, "bytes");
+        
         const chunkTranscript = await processAudioChunk(chunk);
+        console.log(`Chunk ${i + 1} transcript:`, chunkTranscript);
         
         fullTranscript += chunkTranscript + " ";
         setProgress(((i + 1) / numberOfChunks) * 100);
         setTranscript(fullTranscript.trim());
       }
 
+      setProcessingStatus("Transcription completed!");
       toast.success("Transcription completed successfully!");
     } catch (error) {
       console.error("Transcription error:", error);
-      toast.error("Error during transcription");
+      setProcessingStatus("Error during transcription");
+      toast.error(`Error during transcription: ${error.message}`);
     } finally {
       setIsProcessing(false);
-      setProgress(100);
     }
   };
 
@@ -271,7 +309,8 @@ const DeepgramPage = () => {
                     File uploaded successfully
                   </p>
                   {isProcessing && (
-                    <div className="w-full max-w-xs mt-4">
+                    <div className="space-y-2 mt-4">
+                      <p className="text-sm text-muted-foreground">{processingStatus}</p>
                       <Progress value={progress} />
                     </div>
                   )}
