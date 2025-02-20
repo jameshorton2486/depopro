@@ -2,10 +2,34 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
 import pdfParse from "https://esm.sh/pdf-parse@1.1.1"
+import { Document } from "https://esm.sh/docx@8.5.0"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+async function extractTextFromDocx(buffer: ArrayBuffer): Promise<string> {
+  try {
+    const doc = new Document(buffer);
+    let text = '';
+
+    // Extract text from each paragraph
+    doc.sections.forEach(section => {
+      section.paragraphs.forEach(paragraph => {
+        paragraph.children.forEach(child => {
+          if (child.text) {
+            text += child.text + '\n';
+          }
+        });
+      });
+    });
+
+    return text.trim();
+  } catch (error) {
+    console.error('Error extracting text from DOCX:', error);
+    throw new Error('Failed to extract text from DOCX file');
+  }
 }
 
 serve(async (req) => {
@@ -31,8 +55,9 @@ serve(async (req) => {
 
     const contentType = fileResponse.headers.get('content-type')
     const buffer = await fileResponse.arrayBuffer()
-
     let text = ''
+
+    console.log('Processing file with content type:', contentType)
 
     // Process based on file type
     if (contentType?.includes('pdf')) {
@@ -41,14 +66,16 @@ serve(async (req) => {
     } else if (contentType?.includes('text/plain')) {
       text = new TextDecoder().decode(buffer)
     } else if (contentType?.includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document')) {
-      // For DOCX files, we'll need to extract text in a different way
-      // For now, return an error
-      throw new Error('DOCX processing not yet implemented')
+      text = await extractTextFromDocx(buffer)
     } else {
       throw new Error(`Unsupported file type: ${contentType}`)
     }
 
-    console.log('Successfully extracted text from file')
+    if (!text) {
+      throw new Error('No text could be extracted from the file')
+    }
+
+    console.log('Successfully extracted text from file, length:', text.length)
 
     return new Response(
       JSON.stringify({ text }),
