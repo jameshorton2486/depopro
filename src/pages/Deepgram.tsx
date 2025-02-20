@@ -1,9 +1,9 @@
 
 import DeepgramHeader from "@/components/deepgram/DeepgramHeader";
-import FileUploadArea from "@/components/deepgram/FileUploadArea";
-import TranscriptDisplay from "@/components/deepgram/TranscriptDisplay";
-import TranscriptionControls from "@/components/deepgram/TranscriptionControls";
-import TranscriptionOptions from "@/components/deepgram/TranscriptionOptions";
+import { FileUploadArea } from "@/components/deepgram/FileUploadArea";
+import { TranscriptDisplay } from "@/components/deepgram/TranscriptDisplay";
+import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
+import { TranscriptionOptions } from "@/components/deepgram/TranscriptionOptions";
 import { useDeepgramOptions } from "@/hooks/useDeepgramOptions";
 import { useDeepgramAPI } from "@/hooks/useDeepgramAPI";
 import { ApiKeyForm } from "@/components/deepgram/ApiKeyForm";
