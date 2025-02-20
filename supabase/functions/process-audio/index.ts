@@ -8,8 +8,9 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
@@ -20,24 +21,26 @@ serve(async (req) => {
       throw new Error('Deepgram API key is not configured');
     }
 
-    const requestBody = await req.json();
-    const { audio, mime_type, options } = requestBody;
+    // Parse request body and validate
+    const { audio, mime_type, options } = await req.json();
     
     if (!audio || !mime_type) {
-      throw new Error('Missing required data');
+      console.error('Missing required data:', { hasAudio: !!audio, mimeType: mime_type });
+      throw new Error('Missing required data: audio or mime_type');
     }
 
-    // Initialize Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    console.log('Processing audio with options:', {
+      model: options?.model,
+      language: options?.language,
+      mimeType: mime_type,
+      audioSize: audio.length
+    });
 
     // Convert audio data to Uint8Array
     const audioData = new Uint8Array(audio);
 
-    // Make request to Deepgram
-    const response = await fetch('https://api.deepgram.com/v1/listen?' + new URLSearchParams({
+    // Make request to Deepgram with specific error handling
+    const deepgramUrl = 'https://api.deepgram.com/v1/listen?' + new URLSearchParams({
       model: options?.model || 'nova-3',
       language: options?.language || 'en-US',
       smart_format: 'true',
@@ -46,7 +49,11 @@ serve(async (req) => {
       diarize_version: '3',
       utterances: 'true',
       filler_words: options?.filler_words ? 'true' : 'false'
-    }), {
+    });
+
+    console.log('Sending request to Deepgram:', { url: deepgramUrl });
+
+    const response = await fetch(deepgramUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Token ${apiKey}`,
@@ -66,89 +73,100 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('Received response from Deepgram:', {
-      hasResults: !!data.results,
-      hasUtterances: !!data.results?.utterances,
-      channels: data.results?.channels?.length
+    
+    if (!data.results?.channels?.[0]?.alternatives?.[0]) {
+      console.error('Invalid Deepgram response structure:', data);
+      throw new Error('Invalid response from Deepgram');
+    }
+
+    console.log('Successfully received Deepgram response');
+
+    // Format utterances from words
+    const utterances = [];
+    const words = data.results.channels[0].alternatives[0].words || [];
+    let currentUtterance = null;
+
+    words.forEach((word) => {
+      const speaker = `${word.speaker || 0}`;
+      
+      if (!currentUtterance || currentUtterance.speaker !== speaker) {
+        if (currentUtterance) {
+          utterances.push(currentUtterance);
+        }
+        currentUtterance = {
+          speaker,
+          text: word.word,
+          start: word.start,
+          end: word.end,
+          confidence: word.confidence,
+          words: [word],
+          fillerWords: word.type === 'filler' ? [word] : []
+        };
+      } else {
+        currentUtterance.text += ` ${word.word}`;
+        currentUtterance.end = word.end;
+        currentUtterance.confidence = (currentUtterance.confidence + word.confidence) / 2;
+        currentUtterance.words.push(word);
+        if (word.type === 'filler') {
+          currentUtterance.fillerWords.push(word);
+        }
+      }
     });
 
-    // Process utterances and format transcript
-    const formatUtterances = (data) => {
-      const utterances = data.results?.channels?.[0]?.alternatives?.[0]?.words || [];
-      const formattedUtterances = [];
-      let currentUtterance = null;
+    if (currentUtterance) {
+      utterances.push(currentUtterance);
+    }
 
-      utterances.forEach((word) => {
-        const speaker = `Speaker ${word.speaker || 0}`;
-        
-        if (!currentUtterance || currentUtterance.speaker !== speaker) {
-          if (currentUtterance) {
-            formattedUtterances.push(currentUtterance);
-          }
-          currentUtterance = {
-            speaker,
-            text: word.word,
-            start: word.start,
-            end: word.end,
-            confidence: word.confidence,
-            words: [word],
-            fillerWords: word.type === 'filler' ? [word] : []
-          };
-        } else {
-          currentUtterance.text += ` ${word.word}`;
-          currentUtterance.end = word.end;
-          currentUtterance.confidence = (currentUtterance.confidence + word.confidence) / 2;
-          currentUtterance.words.push(word);
-          if (word.type === 'filler') {
-            currentUtterance.fillerWords.push(word);
-          }
-        }
-      });
-
-      if (currentUtterance) {
-        formattedUtterances.push(currentUtterance);
-      }
-
-      return formattedUtterances;
-    };
-
-    const utterances = formatUtterances(data);
-    
-    // Format the transcript with proper spacing and indentation
+    // Format transcript with proper indentation and spacing
     const formattedTranscript = utterances
       .map(u => `\tSpeaker ${u.speaker}:  ${u.text.trim()}`)
       .join('\n\n');
 
-    // Generate base filename
+    console.log('Successfully formatted transcript:', {
+      utteranceCount: utterances.length,
+      transcriptLength: formattedTranscript.length
+    });
+
+    // Initialize Supabase client for storage
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Generate unique filename base
     const baseFileName = `transcript-${Date.now()}`;
+    const storageBucket = 'transcriptions';
 
-    // Store audio file
-    const audioFileName = `${baseFileName}.audio${mime_type.includes('wav') ? '.wav' : '.mp3'}`;
-    await supabase.storage
-      .from('transcriptions')
-      .upload(audioFileName, audioData, {
-        contentType: mime_type,
-        upsert: false
+    try {
+      // Store audio file
+      const audioFileName = `${baseFileName}.audio${mime_type.includes('wav') ? '.wav' : '.mp3'}`;
+      await supabase.storage
+        .from(storageBucket)
+        .upload(audioFileName, audioData, {
+          contentType: mime_type,
+          upsert: true
+        });
+
+      // Store formatted transcript
+      const textFileName = `${baseFileName}.txt`;
+      await supabase.storage
+        .from(storageBucket)
+        .upload(textFileName, formattedTranscript, {
+          contentType: 'text/plain',
+          upsert: true
+        });
+
+      console.log('Successfully stored files:', {
+        audio: audioFileName,
+        text: textFileName
       });
 
-    // Store JSON response
-    const jsonFileName = `${baseFileName}.json`;
-    await supabase.storage
-      .from('transcriptions')
-      .upload(jsonFileName, JSON.stringify(data, null, 2), {
-        contentType: 'application/json',
-        upsert: false
-      });
+    } catch (storageError) {
+      console.error('Storage error:', storageError);
+      // Continue execution even if storage fails
+    }
 
-    // Store formatted transcript
-    const textFileName = `${baseFileName}.txt`;
-    await supabase.storage
-      .from('transcriptions')
-      .upload(textFileName, formattedTranscript, {
-        contentType: 'text/plain',
-        upsert: false
-      });
-
+    // Return successful response
     return new Response(
       JSON.stringify({
         transcript: formattedTranscript,
@@ -156,30 +174,25 @@ serve(async (req) => {
         metadata: {
           duration: data.metadata?.duration,
           channels: data.metadata?.channels,
-          model: data.metadata?.model,
-          files: {
-            audio: audioFileName,
-            json: jsonFileName,
-            text: textFileName
-          }
-        },
-        storedFileName: baseFileName
+          model: data.metadata?.model
+        }
       }),
       { 
         headers: { 
           ...corsHeaders,
           'Content-Type': 'application/json'
-        } 
+        },
+        status: 200
       }
     );
 
   } catch (error) {
-    console.error('Error processing audio:', error);
+    console.error('Error in process-audio function:', error);
+    
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        timestamp: new Date().toISOString(),
-        details: error.stack
+        timestamp: new Date().toISOString()
       }),
       { 
         status: 500,
