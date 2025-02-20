@@ -1,12 +1,23 @@
 
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
+
+const getStoredApiKey = () => localStorage.getItem('deepgram_api_key');
+const setStoredApiKey = (key: string) => localStorage.setItem('deepgram_api_key', key);
 
 export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) => {
   try {
     if (!chunk || chunk.size === 0) {
       throw new Error('Invalid audio chunk');
+    }
+
+    const apiKey = getStoredApiKey();
+    if (!apiKey) {
+      const userKey = prompt('Please enter your Deepgram API key:');
+      if (!userKey) {
+        throw new Error('Deepgram API key is required');
+      }
+      setStoredApiKey(userKey);
     }
 
     console.debug('Sending audio chunk to Deepgram:', {
@@ -17,54 +28,59 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
 
     const arrayBuffer = await chunk.arrayBuffer();
 
-    // Preserve user options while ensuring diarize_version when diarize is true
-    const requestOptions = {
-      ...options,
-      diarize_version: options.diarize ? "3" : undefined
-    };
+    // Prepare Deepgram options
+    const deepgramOptions = new URLSearchParams({
+      model: options.model || "nova-3",
+      language: options.language || "en-US",
+      smart_format: String(options.smart_format ?? true),
+      punctuate: String(options.punctuate ?? true),
+      diarize: String(options.diarize ?? true),
+      filler_words: String(options.filler_words ?? true),
+      detect_language: String(options.detect_language ?? true)
+    });
 
-    console.debug('Sending request with options:', requestOptions);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('process-audio', {
-        body: {
-          audio: Array.from(new Uint8Array(arrayBuffer)),
-          mime_type: chunk.type,
-          options: requestOptions
-        }
-      });
-
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw error;
-      }
-
-      if (!data) {
-        throw new Error('No response received from Supabase function');
-      }
-
-      if (!data.transcript) {
-        console.error('No transcript in response:', data);
-        throw new Error('No transcript received from Deepgram');
-      }
-
-      console.debug('Received response:', {
-        transcriptLength: data.transcript.length,
-        metadata: data.metadata,
-        storedFileName: data.storedFileName
-      });
-
-      return {
-        transcript: data.transcript,
-        metadata: data.metadata,
-        storedFileName: data.storedFileName
-      };
-    } catch (error) {
-      console.error('Network or processing error:', error);
-      throw new Error(`Failed to process audio: ${error.message}`);
+    if (options.diarize) {
+      deepgramOptions.append('diarize_version', '3');
     }
+
+    console.debug('Using Deepgram options:', Object.fromEntries(deepgramOptions));
+
+    const response = await fetch(`https://api.deepgram.com/v1/listen?${deepgramOptions}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${getStoredApiKey()}`,
+        'Content-Type': chunk.type
+      },
+      body: arrayBuffer
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Deepgram API error:', errorText);
+      throw new Error(`Deepgram API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.results?.channels?.[0]?.alternatives?.[0]) {
+      throw new Error('Invalid response structure from Deepgram API');
+    }
+
+    const result = data.results.channels[0].alternatives[0];
+    console.debug('Received response:', {
+      transcriptLength: result.transcript.length,
+      confidence: result.confidence,
+      metadata: data.metadata
+    });
+
+    return {
+      transcript: result.transcript,
+      metadata: data.metadata,
+      storedFileName: null // This was previously used for Supabase storage
+    };
   } catch (error) {
-    console.error("Error processing chunk:", error);
+    console.error("Error processing audio:", error);
+    toast.error(`Failed to process audio: ${error.message}`);
     throw error;
   }
 };
