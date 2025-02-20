@@ -5,6 +5,7 @@ import { getAudioDuration, extractAudioChunk, SUPPORTED_AUDIO_TYPES } from "@/ut
 import { processAudioChunk } from "./useDeepgramAPI";
 import { useDeepgramOptions } from "./useDeepgramOptions";
 import { TranscriptUtterance } from "@/types/deepgram";
+import { supabase } from "@/integrations/supabase/client";
 
 export const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
 
@@ -25,6 +26,51 @@ export const useTranscription = () => {
   const [utterances, setUtterances] = useState<TranscriptUtterance[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const [storedFileName, setStoredFileName] = useState<string>("");
+
+  // Function to clear all data
+  const clearAllData = async () => {
+    // Clear states
+    setTranscript("");
+    setUtterances([]);
+    setProcessingStatus("");
+    setProgress(0);
+    setStoredFileName("");
+
+    // Clear localStorage
+    localStorage.removeItem('deepgram_model');
+    localStorage.removeItem('deepgram_language');
+    localStorage.removeItem('deepgram_options');
+
+    // Clear existing files in storage if there's a stored file
+    if (storedFileName) {
+      try {
+        const { data: files, error: listError } = await supabase.storage
+          .from('transcriptions')
+          .list('', {
+            search: storedFileName
+          });
+
+        if (listError) {
+          console.error('Error listing files:', listError);
+          return;
+        }
+
+        // Delete found files
+        if (files && files.length > 0) {
+          const filesToDelete = files.map(file => file.name);
+          const { error: deleteError } = await supabase.storage
+            .from('transcriptions')
+            .remove(filesToDelete);
+
+          if (deleteError) {
+            console.error('Error deleting files:', deleteError);
+          }
+        }
+      } catch (error) {
+        console.error('Error clearing storage:', error);
+      }
+    }
+  };
 
   const handleTranscribe = async () => {
     if (!uploadedFile) {
@@ -98,6 +144,9 @@ export const useTranscription = () => {
     }
 
     try {
+      // Clear all existing data before processing new file
+      await clearAllData();
+      
       setIsProcessing(true);
       setProgress(0);
       setProcessingStatus("Validating file...");
@@ -105,7 +154,6 @@ export const useTranscription = () => {
       await getAudioDuration(file);
       
       setUploadedFile(file);
-      setTranscript("");
       toast.success("File validated and ready for transcription");
     } catch (error) {
       console.error("Error processing file:", error);
