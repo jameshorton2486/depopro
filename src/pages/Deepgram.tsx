@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -46,6 +45,7 @@ const DeepgramPage = () => {
           audio: await chunk.arrayBuffer(),
           model,
           language,
+          mime_type: chunk.type,
         }
       });
 
@@ -70,22 +70,13 @@ const DeepgramPage = () => {
       setProcessingStatus("Initializing transcription...");
 
       const duration = await getAudioDuration(uploadedFile);
-      const numberOfChunks = Math.ceil(duration / CHUNK_SIZE);
-      let fullTranscript = "";
-
-      for (let i = 0; i < numberOfChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min((i + 1) * CHUNK_SIZE, duration);
-        
-        setProcessingStatus(`Processing chunk ${i + 1} of ${numberOfChunks}...`);
-        const chunk = await extractAudioChunk(uploadedFile, start, end);
-        const chunkTranscript = await processAudioChunk(chunk);
-        
-        fullTranscript += chunkTranscript + " ";
-        setProgress(((i + 1) / numberOfChunks) * 100);
-        setTranscript(fullTranscript.trim());
-      }
-
+      setProcessingStatus("Processing audio file...");
+      
+      const chunk = await extractAudioChunk(uploadedFile);
+      const chunkTranscript = await processAudioChunk(chunk);
+      
+      setTranscript(chunkTranscript.trim());
+      setProgress(100);
       setProcessingStatus("Transcription completed!");
       toast.success("Transcription completed successfully!");
     } catch (error) {

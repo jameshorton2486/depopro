@@ -6,21 +6,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { audio, model, language } = await req.json();
+    const { audio, model, language, mime_type } = await req.json();
 
     if (!audio) {
       throw new Error('Audio data is required');
     }
 
-    // Convert ArrayBuffer to Base64 string before sending to Deepgram
+    // Convert ArrayBuffer to Uint8Array for streaming
     const audioData = new Uint8Array(audio);
-    
+    console.log(`Received audio data of size: ${audioData.length} bytes`);
+
     const queryParams = new URLSearchParams({
       model: model || 'nova-3',
       language: language || 'en',
@@ -37,9 +40,10 @@ serve(async (req) => {
         method: 'POST',
         headers: {
           'Authorization': `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
-          'Content-Type': 'audio/mpeg', // Default to MP3, but we should ideally detect this
+          'Content-Type': mime_type || 'audio/mpeg',
         },
         body: audioData,
+        duplex: 'half',
       }
     );
 
@@ -50,11 +54,9 @@ serve(async (req) => {
     }
 
     const result = await response.json();
-    console.log('Deepgram response:', JSON.stringify(result, null, 2));
+    console.log('Successfully received Deepgram response');
     
     const transcript = result.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
-
-    console.log('Successfully processed audio');
 
     return new Response(
       JSON.stringify({ transcript }),

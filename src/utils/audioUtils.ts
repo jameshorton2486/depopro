@@ -28,7 +28,7 @@ export const getAudioDuration = (file: File): Promise<number> => {
 
 export const extractAudioChunk = async (file: File): Promise<Blob> => {
   try {
-    // For now, we'll send the entire file since we can't easily slice audio
+    const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       
