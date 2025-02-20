@@ -3,7 +3,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+const CHUNK_SIZE = 1 * 1024 * 1024; // Reduced to 1MB chunks for better handling
+const TIMEOUT = 30000; // 30 second timeout per chunk
+const MAX_RETRIES_PER_CHUNK = 3;
 
 const sliceArrayBuffer = (buffer: ArrayBuffer, chunkSize: number): ArrayBuffer[] => {
   const chunks: ArrayBuffer[] = [];
@@ -16,6 +18,66 @@ const sliceArrayBuffer = (buffer: ArrayBuffer, chunkSize: number): ArrayBuffer[]
   }
   
   return chunks;
+};
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const processChunkWithRetry = async (
+  chunkBuffer: ArrayBuffer,
+  mimeType: string,
+  options: DeepgramOptions,
+  chunkIndex: number,
+  totalChunks: number
+): Promise<string> => {
+  let retries = 0;
+
+  while (retries < MAX_RETRIES_PER_CHUNK) {
+    try {
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), TIMEOUT);
+
+      console.debug(`Attempt ${retries + 1} for chunk ${chunkIndex + 1}/${totalChunks}`);
+
+      const { data, error } = await supabase.functions.invoke('process-audio', {
+        body: {
+          audio: Array.from(new Uint8Array(chunkBuffer)),
+          mime_type: mimeType,
+          options: {
+            ...options,
+            diarize_version: options.diarize ? "3" : undefined
+          },
+          isPartialChunk: totalChunks > 1,
+          chunkIndex,
+          totalChunks
+        },
+        abortSignal: abortController.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.transcript) {
+        throw new Error('No transcript received from Deepgram');
+      }
+
+      return data.transcript;
+    } catch (error) {
+      retries++;
+      console.warn(`Chunk ${chunkIndex + 1} failed, attempt ${retries}/${MAX_RETRIES_PER_CHUNK}:`, error);
+      
+      if (retries === MAX_RETRIES_PER_CHUNK) {
+        throw new Error(`Failed to process chunk ${chunkIndex + 1} after ${MAX_RETRIES_PER_CHUNK} attempts`);
+      }
+
+      // Exponential backoff
+      await delay(Math.min(1000 * Math.pow(2, retries), 8000));
+    }
+  }
+
+  throw new Error('Unexpected error in retry loop');
 };
 
 export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) => {
@@ -40,53 +102,25 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
     });
 
     let allTranscripts = '';
-    let processedChunks = 0;
+    
+    // Process chunks with some parallelization but not all at once
+    const batchSize = 3; // Process 3 chunks at a time
+    for (let i = 0; i < chunks.length; i += batchSize) {
+      const batch = chunks.slice(i, i + batchSize);
+      const batchPromises = batch.map((chunkBuffer, batchIndex) => 
+        processChunkWithRetry(
+          chunkBuffer,
+          chunk.type,
+          options,
+          i + batchIndex,
+          chunks.length
+        )
+      );
 
-    for (const chunkBuffer of chunks) {
-      console.debug(`Processing chunk ${processedChunks + 1}/${chunks.length}`);
-      
-      const requestOptions = {
-        ...options,
-        diarize_version: options.diarize ? "3" : undefined
-      };
+      const batchResults = await Promise.all(batchPromises);
+      allTranscripts += batchResults.join(' ');
 
-      console.time(`chunk${processedChunks + 1}Processing`);
-      
-      const { data, error } = await supabase.functions.invoke('process-audio', {
-        body: {
-          audio: Array.from(new Uint8Array(chunkBuffer)),
-          mime_type: chunk.type,
-          options: requestOptions,
-          isPartialChunk: chunks.length > 1,
-          chunkIndex: processedChunks,
-          totalChunks: chunks.length
-        }
-      });
-
-      console.timeEnd(`chunk${processedChunks + 1}Processing`);
-
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw error;
-      }
-
-      if (!data) {
-        throw new Error('No response received from Supabase function');
-      }
-
-      if (!data.transcript) {
-        console.error('No transcript in chunk response:', data);
-        throw new Error('No transcript received from Deepgram');
-      }
-
-      allTranscripts += data.transcript + ' ';
-      processedChunks++;
-
-      console.debug('Chunk processed successfully:', {
-        chunkNumber: processedChunks,
-        transcriptLength: data.transcript.length,
-        totalTranscriptLength: allTranscripts.length
-      });
+      console.debug(`Completed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)}`);
     }
 
     const finalTranscript = allTranscripts.trim();

@@ -7,39 +7,64 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const FUNCTION_TIMEOUT = 25000; // 25 seconds, slightly less than Supabase's 30s limit
+
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    console.log("Starting audio chunk processing...");
-    
-    const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
-    if (!deepgramKey) {
-      throw new Error('Deepgram API key not configured');
-    }
+    const processingPromise = processAudioRequest(req);
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Function timeout')), FUNCTION_TIMEOUT);
+    });
 
-    const body = await req.json();
-    const { audio, mime_type, options, isPartialChunk, chunkIndex, totalChunks } = body;
+    const response = await Promise.race([processingPromise, timeoutPromise]);
+    return response;
+  } catch (error) {
+    console.error("Processing error:", {
+      message: error.message,
+      stack: error.stack
+    });
 
-    if (!audio || !mime_type) {
-      throw new Error('Audio data and MIME type are required');
-    }
+    return new Response(
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }),
+      { 
+        status: error.message === 'Function timeout' ? 408 : 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+});
 
-    console.log(`Processing chunk ${chunkIndex + 1}/${totalChunks}`);
+async function processAudioRequest(req: Request): Promise<Response> {
+  const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
+  if (!deepgramKey) {
+    throw new Error('Deepgram API key not configured');
+  }
 
-    // Initialize Deepgram
-    const deepgram = new Deepgram(deepgramKey);
-    const audioData = new Uint8Array(audio);
+  const body = await req.json();
+  const { audio, mime_type, options, isPartialChunk, chunkIndex, totalChunks } = body;
 
-    const source = {
-      buffer: audioData,
-      mimetype: mime_type,
-    };
+  if (!audio || !mime_type) {
+    throw new Error('Audio data and MIME type are required');
+  }
 
-    // Process with Deepgram
+  console.log(`Processing chunk ${chunkIndex + 1}/${totalChunks}`);
+
+  const deepgram = new Deepgram(deepgramKey);
+  const audioData = new Uint8Array(audio);
+
+  const source = {
+    buffer: audioData,
+    mimetype: mime_type,
+  };
+
+  try {
     const response = await deepgram.transcription.preRecorded(source, {
       ...options,
       punctuate: true,
@@ -67,22 +92,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
-
   } catch (error) {
-    console.error("Processing error:", {
-      message: error.message,
-      stack: error.stack
-    });
-
-    return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: error.stack
-      }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    console.error(`Deepgram API error for chunk ${chunkIndex + 1}:`, error);
+    throw error;
   }
-});
+}
