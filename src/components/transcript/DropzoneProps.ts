@@ -1,7 +1,8 @@
 
-import { DropzoneOptions } from "react-dropzone";
+import type { DropzoneOptions, DropzoneInputProps } from "react-dropzone";
 
-export interface DropzoneProps extends Partial<DropzoneOptions> {
-  getRootProps: <T extends HTMLElement = HTMLElement>() => React.HTMLAttributes<T>;
-  getInputProps: <T extends HTMLElement = HTMLElement>() => React.InputHTMLAttributes<T>;
+export interface DropzoneProps {
+  getRootProps: () => React.HTMLAttributes<HTMLElement>;
+  getInputProps: () => DropzoneInputProps;
+  isDragActive: boolean;
 }

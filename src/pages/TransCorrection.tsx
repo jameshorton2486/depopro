@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -164,7 +163,11 @@ const TransCorrection = () => {
     },
     maxFiles: 1,
     maxSize: 10 * 1024 * 1024
-  });
+  }) as {
+    getRootProps: () => React.HTMLAttributes<HTMLElement>;
+    getInputProps: () => DropzoneInputProps;
+    isDragActive: boolean;
+  };
 
   return (
     <div className="min-h-screen bg-background">

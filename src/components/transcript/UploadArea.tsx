@@ -1,11 +1,11 @@
 
 import { Upload } from "lucide-react";
-import type { DropzoneProps } from "./DropzoneProps";
+import type { DropzoneInputProps } from "react-dropzone";
 import UploadProgress from "@/components/upload/UploadProgress";
 
 interface UploadAreaProps {
-  getRootProps: DropzoneProps["getRootProps"];
-  getInputProps: DropzoneProps["getInputProps"];
+  getRootProps: () => React.HTMLAttributes<HTMLElement>;
+  getInputProps: () => DropzoneInputProps;
   isDragActive: boolean;
   uploadedFile: File | null;
   isProcessing: boolean;
