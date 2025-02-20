@@ -40,6 +40,11 @@ const DeepgramPage = () => {
 
   const processAudioChunk = async (chunk: Blob) => {
     try {
+      console.log('Sending audio chunk:', {
+        size: chunk.size,
+        type: chunk.type,
+      });
+
       const { data, error } = await supabase.functions.invoke('process-audio', {
         body: {
           audio: await chunk.arrayBuffer(),
@@ -49,11 +54,20 @@ const DeepgramPage = () => {
         }
       });
 
-      if (error) throw error;
-      return data.transcript || "";
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
+
+      if (!data?.transcript) {
+        console.error('No transcript in response:', data);
+        throw new Error('No transcript received from Deepgram');
+      }
+
+      return data.transcript;
     } catch (error) {
       console.error("Error processing chunk:", error);
-      throw error;
+      throw new Error(`Transcription failed: ${error.message}`);
     }
   };
 
@@ -69,11 +83,20 @@ const DeepgramPage = () => {
       setTranscript("");
       setProcessingStatus("Initializing transcription...");
 
-      const duration = await getAudioDuration(uploadedFile);
-      setProcessingStatus("Processing audio file...");
-      
+      console.log('Starting transcription for file:', {
+        name: uploadedFile.name,
+        size: uploadedFile.size,
+        type: uploadedFile.type,
+      });
+
       const chunk = await extractAudioChunk(uploadedFile);
+      setProcessingStatus("Sending audio to Deepgram...");
+      
       const chunkTranscript = await processAudioChunk(chunk);
+      console.log('Received transcript:', {
+        length: chunkTranscript.length,
+        preview: chunkTranscript.substring(0, 100) + '...',
+      });
       
       setTranscript(chunkTranscript.trim());
       setProgress(100);
@@ -82,7 +105,7 @@ const DeepgramPage = () => {
     } catch (error) {
       console.error("Transcription error:", error);
       setProcessingStatus("Error during transcription");
-      toast.error(`Error during transcription: ${error.message}`);
+      toast.error(`Transcription failed: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
