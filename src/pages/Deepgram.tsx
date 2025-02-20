@@ -9,6 +9,7 @@ import { DeepgramHeader } from "@/components/deepgram/DeepgramHeader";
 import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
 import { FileUploadArea } from "@/components/deepgram/FileUploadArea";
 import { TranscriptDisplay } from "@/components/deepgram/TranscriptDisplay";
+import { getAudioDuration, extractAudioChunk } from "@/utils/audioUtils";
 
 const CHUNK_SIZE = 300; // 5 minutes in seconds
 const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
