@@ -1,9 +1,10 @@
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Index from '@/pages/Index';
-import Upload from '@/pages/Upload';
+import ModelTraining from '@/pages/ModelTraining';
 import Ebook from '@/pages/Ebook';
 import TransCorrection from '@/pages/TransCorrection';
+import Deepgram from '@/pages/Deepgram';
 import { Toaster } from "@/components/ui/sonner";
 
 function App() {
@@ -11,9 +12,10 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Index />} />
-        <Route path="/upload" element={<Upload />} />
+        <Route path="/model_training" element={<ModelTraining />} />
         <Route path="/ebook" element={<Ebook />} />
         <Route path="/transcorrection" element={<TransCorrection />} />
+        <Route path="/deepgram" element={<Deepgram />} />
       </Routes>
       <Toaster />
     </Router>
