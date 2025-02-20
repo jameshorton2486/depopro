@@ -31,9 +31,9 @@ const DeepgramPage = () => {
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
-      <div className="container mx-auto px-4 py-16 max-w-4xl">
+      <div className="container mx-auto px-2 py-16 max-w-7xl">
         <nav className="flex flex-col items-center mb-16 animate-fade-down">
-          <h1 className="text-6xl font-semibold text-center mb-4 text-blue-500">
+          <h1 className="text-6xl font-semibold text-center mb-8 text-blue-500">
             Create Transcript
           </h1>
           <div className="flex flex-wrap justify-center gap-4 mb-6">
