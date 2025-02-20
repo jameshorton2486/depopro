@@ -13,15 +13,16 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
 
     const arrayBuffer = await chunk.arrayBuffer();
 
+    // Force all boolean options to true
     const requestOptions = {
       model: options.model,
       language: options.language,
-      smart_format: options.smart_format,
-      punctuate: options.punctuate,
-      diarize: options.diarize,
+      smart_format: true,
+      punctuate: true,
+      diarize: true,
       diarize_version: "3",
-      filler_words: options.filler_words,
-      detect_language: options.detect_language
+      filler_words: true,
+      detect_language: true
     };
 
     console.log('Sending request with options:', requestOptions);
