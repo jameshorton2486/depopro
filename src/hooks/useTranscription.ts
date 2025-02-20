@@ -1,14 +1,24 @@
-
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getAudioDuration, extractAudioChunk, SUPPORTED_AUDIO_TYPES } from "@/utils/audioUtils";
 
-interface TranscriptParagraph {
+interface Word {
+  word: string;
+  start: number;
+  end: number;
+  confidence: number;
+  type?: 'filler' | undefined;
+}
+
+interface TranscriptUtterance {
   speaker: string;
   text: string;
   start: number;
   end: number;
+  confidence: number;
+  words: Word[];
+  fillerWords: Word[];
 }
 
 export const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
@@ -18,7 +28,7 @@ export const useTranscription = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcript, setTranscript] = useState<string>("");
-  const [paragraphs, setParagraphs] = useState<TranscriptParagraph[]>([]);
+  const [utterances, setUtterances] = useState<TranscriptUtterance[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const [model, setModel] = useState<string>("nova-3");
   const [language, setLanguage] = useState<string>("en");
@@ -53,7 +63,8 @@ export const useTranscription = () => {
 
       return {
         transcript: data.transcript,
-        paragraphs: data.paragraphs || []
+        utterances: data.utterances || [],
+        metadata: data.metadata
       };
     } catch (error) {
       console.error("Error processing chunk:", error);
@@ -71,7 +82,7 @@ export const useTranscription = () => {
       setIsProcessing(true);
       setProgress(0);
       setTranscript("");
-      setParagraphs([]);
+      setUtterances([]);
       setProcessingStatus("Processing audio file...");
 
       if (!Object.keys(SUPPORTED_AUDIO_TYPES).includes(uploadedFile.type)) {
@@ -85,11 +96,12 @@ export const useTranscription = () => {
       console.log('Received transcript:', {
         length: result.transcript.length,
         preview: result.transcript.substring(0, 100) + '...',
-        paragraphCount: result.paragraphs.length
+        utteranceCount: result.utterances.length,
+        metadata: result.metadata
       });
       
       setTranscript(result.transcript.trim());
-      setParagraphs(result.paragraphs);
+      setUtterances(result.utterances);
       setProgress(100);
       setProcessingStatus("Transcription completed!");
       toast.success("Transcription completed successfully!");
@@ -151,43 +163,45 @@ export const useTranscription = () => {
     document.body.removeChild(element);
   };
 
+  const testApiKey = async () => {
+    try {
+      setIsProcessing(true);
+      setProcessingStatus("Testing Deepgram API key...");
+
+      const { data, error } = await supabase.functions.invoke('test-deepgram-key');
+
+      if (error) {
+        console.error('Error testing API key:', error);
+        toast.error("Failed to test Deepgram API key");
+        return;
+      }
+
+      if (data?.success) {
+        toast.success("Deepgram API key is valid!");
+      } else {
+        toast.error("Invalid Deepgram API key");
+      }
+    } catch (error) {
+      console.error("Error testing API key:", error);
+      toast.error("Failed to test Deepgram API key");
+    } finally {
+      setIsProcessing(false);
+      setProcessingStatus("");
+    }
+  };
+
   return {
     uploadedFile,
     isProcessing,
     progress,
     transcript,
-    paragraphs,
+    utterances,
     processingStatus,
     model,
     language,
     setModel,
     setLanguage,
-    testApiKey: async () => {
-      try {
-        setIsProcessing(true);
-        setProcessingStatus("Testing Deepgram API key...");
-
-        const { data, error } = await supabase.functions.invoke('test-deepgram-key');
-
-        if (error) {
-          console.error('Error testing API key:', error);
-          toast.error("Failed to test Deepgram API key");
-          return;
-        }
-
-        if (data?.success) {
-          toast.success("Deepgram API key is valid!");
-        } else {
-          toast.error("Invalid Deepgram API key");
-        }
-      } catch (error) {
-        console.error("Error testing API key:", error);
-        toast.error("Failed to test Deepgram API key");
-      } finally {
-        setIsProcessing(false);
-        setProcessingStatus("");
-      }
-    },
+    testApiKey,
     handleTranscribe,
     onDrop,
     downloadTranscript,

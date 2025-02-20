@@ -80,22 +80,31 @@ serve(async (req) => {
     }
 
     const alternative = result.results.channels[0].alternatives[0];
-    const paragraphs = alternative.paragraphs?.paragraphs || [];
+    const utterances = alternative.utterances || [];
     
-    // Process paragraphs with speaker information
-    const formattedTranscript = paragraphs.map((para: any) => ({
-      speaker: para.speaker || 'Unknown Speaker',
-      text: para.text,
-      start: para.start,
-      end: para.end
+    // Process utterances with all available information
+    const formattedUtterances = utterances.map((utterance: any) => ({
+      speaker: utterance.speaker || 'Unknown Speaker',
+      text: utterance.text,
+      start: utterance.start,
+      end: utterance.end,
+      confidence: utterance.confidence,
+      words: utterance.words || [],
+      fillerWords: utterance.words?.filter((word: any) => word.type === 'filler') || []
     }));
 
-    console.log('Successfully processed audio with speaker diarization');
+    console.log('Successfully processed audio with all options');
 
     return new Response(
       JSON.stringify({ 
         transcript: alternative.transcript,
-        paragraphs: formattedTranscript 
+        utterances: formattedUtterances,
+        metadata: {
+          duration: result.metadata?.duration,
+          channels: result.metadata?.channels,
+          model: result.metadata?.model,
+          language: result.metadata?.language
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

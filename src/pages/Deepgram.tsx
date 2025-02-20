@@ -15,6 +15,7 @@ const DeepgramPage = () => {
     isProcessing,
     progress,
     transcript,
+    utterances,
     processingStatus,
     model,
     language,
@@ -82,6 +83,7 @@ const DeepgramPage = () => {
             />
             <TranscriptDisplay
               transcript={transcript}
+              utterances={utterances}
               onDownload={downloadTranscript}
             />
           </div>
