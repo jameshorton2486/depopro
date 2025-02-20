@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -21,6 +22,29 @@ const DeepgramPage = () => {
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const [model, setModel] = useState<string>("nova-3");
   const [language, setLanguage] = useState<string>("en");
+  
+  // Reference for the processing container
+  const processingRef = useRef<HTMLDivElement>(null);
+
+  // Handle focus management during processing
+  useEffect(() => {
+    if (isProcessing) {
+      // When processing starts, make non-essential elements inert
+      const mainContent = document.querySelector('main');
+      if (mainContent) {
+        mainContent.setAttribute('inert', '');
+      }
+      
+      // Focus the processing status for screen readers
+      processingRef.current?.focus();
+    } else {
+      // Remove inert when processing is done
+      const mainContent = document.querySelector('main');
+      if (mainContent) {
+        mainContent.removeAttribute('inert');
+      }
+    }
+  }, [isProcessing]);
 
   const testApiKey = async () => {
     try {
@@ -33,10 +57,6 @@ const DeepgramPage = () => {
       toast.error("Failed to verify Deepgram API key");
     }
   };
-
-  useEffect(() => {
-    testApiKey();
-  }, []);
 
   const processAudioChunk = async (chunk: Blob) => {
     try {
@@ -159,19 +179,24 @@ const DeepgramPage = () => {
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
       <div className="container mx-auto px-4 py-16 max-w-4xl">
         <nav className="flex flex-col items-center mb-16 animate-fade-down">
-          <div className="text-6xl font-semibold text-center mb-4 text-blue-500">
+          <h1 className="text-6xl font-semibold text-center mb-4 text-blue-500">
             Deepgram Integration
-          </div>
-          <a href="/" className="text-sm hover:text-primary/80 transition-colors">
+          </h1>
+          <a 
+            href="/" 
+            className="text-sm hover:text-primary/80 transition-colors"
+            aria-label="Back to Home"
+          >
             Back to Home
           </a>
         </nav>
 
-        <motion.div
+        <motion.main
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
           className="space-y-6"
+          aria-live="polite"
         >
           <div className="bg-background border rounded-lg p-6">
             <DeepgramHeader onTestApiKey={testApiKey} />
@@ -193,18 +218,29 @@ const DeepgramPage = () => {
                 <Button
                   onClick={handleTranscribe}
                   disabled={isProcessing}
+                  aria-busy={isProcessing}
                 >
-                  {isProcessing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Transcribe Audio
+                  {isProcessing && <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />}
+                  {isProcessing ? "Transcribing..." : "Transcribe Audio"}
                 </Button>
               </div>
             )}
+            {/* Processing status container - focusable for screen readers */}
+            <div
+              ref={processingRef}
+              tabIndex={-1}
+              role="status"
+              aria-live="assertive"
+              className="sr-only"
+            >
+              {processingStatus}
+            </div>
             <TranscriptDisplay
               transcript={transcript}
               onDownload={downloadTranscript}
             />
           </div>
-        </motion.div>
+        </motion.main>
       </div>
     </div>
   );
