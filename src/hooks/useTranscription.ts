@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { getAudioDuration, extractAudioChunk, SUPPORTED_AUDIO_TYPES } from "@/utils/audioUtils";
 import { processAudioChunk } from "./useDeepgramAPI";
 import { useDeepgramOptions } from "./useDeepgramOptions";
-import { TranscriptUtterance } from "@/types/deepgram";
 import { supabase } from "@/integrations/supabase/client";
 
 export const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
@@ -23,7 +22,6 @@ export const useTranscription = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcript, setTranscript] = useState<string>("");
-  const [utterances, setUtterances] = useState<TranscriptUtterance[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const [storedFileName, setStoredFileName] = useState<string>("");
 
@@ -31,7 +29,6 @@ export const useTranscription = () => {
   const clearAllData = async () => {
     // Clear states
     setTranscript("");
-    setUtterances([]);
     setProcessingStatus("");
     setProgress(0);
     setStoredFileName("");
@@ -82,7 +79,6 @@ export const useTranscription = () => {
       setIsProcessing(true);
       setProgress(0);
       setTranscript("");
-      setUtterances([]);
       setProcessingStatus("Processing audio file...");
 
       if (!Object.keys(SUPPORTED_AUDIO_TYPES).includes(uploadedFile.type)) {
@@ -99,7 +95,6 @@ export const useTranscription = () => {
         punctuate: true,
         diarize: true,
         diarize_version: "3",
-        utterances: true,
         filler_words: true,
         detect_language: true,
         model: model,
@@ -110,13 +105,11 @@ export const useTranscription = () => {
       console.log('Received transcript:', {
         length: result.transcript.length,
         preview: result.transcript.substring(0, 100) + '...',
-        utteranceCount: result.utterances.length,
         metadata: result.metadata,
         storedFileName: result.storedFileName
       });
       
       setTranscript(result.transcript.trim());
-      setUtterances(result.utterances);
       setStoredFileName(result.storedFileName);
       setProgress(100);
       setProcessingStatus("Transcription completed!");
@@ -186,7 +179,6 @@ export const useTranscription = () => {
     isProcessing,
     progress,
     transcript,
-    utterances,
     processingStatus,
     storedFileName,
     model,
