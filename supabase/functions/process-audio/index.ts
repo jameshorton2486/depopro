@@ -47,7 +47,6 @@ serve(async (req) => {
       punctuate: 'true',
       diarize: 'true',
       diarize_version: '3',
-      utterances: 'true',
       filler_words: options?.filler_words ? 'true' : 'false'
     });
 
@@ -81,51 +80,29 @@ serve(async (req) => {
 
     console.log('Successfully received Deepgram response');
 
-    // Format utterances from words
-    const utterances = [];
+    // Format transcript with speaker labels
     const words = data.results.channels[0].alternatives[0].words || [];
-    let currentUtterance = null;
+    let formattedTranscript = '';
+    let currentSpeaker = null;
+    let currentText = '';
 
-    words.forEach((word) => {
-      const speaker = `${word.speaker || 0}`;
-      
-      if (!currentUtterance || currentUtterance.speaker !== speaker) {
-        if (currentUtterance) {
-          utterances.push(currentUtterance);
+    words.forEach((word: any) => {
+      const speaker = `Speaker ${word.speaker || '1'}`;
+      if (speaker !== currentSpeaker) {
+        if (currentText) {
+          formattedTranscript += `${currentText.trim()}\n\n`;
         }
-        currentUtterance = {
-          speaker,
-          text: word.word,
-          start: word.start,
-          end: word.end,
-          confidence: word.confidence,
-          words: [word],
-          fillerWords: word.type === 'filler' ? [word] : []
-        };
+        formattedTranscript += `${speaker}: `;
+        currentSpeaker = speaker;
+        currentText = word.word;
       } else {
-        currentUtterance.text += ` ${word.word}`;
-        currentUtterance.end = word.end;
-        currentUtterance.confidence = (currentUtterance.confidence + word.confidence) / 2;
-        currentUtterance.words.push(word);
-        if (word.type === 'filler') {
-          currentUtterance.fillerWords.push(word);
-        }
+        currentText += ` ${word.word}`;
       }
     });
 
-    if (currentUtterance) {
-      utterances.push(currentUtterance);
+    if (currentText) {
+      formattedTranscript += `${currentText.trim()}\n\n`;
     }
-
-    // Format transcript with proper indentation and spacing
-    const formattedTranscript = utterances
-      .map(u => `\tSpeaker ${u.speaker}:  ${u.text.trim()}`)
-      .join('\n\n');
-
-    console.log('Successfully formatted transcript:', {
-      utteranceCount: utterances.length,
-      transcriptLength: formattedTranscript.length
-    });
 
     // Initialize Supabase client for storage
     const supabase = createClient(
@@ -170,12 +147,12 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         transcript: formattedTranscript,
-        utterances,
         metadata: {
           duration: data.metadata?.duration,
           channels: data.metadata?.channels,
           model: data.metadata?.model
-        }
+        },
+        storedFileName: baseFileName
       }),
       { 
         headers: { 

@@ -59,21 +59,6 @@ export const TranscriptionOptions = ({ options, onOptionsChange }: Transcription
         </div>
         <div className="flex items-center space-x-2">
           <Checkbox 
-            id="utterances" 
-            checked={options.utterances}
-            onCheckedChange={(checked) => 
-              onOptionsChange({ utterances: checked as boolean })
-            }
-          />
-          <label 
-            htmlFor="utterances"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-          >
-            Segment Utterances
-          </label>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Checkbox 
             id="filler_words" 
             checked={options.filler_words}
             onCheckedChange={(checked) => 
