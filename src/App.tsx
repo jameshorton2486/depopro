@@ -1,5 +1,6 @@
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Layout from '@/components/layout/Layout';
 import Index from '@/pages/Index';
 import ModelTraining from '@/pages/ModelTraining';
 import Ebook from '@/pages/Ebook';
@@ -10,13 +11,15 @@ import { Toaster } from "@/components/ui/sonner";
 function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<Index />} />
-        <Route path="/model_training" element={<ModelTraining />} />
-        <Route path="/ebook" element={<Ebook />} />
-        <Route path="/transcorrection" element={<TransCorrection />} />
-        <Route path="/deepgram" element={<Deepgram />} />
-      </Routes>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/model_training" element={<ModelTraining />} />
+          <Route path="/ebook" element={<Ebook />} />
+          <Route path="/transcorrection" element={<TransCorrection />} />
+          <Route path="/deepgram" element={<Deepgram />} />
+        </Routes>
+      </Layout>
       <Toaster />
     </Router>
   );
