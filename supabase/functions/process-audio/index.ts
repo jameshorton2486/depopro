@@ -22,6 +22,13 @@ const SUPPORTED_MIME_TYPES = [
 const FUNCTION_TIMEOUT = 25000; // 25 seconds
 
 serve(async (req) => {
+  // Log request details for debugging
+  console.log("Received request:", {
+    method: req.method,
+    headers: Object.fromEntries(req.headers.entries()),
+    url: req.url
+  });
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -57,6 +64,7 @@ serve(async (req) => {
       );
     }
 
+    // Check mime_type before using includes()
     if (!mime_type || !SUPPORTED_MIME_TYPES.includes(mime_type)) {
       console.error('Unsupported MIME type:', mime_type);
       return new Response(
