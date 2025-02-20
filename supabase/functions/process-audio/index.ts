@@ -39,14 +39,13 @@ serve(async (req) => {
     const audioData = new Uint8Array(audio);
     console.log(`Reconstructed audio data, size: ${audioData.length} bytes`);
 
-    // Ensure diarize is a string "true" or "false"
     const queryParams = new URLSearchParams({
       model: model || 'nova-3',
       language: language || 'en',
       smart_format: String(options?.smart_format ?? true),
       punctuate: String(options?.punctuate ?? true),
-      diarize: String(options?.diarize ?? true), // Explicitly ensure boolean conversion
-      utterances: String(options?.utterances ?? true),
+      diarize: "true", // Always enable diarization
+      utterances: "true", // Always enable utterances
       filler_words: String(options?.filler_words ?? true),
       detect_language: String(options?.detect_language ?? true)
     });
@@ -84,23 +83,35 @@ serve(async (req) => {
 
     const alternative = result.results.channels[0].alternatives[0];
     
-    // Handle diarized utterances
+    // Handle diarized utterances with improved formatting
     let utterances = [];
-    if (options?.diarize && alternative.utterances) {
-      utterances = alternative.utterances.map((utterance: any) => ({
-        speaker: `Speaker ${utterance.speaker || 'Unknown'}`,
-        text: utterance.text,
-        start: utterance.start,
-        end: utterance.end,
-        confidence: utterance.confidence,
-        words: utterance.words || [],
-        fillerWords: (utterance.words || []).filter((word: any) => word.type === 'filler')
-      }));
+    let speakerMap = new Map(); // Track speakers to ensure consistent numbering
+    let nextSpeakerId = 0;
+
+    if (alternative.utterances) {
+      utterances = alternative.utterances.map((utterance: any) => {
+        // Get or assign consistent speaker number
+        let speakerId = utterance.speaker;
+        if (!speakerMap.has(speakerId)) {
+          speakerMap.set(speakerId, nextSpeakerId++);
+        }
+        speakerId = speakerMap.get(speakerId);
+
+        return {
+          speaker: `Speaker ${speakerId}`,
+          text: utterance.text.trim(),
+          start: utterance.start,
+          end: utterance.end,
+          confidence: utterance.confidence,
+          words: utterance.words || [],
+          fillerWords: (utterance.words || []).filter((word: any) => word.type === 'filler')
+        };
+      });
     } else if (alternative.words && alternative.words.length > 0) {
       // If not diarized but we have words, create a single utterance
       utterances = [{
-        speaker: 'Speaker',
-        text: alternative.transcript,
+        speaker: 'Speaker 0',
+        text: alternative.transcript.trim(),
         start: alternative.words[0].start,
         end: alternative.words[alternative.words.length - 1].end,
         confidence: alternative.confidence,
@@ -109,25 +120,30 @@ serve(async (req) => {
       }];
     }
 
+    // Format transcript with speaker labels and proper spacing
+    const formattedTranscript = utterances
+      .map(u => `${u.speaker}:\n\n${u.text}\n`)
+      .join('\n');
+
     console.log('Successfully processed audio:', {
-      transcriptLength: alternative.transcript.length,
+      transcriptLength: formattedTranscript.length,
       utteranceCount: utterances.length,
       hasWords: utterances.some(u => u.words.length > 0),
       hasFillerWords: utterances.some(u => u.fillerWords.length > 0),
-      diarizationEnabled: options?.diarize,
-      speakersDetected: new Set(utterances.map(u => u.speaker)).size
+      diarizationEnabled: true,
+      speakersDetected: speakerMap.size
     });
 
     return new Response(
       JSON.stringify({ 
-        transcript: alternative.transcript,
+        transcript: formattedTranscript,
         utterances,
         metadata: {
           duration: result.metadata?.duration,
           channels: result.metadata?.channels,
           model: result.metadata?.model,
           language: result.metadata?.language,
-          speakerCount: new Set(utterances.map(u => u.speaker)).size
+          speakerCount: speakerMap.size
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
