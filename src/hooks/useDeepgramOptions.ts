@@ -12,30 +12,36 @@ const defaultOptions: DeepgramOptions = {
   detect_language: true
 };
 
+const loadSavedOptions = (): DeepgramOptions => {
+  try {
+    const saved = localStorage.getItem("deepgram_options");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        model: parsed.model || defaultOptions.model,
+        language: parsed.language || defaultOptions.language,
+        smart_format: parsed.smart_format ?? defaultOptions.smart_format,
+        punctuate: parsed.punctuate ?? defaultOptions.punctuate,
+        diarize: parsed.diarize ?? defaultOptions.diarize,
+        filler_words: parsed.filler_words ?? defaultOptions.filler_words,
+        detect_language: parsed.detect_language ?? defaultOptions.detect_language
+      };
+    }
+  } catch (error) {
+    console.warn("Error loading saved options, using defaults:", error);
+  }
+  return { ...defaultOptions };
+};
+
 export const useDeepgramOptions = () => {
   const [model, setModel] = useState(defaultOptions.model);
   const [language, setLanguage] = useState(defaultOptions.language);
-  // Initialize options with forced true values regardless of stored settings
-  const [options] = useState<DeepgramOptions>(() => {
-    const saved = localStorage.getItem("deepgram_options");
-    const parsed = saved ? JSON.parse(saved) : defaultOptions;
-
-    // Always enforce true values for boolean options
-    return {
-      model: parsed.model || defaultOptions.model,
-      language: parsed.language || defaultOptions.language,
-      smart_format: true,
-      punctuate: true,
-      diarize: true,
-      filler_words: true,
-      detect_language: true
-    };
-  });
+  const [options, setOptions] = useState<DeepgramOptions>(loadSavedOptions);
 
   useEffect(() => {
     try {
       localStorage.setItem('deepgram_model', model);
-      console.log('Stored model:', model);
+      console.debug('Stored model:', model);
     } catch (error) {
       console.error('Error storing model:', error);
     }
@@ -44,7 +50,7 @@ export const useDeepgramOptions = () => {
   useEffect(() => {
     try {
       localStorage.setItem('deepgram_language', language);
-      console.log('Stored language:', language);
+      console.debug('Stored language:', language);
     } catch (error) {
       console.error('Error storing language:', error);
     }
@@ -52,25 +58,18 @@ export const useDeepgramOptions = () => {
 
   useEffect(() => {
     try {
-      // Store options with forced true values
-      const optionsToStore = {
-        ...options,
-        smart_format: true,
-        punctuate: true,
-        diarize: true,
-        filler_words: true,
-        detect_language: true
-      };
-      localStorage.setItem('deepgram_options', JSON.stringify(optionsToStore));
-      console.log('Updated Deepgram options:', optionsToStore);
+      localStorage.setItem('deepgram_options', JSON.stringify(options));
+      console.debug('Updated Deepgram options:', options);
     } catch (error) {
       console.error('Error storing options:', error);
     }
-  }, []);
+  }, [options]);
 
-  const handleOptionsChange = () => {
-    // No-op since we're keeping all options true
-    console.log('Options changes disabled, using default true values');
+  const handleOptionsChange = (newOptions: Partial<DeepgramOptions>) => {
+    setOptions(current => ({
+      ...current,
+      ...newOptions
+    }));
   };
 
   return {

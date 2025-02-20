@@ -4,7 +4,7 @@ export interface Word {
   start: number;
   end: number;
   confidence: number;
-  type?: 'filler' | undefined;
+  type?: 'filler';
 }
 
 export interface DeepgramOptions {
@@ -13,6 +13,7 @@ export interface DeepgramOptions {
   smart_format: boolean;
   punctuate: boolean;
   diarize: boolean;
+  diarize_version?: string;
   filler_words: boolean;
   detect_language: boolean;
 }
