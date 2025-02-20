@@ -5,10 +5,10 @@ import { DeepgramOptions } from "@/types/deepgram";
 const defaultOptions: DeepgramOptions = {
   model: "nova-3",
   language: "en-US",
-  smart_format: true,
-  punctuate: true,
-  diarize: true,
-  filler_words: false,
+  smart_format: true, // Enable smart formatting by default
+  punctuate: true,   // Enable punctuation by default
+  diarize: true,     // Enable speaker diarization by default
+  filler_words: true, // Enable filler words detection by default
   detect_language: false
 };
 

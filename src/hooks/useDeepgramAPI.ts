@@ -24,7 +24,6 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
           punctuate: options.punctuate,
           diarize: options.diarize,
           diarize_version: "3",
-          utterances: options.utterances,
           filler_words: options.filler_words,
           detect_language: options.detect_language
         }
@@ -43,7 +42,6 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
 
     return {
       transcript: data.transcript,
-      utterances: data.utterances || [],
       metadata: data.metadata,
       storedFileName: data.storedFileName
     };
