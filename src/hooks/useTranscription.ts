@@ -24,6 +24,7 @@ export const useTranscription = () => {
   const [transcript, setTranscript] = useState<string>("");
   const [utterances, setUtterances] = useState<TranscriptUtterance[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string>("");
+  const [storedFileName, setStoredFileName] = useState<string>("");
 
   const handleTranscribe = async () => {
     if (!uploadedFile) {
@@ -44,20 +45,36 @@ export const useTranscription = () => {
 
       const chunk = await extractAudioChunk(uploadedFile);
       setProcessingStatus("Sending audio to Deepgram...");
+
+      // Enhanced Deepgram options
+      const deepgramOptions = {
+        ...options,
+        smart_format: true,
+        punctuate: true,
+        diarize: true,
+        diarize_version: "3",
+        utterances: true,
+        filler_words: true,
+        detect_language: true,
+        model: model,
+        language: language
+      };
       
-      const result = await processAudioChunk(chunk, options);
+      const result = await processAudioChunk(chunk, deepgramOptions);
       console.log('Received transcript:', {
         length: result.transcript.length,
         preview: result.transcript.substring(0, 100) + '...',
         utteranceCount: result.utterances.length,
-        metadata: result.metadata
+        metadata: result.metadata,
+        storedFileName: result.storedFileName
       });
       
       setTranscript(result.transcript.trim());
       setUtterances(result.utterances);
+      setStoredFileName(result.storedFileName);
       setProgress(100);
       setProcessingStatus("Transcription completed!");
-      toast.success("Transcription completed successfully!");
+      toast.success("Transcription completed and saved successfully!");
     } catch (error) {
       console.error("Transcription error:", error);
       setProcessingStatus("Error during transcription");
@@ -123,6 +140,7 @@ export const useTranscription = () => {
     transcript,
     utterances,
     processingStatus,
+    storedFileName,
     model,
     language,
     options,

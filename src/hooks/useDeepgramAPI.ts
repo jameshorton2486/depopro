@@ -8,7 +8,7 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
     console.log('Sending audio chunk to Deepgram:', {
       size: `${(chunk.size / (1024 * 1024)).toFixed(2)}MB`,
       type: chunk.type,
-      options
+      options: JSON.stringify(options, null, 2)
     });
 
     const arrayBuffer = await chunk.arrayBuffer();
@@ -23,6 +23,7 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
           smart_format: options.smart_format,
           punctuate: options.punctuate,
           diarize: options.diarize,
+          diarize_version: "3",
           utterances: options.utterances,
           filler_words: options.filler_words,
           detect_language: options.detect_language
@@ -43,7 +44,8 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
     return {
       transcript: data.transcript,
       utterances: data.utterances || [],
-      metadata: data.metadata
+      metadata: data.metadata,
+      storedFileName: data.storedFileName
     };
   } catch (error) {
     console.error("Error processing chunk:", error);
