@@ -24,8 +24,7 @@ export const LEGAL_ABBREVIATIONS = {
     "contra": "Contrary authority",
     "Corp.": "Corporation",
     "Crim.": "Criminal"
-  },
-  // ... add more letters
+  }
 };
 
 export const EXHIBIT_MARKING_RULES = {
@@ -143,7 +142,7 @@ export const PUNCTUATION_EXAMPLES = {
     rule: "Use quotation marks for direct speech and quoted material.",
     examples: [
       {
-        correct: "The witness stated, "I saw nothing unusual that night."",
+        correct: "The witness stated, \"I saw nothing unusual that night.\"",
         incorrect: "The witness stated I saw nothing unusual that night"
       }
     ]
