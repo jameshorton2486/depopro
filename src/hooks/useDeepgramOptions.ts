@@ -8,7 +8,6 @@ const DEFAULT_OPTIONS: DeepgramOptions = {
   smart_format: true,
   punctuate: true,
   diarize: true,
-  diarize_version: "3",
   utterances: true,
   filler_words: true,
   detect_language: true
