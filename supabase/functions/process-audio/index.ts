@@ -7,7 +7,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -20,45 +19,37 @@ serve(async (req) => {
       throw new Error('Deepgram API key is not configured');
     }
 
-    // Parse the request body
     const { audio, mime_type, options } = await req.json();
+    console.log('Processing request with options:', options);
     
     if (!audio || !mime_type) {
       throw new Error('Missing required audio data or mime type');
     }
 
-    console.log('Received audio data:', {
-      mimeType: mime_type,
-      options: options
-    });
-
     // Convert audio data to Uint8Array
     const audioData = new Uint8Array(audio);
-    
-    // Set up API request parameters
-    const features = {
-      model: options?.model || 'nova-2',
+
+    // Configure Deepgram API parameters
+    const params = new URLSearchParams({
+      model: options?.model || 'nova-3',
       language: options?.language || 'en-US',
-      smart_format: true,
-      punctuate: true,
-      diarize: true,
-      utterances: true
-    };
+      smart_format: 'true',
+      punctuate: 'true',
+      diarize: 'true',
+      diarize_version: '3',
+      utterances: 'true',
+      filler_words: options?.filler_words ? 'true' : 'false'
+    });
 
-    const queryString = new URLSearchParams(
-      Object.entries(features).map(([key, value]) => [key, String(value)])
-    ).toString();
+    console.log('Making request to Deepgram with params:', Object.fromEntries(params.entries()));
 
-    console.log('Making request to Deepgram with features:', features);
-
-    // Make request to Deepgram API
     const response = await fetch(
-      `https://api.deepgram.com/v1/listen?${queryString}`,
+      `https://api.deepgram.com/v1/listen?${params.toString()}`,
       {
         method: 'POST',
         headers: {
           'Authorization': `Token ${apiKey}`,
-          'Content-Type': mime_type,
+          'Content-Type': mime_type
         },
         body: audioData
       }
@@ -74,19 +65,84 @@ serve(async (req) => {
     }
 
     const data = await response.json();
+    console.log('Received response from Deepgram:', {
+      hasResults: !!data.results,
+      hasUtterances: !!data.results?.utterances,
+      channels: data.results?.channels?.length
+    });
     
     if (!data.results?.channels?.[0]?.alternatives?.[0]) {
       throw new Error('Invalid response from Deepgram');
     }
 
-    const result = data.results.channels[0].alternatives[0];
-    console.log('Successfully processed audio');
+    const transcript = data.results.channels[0].alternatives[0];
+    const words = transcript.words || [];
+    
+    // Process words into speaker-based utterances
+    let utterances = [];
+    let currentUtterance = null;
+
+    words.forEach((word: any) => {
+      const speaker = `Speaker ${word.speaker || 0}`;
+      
+      if (!currentUtterance || currentUtterance.speaker !== speaker) {
+        if (currentUtterance) {
+          utterances.push(currentUtterance);
+        }
+        currentUtterance = {
+          speaker,
+          text: word.word,
+          start: word.start,
+          end: word.end,
+          confidence: word.confidence,
+          words: [word],
+          fillerWords: word.type === 'filler' ? [word] : []
+        };
+      } else {
+        currentUtterance.text += ` ${word.word}`;
+        currentUtterance.end = word.end;
+        currentUtterance.confidence = (currentUtterance.confidence + word.confidence) / 2;
+        currentUtterance.words.push(word);
+        if (word.type === 'filler') {
+          currentUtterance.fillerWords.push(word);
+        }
+      }
+    });
+
+    if (currentUtterance) {
+      utterances.push(currentUtterance);
+    }
+
+    // Format utterances
+    utterances = utterances.map(utterance => ({
+      ...utterance,
+      text: utterance.text
+        .trim()
+        .replace(/\s+/g, ' ')
+        .replace(/([.!?])\s*(?=[A-Z])/g, '$1\n')
+    }));
+
+    // Format transcript with proper speaker labeling and spacing
+    const formattedTranscript = utterances
+      .map(u => `${u.speaker}:\n\n${u.text}\n`)
+      .join('\n');
+
+    console.log('Processing complete:', {
+      utteranceCount: utterances.length,
+      speakerCount: new Set(utterances.map(u => u.speaker)).size,
+      transcriptLength: formattedTranscript.length
+    });
 
     return new Response(
       JSON.stringify({
-        transcript: result.transcript,
-        utterances: result.paragraphs?.paragraphs || [],
-        metadata: data.metadata
+        transcript: formattedTranscript,
+        utterances,
+        metadata: {
+          duration: data.metadata?.duration,
+          channels: data.metadata?.channels,
+          model: data.metadata?.model,
+          speakerCount: new Set(utterances.map(u => u.speaker)).size
+        }
       }),
       { 
         headers: { 
