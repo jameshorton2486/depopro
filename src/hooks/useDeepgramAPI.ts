@@ -5,20 +5,49 @@ import { DeepgramOptions } from "@/types/deepgram";
 const getStoredApiKey = () => localStorage.getItem('deepgram_api_key');
 const setStoredApiKey = (key: string) => localStorage.setItem('deepgram_api_key', key);
 
+const validateApiKey = async (): Promise<string> => {
+  let apiKey = getStoredApiKey();
+  
+  while (!apiKey) {
+    const userKey = prompt('Please enter your Deepgram API key:');
+    if (!userKey) {
+      throw new Error('Deepgram API key is required');
+    }
+    
+    // Test the API key with a simple request
+    try {
+      const response = await fetch('https://api.deepgram.com/v1/projects', {
+        headers: {
+          'Authorization': `Token ${userKey}`,
+        }
+      });
+      
+      if (response.ok) {
+        setStoredApiKey(userKey);
+        apiKey = userKey;
+        toast.success('API key validated successfully');
+      } else {
+        toast.error('Invalid API key. Please try again.');
+        localStorage.removeItem('deepgram_api_key');
+      }
+    } catch (error) {
+      console.error('Error validating API key:', error);
+      toast.error('Failed to validate API key. Please try again.');
+      localStorage.removeItem('deepgram_api_key');
+    }
+  }
+  
+  return apiKey;
+};
+
 export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) => {
   try {
     if (!chunk || chunk.size === 0) {
       throw new Error('Invalid audio chunk');
     }
 
-    const apiKey = getStoredApiKey();
-    if (!apiKey) {
-      const userKey = prompt('Please enter your Deepgram API key:');
-      if (!userKey) {
-        throw new Error('Deepgram API key is required');
-      }
-      setStoredApiKey(userKey);
-    }
+    // Validate API key before proceeding
+    const apiKey = await validateApiKey();
 
     console.debug('Sending audio chunk to Deepgram:', {
       size: `${(chunk.size / (1024 * 1024)).toFixed(2)}MB`,
@@ -48,7 +77,7 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
     const response = await fetch(`https://api.deepgram.com/v1/listen?${deepgramOptions}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Token ${getStoredApiKey()}`,
+        'Authorization': `Token ${apiKey}`,
         'Content-Type': chunk.type
       },
       body: arrayBuffer
@@ -57,6 +86,12 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Deepgram API error:', errorText);
+      
+      // If unauthorized, clear the stored API key
+      if (response.status === 401) {
+        localStorage.removeItem('deepgram_api_key');
+      }
+      
       throw new Error(`Deepgram API error: ${response.status} - ${errorText}`);
     }
 
