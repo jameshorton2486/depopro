@@ -1,12 +1,19 @@
+
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useDropzone } from "react-dropzone";
-import { Upload, FileAudio, Loader2, Download } from "lucide-react";
+import { Upload, FileAudio, Loader2, Download, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Deepgram } from "@deepgram/sdk";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const CHUNK_SIZE = 300; // 5 minutes in seconds
 const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
@@ -17,6 +24,8 @@ const DeepgramPage = () => {
   const [progress, setProgress] = useState(0);
   const [transcript, setTranscript] = useState<string>("");
   const [processingStatus, setProcessingStatus] = useState<string>("");
+  const [model, setModel] = useState<string>("nova-3");
+  const [language, setLanguage] = useState<string>("en");
 
   const processAudioChunk = async (chunk: Blob) => {
     try {
@@ -30,8 +39,17 @@ const DeepgramPage = () => {
       const arrayBuffer = await chunk.arrayBuffer();
       console.log("Processing chunk size:", arrayBuffer.byteLength, "bytes");
 
+      // Add query parameters for language and features
+      const queryParams = new URLSearchParams({
+        model,
+        language,
+        smart_format: "true",
+        utterances: "true",
+        punctuate: "true",
+      });
+
       setProcessingStatus("Sending chunk to Deepgram API...");
-      const response = await fetch("https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true", {
+      const response = await fetch(`https://api.deepgram.com/v1/listen?${queryParams}`, {
         method: "POST",
         headers: {
           "Authorization": `Token ${apiKey}`,
@@ -45,6 +63,9 @@ const DeepgramPage = () => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Deepgram API error details:", errorText);
+        if (response.status === 429) {
+          throw new Error("Rate limit exceeded. Please try again later.");
+        }
         throw new Error(`Deepgram API error: ${response.status} - ${response.statusText}`);
       }
 
@@ -289,10 +310,44 @@ const DeepgramPage = () => {
           className="space-y-6"
         >
           <div className="bg-background border rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Deepgram Audio Processing</h2>
-            <p className="text-muted-foreground mb-6">
-              Upload your audio or video files for advanced speech-to-text transcription using Deepgram's AI technology.
-            </p>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-semibold">Deepgram Audio Processing</h2>
+                <p className="text-muted-foreground mt-2">
+                  Upload your audio or video files for advanced speech-to-text transcription.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-40">
+                  <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nova-3">Nova (Best)</SelectItem>
+                      <SelectItem value="base">Base</SelectItem>
+                      <SelectItem value="enhanced">Enhanced</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-40">
+                  <Select value={language} onValueChange={setLanguage}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="es">Spanish</SelectItem>
+                      <SelectItem value="fr">French</SelectItem>
+                      <SelectItem value="de">German</SelectItem>
+                      <SelectItem value="ja">Japanese</SelectItem>
+                      <SelectItem value="ko">Korean</SelectItem>
+                      <SelectItem value="zh">Chinese</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
 
             <div
               {...getRootProps()}
@@ -311,7 +366,7 @@ const DeepgramPage = () => {
                   {isProcessing && (
                     <div className="space-y-2 mt-4">
                       <p className="text-sm text-muted-foreground">{processingStatus}</p>
-                      <Progress value={progress} />
+                      <Progress value={progress} className="w-64" />
                     </div>
                   )}
                 </div>
