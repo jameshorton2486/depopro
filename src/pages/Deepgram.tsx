@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -39,6 +40,33 @@ const DeepgramPage = () => {
       }
     }
   }, [isProcessing]);
+
+  const testApiKey = async () => {
+    try {
+      setIsProcessing(true);
+      setProcessingStatus("Testing Deepgram API key...");
+
+      const { data, error } = await supabase.functions.invoke('test-deepgram-key');
+
+      if (error) {
+        console.error('Error testing API key:', error);
+        toast.error("Failed to test Deepgram API key");
+        return;
+      }
+
+      if (data?.success) {
+        toast.success("Deepgram API key is valid!");
+      } else {
+        toast.error("Invalid Deepgram API key");
+      }
+    } catch (error) {
+      console.error("Error testing API key:", error);
+      toast.error("Failed to test Deepgram API key");
+    } finally {
+      setIsProcessing(false);
+      setProcessingStatus("");
+    }
+  };
 
   const processAudioChunk = async (chunk: Blob) => {
     try {
