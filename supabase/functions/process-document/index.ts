@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
-import pdfParse from "https://esm.sh/pdf-parse@1.1.1"
 import { Document } from "https://esm.sh/docx@8.5.0"
 
 const corsHeaders = {
@@ -13,15 +12,10 @@ async function extractTextFromDocx(buffer: ArrayBuffer): Promise<string> {
   try {
     const doc = new Document(buffer);
     let text = '';
-
-    // Extract text from each paragraph
+    
     doc.sections.forEach(section => {
       section.paragraphs.forEach(paragraph => {
-        paragraph.children.forEach(child => {
-          if (child.text) {
-            text += child.text + '\n';
-          }
-        });
+        text += paragraph.text + '\n';
       });
     });
 
@@ -35,64 +29,74 @@ async function extractTextFromDocx(buffer: ArrayBuffer): Promise<string> {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { fileUrl } = await req.json()
+    // Check if we're processing raw text or a file URL
+    const body = await req.json();
     
-    if (!fileUrl) {
-      throw new Error('No file URL provided')
+    if (body.text) {
+      // If raw text is provided, return it directly
+      console.log('Processing raw text input');
+      return new Response(
+        JSON.stringify({ text: body.text }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    console.log('Fetching file from URL:', fileUrl)
+    if (!body.fileUrl) {
+      throw new Error('No file URL or text provided');
+    }
+
+    console.log('Fetching file from URL:', body.fileUrl);
     
     // Fetch the file
-    const fileResponse = await fetch(fileUrl)
+    const fileResponse = await fetch(body.fileUrl);
     if (!fileResponse.ok) {
-      throw new Error(`Failed to fetch file: ${fileResponse.statusText}`)
+      throw new Error(`Failed to fetch file: ${fileResponse.statusText}`);
     }
 
-    const contentType = fileResponse.headers.get('content-type')
-    const buffer = await fileResponse.arrayBuffer()
-    let text = ''
+    const contentType = fileResponse.headers.get('content-type');
+    console.log('Processing file with content type:', contentType);
 
-    console.log('Processing file with content type:', contentType)
+    const buffer = await fileResponse.arrayBuffer();
+    let text = '';
 
     // Process based on file type
-    if (contentType?.includes('pdf')) {
-      const data = await pdfParse(new Uint8Array(buffer))
-      text = data.text
-    } else if (contentType?.includes('text/plain')) {
-      text = new TextDecoder().decode(buffer)
+    if (contentType?.includes('text/plain')) {
+      text = new TextDecoder().decode(buffer);
+      console.log('Processed text file successfully');
     } else if (contentType?.includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document')) {
-      text = await extractTextFromDocx(buffer)
+      text = await extractTextFromDocx(buffer);
+      console.log('Processed DOCX file successfully');
     } else {
-      throw new Error(`Unsupported file type: ${contentType}`)
+      throw new Error(`Unsupported file type: ${contentType}. Only .txt and .docx files are supported.`);
     }
 
     if (!text) {
-      throw new Error('No text could be extracted from the file')
+      throw new Error('No text could be extracted from the file');
     }
 
-    console.log('Successfully extracted text from file, length:', text.length)
+    console.log('Text extraction successful. Character count:', text.length);
 
     return new Response(
       JSON.stringify({ text }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
-    console.error('Error processing document:', error)
+    console.error('Error processing document:', error);
     
     return new Response(
       JSON.stringify({
         error: error.message,
+        details: error.stack
       }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    )
+      }
+    );
   }
-})
+});

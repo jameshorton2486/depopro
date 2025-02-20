@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import { ArrowLeft, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -19,10 +18,8 @@ const TransCorrection = () => {
 
   const processTranscript = async (text: string, useRules: boolean = true) => {
     try {
-      // Get the training rules if needed
       const rules = useRules ? await openAIService.generateRulesFromSingleText(text) : {
         rules: [
-          // Basic formatting rules only
           {
             type: "formatting",
             pattern: "spacing",
@@ -41,7 +38,6 @@ const TransCorrection = () => {
         ]
       };
       
-      // Process the text in chunks to avoid rate limits
       const chunks = text.match(/[^.!?]+[.!?]+/g) || [text];
       let processedText = '';
       let failedChunks = 0;
@@ -57,7 +53,6 @@ const TransCorrection = () => {
           if (error) throw error;
           processedText += data.correctedText + ' ';
           
-          // Add small delay between chunks
           if (i < chunks.length - 1) {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
@@ -69,12 +64,10 @@ const TransCorrection = () => {
             throw new Error('Too many chunk processing failures');
           }
           
-          // Use original text for failed chunk
           processedText += chunks[i] + ' ';
         }
       }
 
-      // Validate final output
       if (processedText.length < text.length * 0.9) {
         throw new Error('Significant content loss detected during processing');
       }
@@ -88,7 +81,7 @@ const TransCorrection = () => {
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) {
-      toast.error("Please upload a valid document file");
+      toast.error("Please upload a valid document file (DOCX or TXT)");
       return;
     }
 
@@ -99,15 +92,14 @@ const TransCorrection = () => {
       setIsProcessing(true);
       setProgress(0);
 
-      // Upload and process the file
       const { text } = await uploadAndProcessFile(file, setProgress);
       setUploadedFile(file);
       setUploadedText(text);
-      toast.success("File uploaded successfully");
+      toast.success("File uploaded and processed successfully");
       
     } catch (error) {
       console.error("Error processing file:", error);
-      toast.error("Error processing file");
+      toast.error(error instanceof Error ? error.message : "Error processing file");
       setUploadedFile(null);
       setUploadedText("");
     } finally {
@@ -165,11 +157,11 @@ const TransCorrection = () => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'application/pdf': ['.pdf'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'text/plain': ['.txt']
     },
-    maxFiles: 1
+    maxFiles: 1,
+    maxSize: 10 * 1024 * 1024
   });
 
   return (
@@ -190,7 +182,7 @@ const TransCorrection = () => {
           <div className="mb-6">
             <h2 className="text-xl font-semibold mb-2">Upload Transcript for Correction</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              Upload your transcript file (PDF, DOCX, or TXT) for automated correction
+              Upload your transcript file (DOCX or TXT) for automated correction
             </p>
           </div>
 
@@ -218,7 +210,7 @@ const TransCorrection = () => {
                     : "Drag and drop your transcript file here, or click to browse"}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Supports PDF, DOCX, and TXT files
+                  Supports DOCX and TXT files (max 10MB)
                 </p>
               </div>
             )}
@@ -271,4 +263,3 @@ const TransCorrection = () => {
 };
 
 export default TransCorrection;
-
