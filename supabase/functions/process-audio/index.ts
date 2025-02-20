@@ -20,17 +20,57 @@ serve(async (req) => {
       throw new Error('Deepgram API key is not configured');
     }
 
-    const { audio, mime_type, options } = await req.json();
+    // Log request body for debugging
+    const requestBody = await req.json();
+    console.log('Request body:', {
+      hasAudio: !!requestBody.audio,
+      mimeType: requestBody.mime_type,
+      optionsPresent: !!requestBody.options
+    });
+
+    const { audio, mime_type, options } = requestBody;
     console.log('Processing request with options:', options);
     
     if (!audio || !mime_type) {
-      throw new Error('Missing required audio data or mime type');
+      throw new Error(`Missing required data. Audio present: ${!!audio}, Mime type: ${!!mime_type}`);
     }
 
-    // Convert audio data to Uint8Array
-    const audioData = new Uint8Array(audio);
+    // Initialize Supabase client early to catch any connection issues
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    // Configure Deepgram API parameters
+    // Verify storage bucket exists
+    const { data: buckets, error: bucketsError } = await supabase
+      .storage
+      .listBuckets();
+    
+    if (bucketsError) {
+      console.error('Error checking storage buckets:', bucketsError);
+      throw new Error('Failed to access storage buckets');
+    }
+
+    const transcriptionsBucketExists = buckets.some(b => b.name === 'transcriptions');
+    if (!transcriptionsBucketExists) {
+      console.error('Transcriptions bucket not found');
+      throw new Error('Storage bucket not configured');
+    }
+
+    // Convert audio data to Uint8Array with error handling
+    let audioData;
+    try {
+      audioData = new Uint8Array(audio);
+      console.log('Audio data converted successfully:', {
+        length: audioData.length,
+        isEmpty: audioData.length === 0
+      });
+    } catch (error) {
+      console.error('Error converting audio data:', error);
+      throw new Error('Invalid audio data format');
+    }
+
+    // Configure Deepgram API parameters with detailed logging
     const params = new URLSearchParams({
       model: options?.model || 'nova-3',
       language: options?.language || 'en-US',
@@ -60,32 +100,30 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error('Deepgram API error:', {
         status: response.status,
-        text: errorText
+        statusText: response.statusText,
+        body: errorText,
+        headers: Object.fromEntries(response.headers.entries())
       });
-      throw new Error(`Deepgram API error: ${response.status}`);
+      throw new Error(`Deepgram API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
     console.log('Received response from Deepgram:', {
       hasResults: !!data.results,
       hasUtterances: !!data.results?.utterances,
-      channels: data.results?.channels?.length
+      channels: data.results?.channels?.length,
+      metadata: data.metadata
     });
     
     if (!data.results?.channels?.[0]?.alternatives?.[0]) {
-      throw new Error('Invalid response from Deepgram');
+      console.error('Invalid Deepgram response structure:', data);
+      throw new Error('Invalid response from Deepgram: missing transcript data');
     }
-
-    // Initialize Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
 
     // Generate base filename without extension
     const baseFileName = `transcript-${Date.now()}`;
 
-    // 1. Store audio file
+    // 1. Store audio file with error handling
     const audioFileName = `${baseFileName}.audio${mime_type.includes('wav') ? '.wav' : '.mp3'}`;
     const { error: audioUploadError } = await supabase.storage
       .from('transcriptions')
@@ -96,7 +134,7 @@ serve(async (req) => {
 
     if (audioUploadError) {
       console.error('Error uploading audio:', audioUploadError);
-      throw new Error('Failed to store audio file');
+      throw new Error(`Failed to store audio file: ${audioUploadError.message}`);
     }
 
     // 2. Store raw JSON response
@@ -110,46 +148,50 @@ serve(async (req) => {
 
     if (jsonUploadError) {
       console.error('Error uploading JSON:', jsonUploadError);
-      throw new Error('Failed to store transcription data');
+      throw new Error(`Failed to store transcription data: ${jsonUploadError.message}`);
     }
 
-    // Process the transcript text
+    // Process the transcript text with error handling
     const transcript = data.results.channels[0].alternatives[0];
     const words = transcript.words || [];
     
-    // Process words into speaker-based utterances
     let utterances = [];
     let currentUtterance = null;
 
-    words.forEach((word: any) => {
-      const speaker = `Speaker ${word.speaker || 0}`;
-      
-      if (!currentUtterance || currentUtterance.speaker !== speaker) {
-        if (currentUtterance) {
-          utterances.push(currentUtterance);
+    try {
+      words.forEach((word: any) => {
+        const speaker = `Speaker ${word.speaker || 0}`;
+        
+        if (!currentUtterance || currentUtterance.speaker !== speaker) {
+          if (currentUtterance) {
+            utterances.push(currentUtterance);
+          }
+          currentUtterance = {
+            speaker,
+            text: word.word,
+            start: word.start,
+            end: word.end,
+            confidence: word.confidence,
+            words: [word],
+            fillerWords: word.type === 'filler' ? [word] : []
+          };
+        } else {
+          currentUtterance.text += ` ${word.word}`;
+          currentUtterance.end = word.end;
+          currentUtterance.confidence = (currentUtterance.confidence + word.confidence) / 2;
+          currentUtterance.words.push(word);
+          if (word.type === 'filler') {
+            currentUtterance.fillerWords.push(word);
+          }
         }
-        currentUtterance = {
-          speaker,
-          text: word.word,
-          start: word.start,
-          end: word.end,
-          confidence: word.confidence,
-          words: [word],
-          fillerWords: word.type === 'filler' ? [word] : []
-        };
-      } else {
-        currentUtterance.text += ` ${word.word}`;
-        currentUtterance.end = word.end;
-        currentUtterance.confidence = (currentUtterance.confidence + word.confidence) / 2;
-        currentUtterance.words.push(word);
-        if (word.type === 'filler') {
-          currentUtterance.fillerWords.push(word);
-        }
-      }
-    });
+      });
 
-    if (currentUtterance) {
-      utterances.push(currentUtterance);
+      if (currentUtterance) {
+        utterances.push(currentUtterance);
+      }
+    } catch (error) {
+      console.error('Error processing transcript words:', error);
+      throw new Error('Failed to process transcript data');
     }
 
     // Format utterances
@@ -177,10 +219,10 @@ serve(async (req) => {
 
     if (textUploadError) {
       console.error('Error uploading transcript text:', textUploadError);
-      throw new Error('Failed to store transcript text');
+      throw new Error(`Failed to store transcript text: ${textUploadError.message}`);
     }
 
-    // Store metadata in database
+    // Store metadata in database with error handling
     const { error: dbError } = await supabase
       .from('transcription_data')
       .insert({
@@ -199,7 +241,7 @@ serve(async (req) => {
 
     if (dbError) {
       console.error('Error storing metadata:', dbError);
-      throw new Error('Failed to store transcription metadata');
+      throw new Error(`Failed to store transcription metadata: ${dbError.message}`);
     }
 
     console.log('Processing complete:', {
@@ -240,8 +282,13 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error processing audio:', error);
+    // Enhanced error response with more details
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        timestamp: new Date().toISOString(),
+        details: error.stack
+      }),
       { 
         status: 500,
         headers: { 
