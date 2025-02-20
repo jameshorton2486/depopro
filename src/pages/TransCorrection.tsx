@@ -24,16 +24,39 @@ const TransCorrection = () => {
       // Process the text in chunks to avoid rate limits
       const chunks = text.match(/[^.!?]+[.!?]+/g) || [text];
       let processedText = '';
+      let failedChunks = 0;
       
       for (let i = 0; i < chunks.length; i++) {
-        setProgress(Math.round((i / chunks.length) * 100));
-        
-        const { data, error } = await supabase.functions.invoke('process-transcript', {
-          body: { text: chunks[i], rules }
-        });
+        try {
+          setProgress(Math.round((i / chunks.length) * 100));
+          
+          const { data, error } = await supabase.functions.invoke('process-transcript', {
+            body: { text: chunks[i], rules }
+          });
 
-        if (error) throw error;
-        processedText += data.correctedText + ' ';
+          if (error) throw error;
+          processedText += data.correctedText + ' ';
+          
+          // Add small delay between chunks
+          if (i < chunks.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        } catch (error) {
+          console.error(`Error processing chunk ${i}:`, error);
+          failedChunks++;
+          
+          if (failedChunks > 3) {
+            throw new Error('Too many chunk processing failures');
+          }
+          
+          // Use original text for failed chunk
+          processedText += chunks[i] + ' ';
+        }
+      }
+
+      // Validate final output
+      if (processedText.length < text.length * 0.9) {
+        throw new Error('Significant content loss detected during processing');
       }
 
       return processedText.trim();
