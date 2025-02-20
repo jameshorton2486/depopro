@@ -1,18 +1,14 @@
+
 import { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { useDropzone } from "react-dropzone";
-import { Upload, FileAudio, Loader2, Download, Settings2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { DeepgramHeader } from "@/components/deepgram/DeepgramHeader";
+import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
+import { FileUploadArea } from "@/components/deepgram/FileUploadArea";
+import { TranscriptDisplay } from "@/components/deepgram/TranscriptDisplay";
 
 const CHUNK_SIZE = 300; // 5 minutes in seconds
 const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
@@ -26,95 +22,34 @@ const DeepgramPage = () => {
   const [model, setModel] = useState<string>("nova-3");
   const [language, setLanguage] = useState<string>("en");
 
-  // Add API key verification
   const testApiKey = async () => {
-    const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
-    console.log("Testing API key:", apiKey ? "Key present" : "Key missing");
-
-    if (!apiKey) {
-      toast.error("Deepgram API key is not configured");
-      return;
-    }
-
     try {
-      const response = await fetch("https://api.deepgram.com/v1/projects", {
-        method: "GET",
-        headers: {
-          "Authorization": `Token ${apiKey}`,
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (response.ok) {
-        toast.success("Deepgram API key is valid!");
-        console.log("API key test successful");
-      } else {
-        const error = await response.text();
-        console.error("API key test failed:", error);
-        toast.error("Invalid Deepgram API key");
-      }
+      const { data, error } = await supabase.functions.invoke('test-deepgram-key');
+      
+      if (error) throw error;
+      toast.success("Deepgram API key is valid!");
     } catch (error) {
       console.error("API key test error:", error);
       toast.error("Failed to verify Deepgram API key");
     }
   };
 
-  // Test API key on component mount
   useEffect(() => {
     testApiKey();
   }, []);
 
   const processAudioChunk = async (chunk: Blob) => {
     try {
-      const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
-      console.log("API Key present:", !!apiKey);
-      
-      if (!apiKey) {
-        throw new Error("Deepgram API key is not configured");
-      }
-
-      const arrayBuffer = await chunk.arrayBuffer();
-      console.log("Processing chunk size:", arrayBuffer.byteLength, "bytes");
-
-      // Add query parameters for language and features
-      const queryParams = new URLSearchParams({
-        model,
-        language,
-        smart_format: "true",
-        utterances: "true",
-        punctuate: "true",
-      });
-
-      setProcessingStatus("Sending chunk to Deepgram API...");
-      const response = await fetch(`https://api.deepgram.com/v1/listen?${queryParams}`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Token ${apiKey}`,
-          "Content-Type": "audio/wav",
-        },
-        body: new Uint8Array(arrayBuffer),
-      });
-
-      console.log("API Response status:", response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Deepgram API error details:", errorText);
-        if (response.status === 429) {
-          throw new Error("Rate limit exceeded. Please try again later.");
+      const { data, error } = await supabase.functions.invoke('process-audio', {
+        body: {
+          audio: await chunk.arrayBuffer(),
+          model,
+          language,
         }
-        throw new Error(`Deepgram API error: ${response.status} - ${response.statusText}`);
-      }
+      });
 
-      const result = await response.json();
-      console.log("Transcription result:", result);
-
-      if (!result.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
-        console.warn("Unexpected API response structure:", result);
-        throw new Error("Invalid API response format");
-      }
-
-      return result.results.channels[0].alternatives[0].transcript || "";
+      if (error) throw error;
+      return data.transcript || "";
     } catch (error) {
       console.error("Error processing chunk:", error);
       throw error;
@@ -133,16 +68,8 @@ const DeepgramPage = () => {
       setTranscript("");
       setProcessingStatus("Initializing transcription...");
 
-      console.log("Starting transcription for file:", uploadedFile.name);
-      console.log("File type:", uploadedFile.type);
-      console.log("File size:", uploadedFile.size, "bytes");
-
       const duration = await getAudioDuration(uploadedFile);
-      console.log("Audio duration:", duration, "seconds");
-
       const numberOfChunks = Math.ceil(duration / CHUNK_SIZE);
-      console.log("Number of chunks to process:", numberOfChunks);
-
       let fullTranscript = "";
 
       for (let i = 0; i < numberOfChunks; i++) {
@@ -150,13 +77,8 @@ const DeepgramPage = () => {
         const end = Math.min((i + 1) * CHUNK_SIZE, duration);
         
         setProcessingStatus(`Processing chunk ${i + 1} of ${numberOfChunks}...`);
-        console.log(`Processing chunk ${i + 1}/${numberOfChunks} (${start}s to ${end}s)`);
-        
         const chunk = await extractAudioChunk(uploadedFile, start, end);
-        console.log(`Chunk ${i + 1} size:`, chunk.size, "bytes");
-        
         const chunkTranscript = await processAudioChunk(chunk);
-        console.log(`Chunk ${i + 1} transcript:`, chunkTranscript);
         
         fullTranscript += chunkTranscript + " ";
         setProgress(((i + 1) / numberOfChunks) * 100);
@@ -174,113 +96,6 @@ const DeepgramPage = () => {
     }
   };
 
-  const getAudioDuration = (file: File): Promise<number> => {
-    return new Promise((resolve) => {
-      const audio = new Audio();
-      const reader = new FileReader();
-      
-      reader.onload = (e) => {
-        audio.src = e.target?.result as string;
-        audio.onloadedmetadata = () => resolve(audio.duration);
-      };
-      
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const extractAudioChunk = async (file: File, start: number, end: number): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const reader = new FileReader();
-
-      reader.onload = async (e) => {
-        try {
-          const audioBuffer = await audioContext.decodeAudioData(e.target?.result as ArrayBuffer);
-          
-          const sampleRate = audioBuffer.sampleRate;
-          const startSample = Math.floor(start * sampleRate);
-          const endSample = Math.floor(end * sampleRate);
-          const numberOfChannels = audioBuffer.numberOfChannels;
-          
-          const chunkLength = endSample - startSample;
-          const chunkBuffer = audioContext.createBuffer(
-            numberOfChannels,
-            chunkLength,
-            sampleRate
-          );
-
-          for (let channel = 0; channel < numberOfChannels; channel++) {
-            const channelData = audioBuffer.getChannelData(channel);
-            const chunkChannelData = chunkBuffer.getChannelData(channel);
-            
-            for (let i = 0; i < chunkLength; i++) {
-              chunkChannelData[i] = channelData[startSample + i];
-            }
-          }
-
-          const chunks: Float32Array[] = [];
-          for (let channel = 0; channel < numberOfChannels; channel++) {
-            chunks.push(chunkBuffer.getChannelData(channel));
-          }
-
-          const interleaved = new Float32Array(chunkLength * numberOfChannels);
-          for (let i = 0; i < chunkLength; i++) {
-            for (let channel = 0; channel < numberOfChannels; channel++) {
-              interleaved[i * numberOfChannels + channel] = chunks[channel][i];
-            }
-          }
-
-          const buffer = new ArrayBuffer(44 + interleaved.length * 2);
-          const view = new DataView(buffer);
-
-          writeString(view, 0, 'RIFF');
-          view.setUint32(4, 36 + interleaved.length * 2, true);
-          writeString(view, 8, 'WAVE');
-          writeString(view, 12, 'fmt ');
-          view.setUint32(16, 16, true);
-          view.setUint16(20, 1, true);
-          view.setUint16(22, numberOfChannels, true);
-          view.setUint32(24, sampleRate, true);
-          view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-          view.setUint16(32, numberOfChannels * 2, true);
-          view.setUint16(34, 16, true);
-          writeString(view, 36, 'data');
-          view.setUint32(40, interleaved.length * 2, true);
-
-          const volume = 0.5;
-          for (let i = 0; i < interleaved.length; i++) {
-            view.setInt16(44 + i * 2, interleaved[i] * 0x7FFF * volume, true);
-          }
-
-          const wavBlob = new Blob([buffer], { type: 'audio/wav' });
-          resolve(wavBlob);
-        } catch (error) {
-          reject(error);
-        } finally {
-          audioContext.close();
-        }
-      };
-
-      reader.onerror = (error) => reject(error);
-      reader.readAsArrayBuffer(file);
-    });
-  };
-
-  const downloadTranscript = (format: 'txt' | 'docx') => {
-    if (!transcript) {
-      toast.error("No transcript available to download");
-      return;
-    }
-
-    const element = document.createElement('a');
-    const file = new Blob([transcript], {type: 'text/plain'});
-    element.href = URL.createObjectURL(file);
-    element.download = `transcript.${format}`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
-
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     
@@ -294,8 +109,6 @@ const DeepgramPage = () => {
       return;
     }
 
-    console.log("Processing file:", file.name, "Type:", file.type);
-    
     try {
       setIsProcessing(true);
       setProgress(0);
@@ -312,20 +125,19 @@ const DeepgramPage = () => {
     }
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'audio/*': ['.mp3', '.wav', '.m4a', '.aac'],
-      'video/*': ['.mp4', '.mov', '.avi', '.webm']
-    },
-    maxFiles: 1,
-    multiple: false
-  });
-
-  const writeString = (view: DataView, offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
+  const downloadTranscript = (format: 'txt' | 'docx') => {
+    if (!transcript) {
+      toast.error("No transcript available to download");
+      return;
     }
+
+    const element = document.createElement('a');
+    const file = new Blob([transcript], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = `transcript.${format}`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
   };
 
   return (
@@ -347,89 +159,20 @@ const DeepgramPage = () => {
           className="space-y-6"
         >
           <div className="bg-background border rounded-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-xl font-semibold">Deepgram Audio Processing</h2>
-                <p className="text-muted-foreground mt-2">
-                  Upload your audio or video files for advanced speech-to-text transcription.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={testApiKey}
-              >
-                Test API Key
-              </Button>
-              <div className="flex gap-4">
-                <div className="w-40">
-                  <Select value={model} onValueChange={setModel}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nova-3">Nova (Best)</SelectItem>
-                      <SelectItem value="base">Base</SelectItem>
-                      <SelectItem value="enhanced">Enhanced</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-40">
-                  <Select value={language} onValueChange={setLanguage}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                      <SelectItem value="de">German</SelectItem>
-                      <SelectItem value="ja">Japanese</SelectItem>
-                      <SelectItem value="ko">Korean</SelectItem>
-                      <SelectItem value="zh">Chinese</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            <div
-              {...getRootProps()}
-              className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-colors
-                ${isDragActive ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}
-                ${uploadedFile ? 'border-green-500 bg-green-50/10' : ''}`}
-            >
-              <input {...getInputProps()} />
-              {uploadedFile ? (
-                <div className="text-center">
-                  <FileAudio className="w-12 h-12 mb-4 text-green-500 mx-auto" />
-                  <p className="font-medium">{uploadedFile.name}</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    File uploaded successfully
-                  </p>
-                  {isProcessing && (
-                    <div className="space-y-2 mt-4">
-                      <p className="text-sm text-muted-foreground">{processingStatus}</p>
-                      <Progress value={progress} className="w-64" />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <Upload className="w-12 h-12 mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground mb-2">
-                    {isDragActive 
-                      ? "Drop the file here..."
-                      : "Drag and drop your audio or video file here, or click to browse"
-                    }
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Supports MP3, WAV, M4A, AAC, MP4, MOV, AVI, and WEBM files (max 2GB)
-                  </p>
-                </>
-              )}
-            </div>
-
+            <DeepgramHeader onTestApiKey={testApiKey} />
+            <TranscriptionControls
+              model={model}
+              language={language}
+              onModelChange={setModel}
+              onLanguageChange={setLanguage}
+            />
+            <FileUploadArea
+              uploadedFile={uploadedFile}
+              isProcessing={isProcessing}
+              processingStatus={processingStatus}
+              progress={progress}
+              onDrop={onDrop}
+            />
             {uploadedFile && (
               <div className="mt-6 flex justify-end gap-4">
                 <Button
@@ -441,35 +184,10 @@ const DeepgramPage = () => {
                 </Button>
               </div>
             )}
-
-            {transcript && (
-              <div className="mt-6 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Transcript</h3>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => downloadTranscript('txt')}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download as TXT
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => downloadTranscript('docx')}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download as DOCX
-                    </Button>
-                  </div>
-                </div>
-                <ScrollArea className="h-[300px] w-full rounded-md border p-4">
-                  <p className="text-sm">{transcript}</p>
-                </ScrollArea>
-              </div>
-            )}
+            <TranscriptDisplay
+              transcript={transcript}
+              onDownload={downloadTranscript}
+            />
           </div>
         </motion.div>
       </div>
