@@ -1,5 +1,4 @@
-
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { getAudioDuration, extractAudioChunk, SUPPORTED_AUDIO_TYPES } from "@/utils/audioUtils";
 import { processAudioChunk } from "./useDeepgramAPI";
@@ -7,6 +6,8 @@ import { useDeepgramOptions } from "./useDeepgramOptions";
 import { supabase } from "@/integrations/supabase/client";
 
 export const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 2000; // 2 seconds
 
 export const useTranscription = () => {
   const {
@@ -24,8 +25,9 @@ export const useTranscription = () => {
   const [transcript, setTranscript] = useState<string>("");
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const [storedFileName, setStoredFileName] = useState<string>("");
+  const retryCountRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Function to clear all data
   const clearAllData = async () => {
     // Clear states
     setTranscript("");
@@ -69,75 +71,118 @@ export const useTranscription = () => {
     }
   };
 
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   const handleTranscribe = async () => {
     if (!uploadedFile) {
       toast.error("Please upload an audio file first");
       return;
     }
 
-    try {
-      console.time('totalTranscriptionTime');
-      setIsProcessing(true);
-      setProgress(0);
-      setTranscript("");
-      setProcessingStatus("Processing audio file...");
+    // Create new AbortController for this transcription
+    abortControllerRef.current?.abort(); // Abort any existing operation
+    abortControllerRef.current = new AbortController();
+    retryCountRef.current = 0;
 
-      console.debug('Starting transcription process:', {
-        fileName: uploadedFile.name,
-        fileSize: `${(uploadedFile.size / (1024 * 1024)).toFixed(2)}MB`,
-        fileType: uploadedFile.type
-      });
+    const processWithRetry = async (): Promise<any> => {
+      try {
+        console.time('totalTranscriptionTime');
+        setIsProcessing(true);
+        setProgress(0);
+        setTranscript("");
+        setProcessingStatus("Processing audio file...");
 
-      if (!Object.keys(SUPPORTED_AUDIO_TYPES).includes(uploadedFile.type)) {
-        throw new Error(`Unsupported file type. Supported formats are: ${Object.values(SUPPORTED_AUDIO_TYPES).flat().join(', ')}`);
+        console.debug('Starting transcription process:', {
+          fileName: uploadedFile.name,
+          fileSize: `${(uploadedFile.size / (1024 * 1024)).toFixed(2)}MB`,
+          fileType: uploadedFile.type,
+          attempt: retryCountRef.current + 1
+        });
+
+        if (!Object.keys(SUPPORTED_AUDIO_TYPES).includes(uploadedFile.type)) {
+          throw new Error(`Unsupported file type. Supported formats are: ${Object.values(SUPPORTED_AUDIO_TYPES).flat().join(', ')}`);
+        }
+
+        console.debug('Extracting audio chunk...');
+        setProcessingStatus("Extracting audio data...");
+        const chunk = await extractAudioChunk(uploadedFile);
+        
+        if (abortControllerRef.current?.signal.aborted) {
+          throw new Error('Operation cancelled');
+        }
+
+        console.debug('Audio chunk extracted:', {
+          chunkSize: `${(chunk.size / (1024 * 1024)).toFixed(2)}MB`
+        });
+
+        setProcessingStatus("Sending audio to Deepgram...");
+        setProgress(30);
+
+        const deepgramOptions = {
+          ...options,
+          smart_format: true,
+          punctuate: true,
+          diarize: true,
+          diarize_version: "3",
+          filler_words: true,
+          detect_language: true,
+          model: model,
+          language: language
+        };
+        
+        console.debug('Processing with Deepgram options:', deepgramOptions);
+        setProgress(50);
+        
+        const result = await processAudioChunk(chunk, deepgramOptions);
+        
+        if (abortControllerRef.current?.signal.aborted) {
+          throw new Error('Operation cancelled');
+        }
+
+        console.debug('Received transcript:', {
+          length: result.transcript.length,
+          preview: result.transcript.substring(0, 100) + '...',
+          metadata: result.metadata,
+          storedFileName: result.storedFileName
+        });
+        
+        setTranscript(result.transcript.trim());
+        setStoredFileName(result.storedFileName);
+        setProgress(100);
+        setProcessingStatus("Transcription completed!");
+        console.timeEnd('totalTranscriptionTime');
+        toast.success("Transcription completed and saved successfully!");
+        
+        return result;
+      } catch (error) {
+        if (error.message === 'Operation cancelled') {
+          console.log('Transcription operation cancelled');
+          return;
+        }
+
+        console.error("Transcription error:", error);
+        
+        if (retryCountRef.current < MAX_RETRIES) {
+          retryCountRef.current++;
+          console.log(`Retrying transcription (attempt ${retryCountRef.current} of ${MAX_RETRIES})...`);
+          setProcessingStatus(`Connection failed. Retrying (${retryCountRef.current}/${MAX_RETRIES})...`);
+          await delay(RETRY_DELAY);
+          return processWithRetry();
+        }
+        
+        throw error;
       }
+    };
 
-      console.debug('Extracting audio chunk...');
-      setProcessingStatus("Extracting audio data...");
-      const chunk = await extractAudioChunk(uploadedFile);
-      console.debug('Audio chunk extracted:', {
-        chunkSize: `${(chunk.size / (1024 * 1024)).toFixed(2)}MB`
-      });
-
-      setProcessingStatus("Sending audio to Deepgram...");
-      setProgress(30);
-
-      // Enhanced Deepgram options
-      const deepgramOptions = {
-        ...options,
-        smart_format: true,
-        punctuate: true,
-        diarize: true,
-        diarize_version: "3",
-        filler_words: true,
-        detect_language: true,
-        model: model,
-        language: language
-      };
-      
-      console.debug('Processing with Deepgram options:', deepgramOptions);
-      setProgress(50);
-      
-      const result = await processAudioChunk(chunk, deepgramOptions);
-      console.debug('Received transcript:', {
-        length: result.transcript.length,
-        preview: result.transcript.substring(0, 100) + '...',
-        metadata: result.metadata,
-        storedFileName: result.storedFileName
-      });
-      
-      setTranscript(result.transcript.trim());
-      setStoredFileName(result.storedFileName);
-      setProgress(100);
-      setProcessingStatus("Transcription completed!");
-      console.timeEnd('totalTranscriptionTime');
-      toast.success("Transcription completed and saved successfully!");
+    try {
+      await processWithRetry();
     } catch (error) {
-      console.error("Transcription error:", error);
+      console.error("All retry attempts failed:", error);
       setProcessingStatus("Error during transcription");
       toast.error(`Transcription failed: ${error.message}`);
     } finally {
       setIsProcessing(false);
+      abortControllerRef.current = null;
     }
   };
 
