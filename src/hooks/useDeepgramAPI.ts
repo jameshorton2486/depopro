@@ -7,6 +7,15 @@ const CHUNK_SIZE = 1 * 1024 * 1024; // Reduced to 1MB chunks for better handling
 const TIMEOUT = 30000; // 30 second timeout per chunk
 const MAX_RETRIES_PER_CHUNK = 3;
 
+interface ProcessAudioResponse {
+  transcript: string;
+  metadata?: {
+    chunkIndex: number;
+    totalChunks: number;
+    [key: string]: any;
+  };
+}
+
 const sliceArrayBuffer = (buffer: ArrayBuffer, chunkSize: number): ArrayBuffer[] => {
   const chunks: ArrayBuffer[] = [];
   let offset = 0;
@@ -35,11 +44,11 @@ const processChunkWithRetry = async (
     try {
       console.debug(`Attempt ${retries + 1} for chunk ${chunkIndex + 1}/${totalChunks}`);
 
-      const timeoutPromise = new Promise((_, reject) => {
+      const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Request timeout')), TIMEOUT);
       });
 
-      const processPromise = supabase.functions.invoke('process-audio', {
+      const processPromise = supabase.functions.invoke<ProcessAudioResponse>('process-audio', {
         body: {
           audio: Array.from(new Uint8Array(chunkBuffer)),
           mime_type: mimeType,
@@ -56,10 +65,12 @@ const processChunkWithRetry = async (
       const { data, error } = await Promise.race([processPromise, timeoutPromise]);
 
       if (error) {
+        console.error('Supabase function error:', error);
         throw error;
       }
 
       if (!data?.transcript) {
+        console.error('No transcript in response:', data);
         throw new Error('No transcript received from Deepgram');
       }
 

@@ -7,7 +7,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const FUNCTION_TIMEOUT = 25000; // 25 seconds, slightly less than Supabase's 30s limit
+const SUPPORTED_MIME_TYPES = [
+  'audio/mpeg',
+  'audio/wav',
+  'audio/x-m4a',
+  'audio/aac',
+  'audio/ogg',
+  'video/mp4',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/webm'
+];
+
+const FUNCTION_TIMEOUT = 25000; // 25 seconds
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -45,10 +57,13 @@ serve(async (req) => {
       );
     }
 
-    if (!mime_type) {
-      console.error('MIME type is required');
+    if (!mime_type || !SUPPORTED_MIME_TYPES.includes(mime_type)) {
+      console.error('Unsupported MIME type:', mime_type);
       return new Response(
-        JSON.stringify({ error: 'MIME type is required' }),
+        JSON.stringify({ 
+          error: 'Unsupported audio format',
+          supportedFormats: SUPPORTED_MIME_TYPES.join(', ')
+        }),
         { 
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -64,6 +79,10 @@ serve(async (req) => {
 
     const deepgram = new Deepgram(deepgramKey);
     const audioData = new Uint8Array(audio);
+
+    if (audioData.length === 0) {
+      throw new Error('Empty audio chunk received');
+    }
 
     const source = {
       buffer: audioData,
@@ -111,13 +130,16 @@ serve(async (req) => {
       stack: error.stack
     });
 
+    const statusCode = error.message.includes('timeout') ? 408 :
+                      error.message.includes('format') ? 400 : 500;
+
     return new Response(
       JSON.stringify({ 
         error: error.message,
         details: error.stack
       }),
       { 
-        status: 500,
+        status: statusCode,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
