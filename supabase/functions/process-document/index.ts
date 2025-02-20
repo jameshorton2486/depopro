@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
+import pdfParse from "https://esm.sh/pdf-parse@1.1.1"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,74 +11,61 @@ const corsHeaders = {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { fileUrl, text } = await req.json();
-    console.log('Request received with:', { fileUrl, hasText: !!text });
-
-    // If direct text is provided, return it
-    if (text) {
-      console.log('Processing direct text input');
-      return new Response(
-        JSON.stringify({ text }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
-
-    if (!fileUrl) {
-      console.log('No file URL provided');
-      return new Response(
-        JSON.stringify({ error: 'No file URL provided' }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400 
-        }
-      );
-    }
-
-    console.log('Fetching file from URL:', fileUrl);
-    const response = await fetch(fileUrl);
+    const { fileUrl } = await req.json()
     
-    if (!response.ok) {
-      const error = `Failed to fetch document: ${response.statusText}`;
-      console.error(error);
-      throw new Error(error);
+    if (!fileUrl) {
+      throw new Error('No file URL provided')
     }
 
-    const contentType = response.headers.get('content-type');
-    console.log('File content type:', contentType);
+    console.log('Fetching file from URL:', fileUrl)
+    
+    // Fetch the file
+    const fileResponse = await fetch(fileUrl)
+    if (!fileResponse.ok) {
+      throw new Error(`Failed to fetch file: ${fileResponse.statusText}`)
+    }
 
-    // For now, treat all files as text
-    // This is a temporary solution until we implement proper PDF parsing
-    const text = await response.text();
-    console.log('Text extraction completed, length:', text.length);
+    const contentType = fileResponse.headers.get('content-type')
+    const buffer = await fileResponse.arrayBuffer()
+
+    let text = ''
+
+    // Process based on file type
+    if (contentType?.includes('pdf')) {
+      const data = await pdfParse(new Uint8Array(buffer))
+      text = data.text
+    } else if (contentType?.includes('text/plain')) {
+      text = new TextDecoder().decode(buffer)
+    } else if (contentType?.includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document')) {
+      // For DOCX files, we'll need to extract text in a different way
+      // For now, return an error
+      throw new Error('DOCX processing not yet implemented')
+    } else {
+      throw new Error(`Unsupported file type: ${contentType}`)
+    }
+
+    console.log('Successfully extracted text from file')
 
     return new Response(
-      JSON.stringify({ 
-        text,
-        fileName: fileUrl.split('/').pop() 
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+      JSON.stringify({ text }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
 
   } catch (error) {
-    console.error('Error in edge function:', error);
+    console.error('Error processing document:', error)
     
     return new Response(
-      JSON.stringify({ 
-        error: 'Failed to process document',
-        details: error.message 
+      JSON.stringify({
+        error: error.message,
       }),
-      { 
+      {
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
-      }
-    );
+      },
+    )
   }
-});
+})
