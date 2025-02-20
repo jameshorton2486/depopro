@@ -8,7 +8,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -17,8 +16,9 @@ serve(async (req) => {
     console.log('Starting audio processing...');
     
     const apiKey = Deno.env.get('DEEPGRAM_API_KEY');
-    if (!apiKey) {
-      throw new Error('Deepgram API key is not configured');
+    if (!apiKey || apiKey.length < 20) {
+      console.error('Invalid Deepgram API Key configuration');
+      throw new Error('Invalid or missing Deepgram API key');
     }
 
     // Parse request body and validate
@@ -50,7 +50,7 @@ serve(async (req) => {
     params.append('model', options?.model || 'nova-3');
     params.append('language', options?.language || 'en-US');
     
-    // Optional boolean parameters
+    // Optional boolean parameters with explicit type conversion
     if (options?.smart_format !== undefined) {
       params.append('smart_format', options.smart_format ? 'true' : 'false');
     }
@@ -106,7 +106,8 @@ serve(async (req) => {
         channels: data.results?.channels?.length,
         alternatives: data.results?.channels?.[0]?.alternatives?.length,
         confidence: data.results?.channels?.[0]?.alternatives?.[0]?.confidence,
-        transcript_length: data.results?.channels?.[0]?.alternatives?.[0]?.transcript?.length
+        transcript_length: data.results?.channels?.[0]?.alternatives?.[0]?.transcript?.length,
+        applied_options: data.metadata?.options || {}
       }
     });
     
@@ -154,34 +155,41 @@ serve(async (req) => {
     const baseFileName = `transcript-${Date.now()}`;
     const storageBucket = 'transcriptions';
 
+    // Store files with proper error handling
     try {
       // Store audio file
       const audioFileName = `${baseFileName}.audio${mime_type.includes('wav') ? '.wav' : '.mp3'}`;
-      await supabase.storage
+      const { error: audioUploadError } = await supabase.storage
         .from(storageBucket)
         .upload(audioFileName, audioData, {
           contentType: mime_type,
           upsert: true
         });
 
+      if (audioUploadError) {
+        throw new Error(`Audio upload failed: ${audioUploadError.message}`);
+      }
+
+      console.log('Audio file stored successfully:', audioFileName);
+
       // Store formatted transcript
       const textFileName = `${baseFileName}.txt`;
-      await supabase.storage
+      const { error: textUploadError } = await supabase.storage
         .from(storageBucket)
         .upload(textFileName, formattedTranscript, {
           contentType: 'text/plain',
           upsert: true
         });
 
-      console.log('Successfully stored files:', {
-        audio: audioFileName,
-        text: textFileName,
-        transcriptLength: formattedTranscript.length
-      });
+      if (textUploadError) {
+        throw new Error(`Transcript upload failed: ${textUploadError.message}`);
+      }
+
+      console.log('Transcript file stored successfully:', textFileName);
 
     } catch (storageError) {
       console.error('Storage error:', storageError);
-      // Continue execution even if storage fails
+      throw storageError; // Re-throw to handle in the main error handler
     }
 
     return new Response(
@@ -191,7 +199,8 @@ serve(async (req) => {
           duration: data.metadata?.duration,
           channels: data.metadata?.channels,
           model: data.metadata?.model,
-          options_used: Object.fromEntries(params.entries())
+          options_used: Object.fromEntries(params.entries()),
+          deepgram_applied_options: data.metadata?.options || {}
         },
         storedFileName: baseFileName
       }),
