@@ -21,11 +21,26 @@ export const FileUploadArea = ({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'audio/*': ['.mp3', '.wav', '.m4a', '.aac'],
-      'video/*': ['.mp4', '.mov', '.avi', '.webm']
+      'audio/mpeg': ['.mp3'],
+      'audio/wav': ['.wav'],
+      'audio/x-m4a': ['.m4a'],
+      'audio/aac': ['.aac'],
+      'video/mp4': ['.mp4'],
+      'video/quicktime': ['.mov'],
+      'video/x-msvideo': ['.avi'],
+      'video/webm': ['.webm']
     },
     maxFiles: 1,
-    multiple: false
+    multiple: false,
+    validator: (file) => {
+      if (file.size > 2000 * 1024 * 1024) {
+        return {
+          code: "file-too-large",
+          message: `File is larger than 2GB`
+        };
+      }
+      return null;
+    }
   });
 
   return (
@@ -56,11 +71,11 @@ export const FileUploadArea = ({
           <p className="text-muted-foreground mb-2">
             {isDragActive 
               ? "Drop the file here..."
-              : "Drag and drop your audio or video file here, or click to browse"
+              : "Drag and drop your audio file here, or click to browse"
             }
           </p>
           <p className="text-sm text-muted-foreground">
-            Supports MP3, WAV, M4A, AAC, MP4, MOV, AVI, and WEBM files (max 2GB)
+            Supports MP3, WAV, M4A, AAC, MP4, MOV, AVI, and WEBM files
           </p>
         </>
       )}

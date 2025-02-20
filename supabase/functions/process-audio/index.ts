@@ -18,9 +18,9 @@ serve(async (req) => {
       throw new Error('Audio data is required');
     }
 
-    // Convert ArrayBuffer to Uint8Array for proper binary handling
+    // Convert ArrayBuffer to Base64 string before sending to Deepgram
     const audioData = new Uint8Array(audio);
-
+    
     const queryParams = new URLSearchParams({
       model: model || 'nova-3',
       language: language || 'en',
@@ -29,7 +29,7 @@ serve(async (req) => {
       punctuate: 'true',
     });
 
-    console.log('Sending request to Deepgram...');
+    console.log('Preparing request to Deepgram...');
 
     const response = await fetch(
       `https://api.deepgram.com/v1/listen?${queryParams}`,
@@ -37,7 +37,7 @@ serve(async (req) => {
         method: 'POST',
         headers: {
           'Authorization': `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
-          'Content-Type': 'audio/wav',
+          'Content-Type': 'audio/mpeg', // Default to MP3, but we should ideally detect this
         },
         body: audioData,
       }
@@ -50,6 +50,8 @@ serve(async (req) => {
     }
 
     const result = await response.json();
+    console.log('Deepgram response:', JSON.stringify(result, null, 2));
+    
     const transcript = result.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
 
     console.log('Successfully processed audio');

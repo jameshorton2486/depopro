@@ -2,39 +2,48 @@
 export const getAudioDuration = (file: File): Promise<number> => {
   return new Promise((resolve, reject) => {
     const audio = new Audio();
-    const objectUrl = URL.createObjectURL(file);
-    
-    audio.addEventListener('loadedmetadata', () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(audio.duration);
-    });
-    
-    audio.addEventListener('error', (error) => {
-      URL.revokeObjectURL(objectUrl);
-      reject(error);
-    });
-    
-    audio.src = objectUrl;
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      if (!e.target?.result) {
+        reject(new Error("Failed to read file"));
+        return;
+      }
+
+      audio.src = e.target.result as string;
+      
+      audio.addEventListener('loadedmetadata', () => {
+        resolve(audio.duration);
+      });
+      
+      audio.addEventListener('error', () => {
+        reject(new Error("Invalid or corrupt audio file"));
+      });
+    };
+
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
   });
 };
 
-export const extractAudioChunk = async (file: File, start: number, end: number): Promise<Blob> => {
+export const extractAudioChunk = async (file: File): Promise<Blob> => {
   try {
-    const reader = new FileReader();
-    const chunk = file.slice(0, file.size); // For now, send the entire file as we can't easily slice audio
-    
+    // For now, we'll send the entire file since we can't easily slice audio
     return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
       reader.onload = () => {
         try {
           const arrayBuffer = reader.result as ArrayBuffer;
           const blob = new Blob([arrayBuffer], { type: file.type });
           resolve(blob);
         } catch (error) {
-          reject(error);
+          reject(new Error("Failed to process audio chunk"));
         }
       };
-      reader.onerror = (error) => reject(error);
-      reader.readAsArrayBuffer(chunk);
+      
+      reader.onerror = () => reject(new Error("Failed to read audio file"));
+      reader.readAsArrayBuffer(file);
     });
   } catch (error) {
     console.error("Error extracting audio chunk:", error);
