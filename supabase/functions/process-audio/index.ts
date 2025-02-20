@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -38,7 +39,7 @@ serve(async (req) => {
     const audioData = new Uint8Array(audio);
     console.log(`Reconstructed audio data, size: ${audioData.length} bytes`);
 
-    // Enhanced query parameters optimized for diarization and formatting
+    // Simplified query parameters focusing on core functionality
     const queryParams = new URLSearchParams({
       model: "nova-2",
       language: "en-US",
@@ -48,8 +49,7 @@ serve(async (req) => {
       utterances: "true",
       filler_words: "true",
       detect_language: "true",
-      utt_split: "1.5",
-      tier: "enhanced" // Add enhanced tier for better formatting
+      utt_split: "1.5"
     });
 
     console.log('Making request to Deepgram with params:', Object.fromEntries(queryParams.entries()));
@@ -89,37 +89,10 @@ serve(async (req) => {
     let utterances = [];
     let currentUtterance = null;
 
-    // Enhanced text formatting function
-    const formatText = (text: string): string => {
-      return text
-        .trim()
-        // Fix spacing after punctuation
-        .replace(/([.!?;,])\s*/g, '$1 ')
-        // Ensure proper capitalization after sentence endings
-        .replace(/([.!?])\s+([a-z])/g, (_, p1, p2) => `${p1} ${p2.toUpperCase()}`)
-        // Fix multiple spaces
-        .replace(/\s+/g, ' ')
-        // Ensure first letter is capitalized
-        .replace(/^[a-z]/, letter => letter.toUpperCase())
-        // Add proper spacing for parenthetical statements
-        .replace(/\s*\(\s*/g, ' (')
-        .replace(/\s*\)\s*/g, ') ')
-        // Fix "I" pronoun
-        .replace(/\si\s/g, ' I ')
-        // Fix common contractions
-        .replace(/\sim\s/g, ' I\'m ')
-        .replace(/\sill\s/g, ' I\'ll ')
-        .replace(/\sisnt\s/g, ' isn\'t ')
-        .replace(/\sdont\s/g, ' don\'t ')
-        // Add paragraph breaks after sentences
-        .replace(/([.!?])\s+(?=[A-Z])/g, '$1\n\n');
-    };
-
     if (alternative.words) {
       alternative.words.forEach((word: any) => {
         if (!currentUtterance || currentUtterance.speaker !== `Speaker ${word.speaker}`) {
           if (currentUtterance) {
-            currentUtterance.text = formatText(currentUtterance.text);
             utterances.push(currentUtterance);
           }
           currentUtterance = {
@@ -142,7 +115,6 @@ serve(async (req) => {
       });
 
       if (currentUtterance) {
-        currentUtterance.text = formatText(currentUtterance.text);
         utterances.push(currentUtterance);
       }
     }
@@ -153,10 +125,9 @@ serve(async (req) => {
       text: utterance.text
         .trim()
         .replace(/\s+/g, ' ')
-        .replace(/([.!?])\s*(?=[A-Z])/g, '$1\n\n')
     }));
 
-    // Format transcript with enhanced spacing and formatting
+    // Format transcript with enhanced spacing
     const formattedTranscript = utterances
       .map(u => `${u.speaker}:\n\n${u.text}\n`)
       .join('\n');
