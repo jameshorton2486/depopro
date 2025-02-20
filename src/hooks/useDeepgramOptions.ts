@@ -5,10 +5,10 @@ import { DeepgramOptions } from "@/types/deepgram";
 const defaultOptions: DeepgramOptions = {
   model: "nova-3",
   language: "en-US",
-  smart_format: true, // Enable smart formatting by default
-  punctuate: true,   // Enable punctuation by default
-  diarize: true,     // Enable speaker diarization by default
-  filler_words: true, // Enable filler words detection by default
+  smart_format: true,
+  punctuate: true,
+  diarize: true,
+  filler_words: true,
   detect_language: false
 };
 
@@ -24,23 +24,52 @@ export const useDeepgramOptions = () => {
   });
 
   const [options, setOptions] = useState<DeepgramOptions>(() => {
-    const saved = localStorage.getItem('deepgram_options');
-    return saved ? JSON.parse(saved) : defaultOptions;
+    try {
+      const saved = localStorage.getItem('deepgram_options');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Ensure all required options are present
+        return {
+          ...defaultOptions,
+          ...parsed
+        };
+      }
+      return defaultOptions;
+    } catch (error) {
+      console.error('Error parsing stored options:', error);
+      return defaultOptions;
+    }
   });
 
   useEffect(() => {
-    localStorage.setItem('deepgram_model', model);
+    try {
+      localStorage.setItem('deepgram_model', model);
+      console.log('Stored model:', model);
+    } catch (error) {
+      console.error('Error storing model:', error);
+    }
   }, [model]);
 
   useEffect(() => {
-    localStorage.setItem('deepgram_language', language);
+    try {
+      localStorage.setItem('deepgram_language', language);
+      console.log('Stored language:', language);
+    } catch (error) {
+      console.error('Error storing language:', error);
+    }
   }, [language]);
 
   useEffect(() => {
-    localStorage.setItem('deepgram_options', JSON.stringify(options));
+    try {
+      localStorage.setItem('deepgram_options', JSON.stringify(options));
+      console.log('Updated Deepgram options:', options);
+    } catch (error) {
+      console.error('Error storing options:', error);
+    }
   }, [options]);
 
   const handleOptionsChange = (newOptions: Partial<DeepgramOptions>) => {
+    console.log('Changing options:', newOptions);
     setOptions(prev => ({ ...prev, ...newOptions }));
   };
 

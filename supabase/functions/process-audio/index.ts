@@ -29,28 +29,38 @@ serve(async (req) => {
       throw new Error('Missing required data: audio or mime_type');
     }
 
-    console.log('Processing audio with options:', {
+    console.log('Received transcription options:', {
       model: options?.model,
       language: options?.language,
-      mimeType: mime_type,
-      audioSize: audio.length
+      smart_format: options?.smart_format,
+      punctuate: options?.punctuate,
+      diarize: options?.diarize,
+      diarize_version: options?.diarize_version,
+      filler_words: options?.filler_words,
+      detect_language: options?.detect_language
     });
 
     // Convert audio data to Uint8Array
     const audioData = new Uint8Array(audio);
 
-    // Make request to Deepgram with specific error handling
-    const deepgramUrl = 'https://api.deepgram.com/v1/listen?' + new URLSearchParams({
+    // Construct Deepgram URL with validated options
+    const deepgramParams = new URLSearchParams({
       model: options?.model || 'nova-3',
       language: options?.language || 'en-US',
-      smart_format: 'true',
-      punctuate: 'true',
-      diarize: 'true',
-      diarize_version: '3',
-      filler_words: options?.filler_words ? 'true' : 'false'
+      smart_format: String(options?.smart_format ?? true),
+      punctuate: String(options?.punctuate ?? true),
+      diarize: String(options?.diarize ?? true),
+      diarize_version: "3",
+      filler_words: String(options?.filler_words ?? true)
     });
 
-    console.log('Sending request to Deepgram:', { url: deepgramUrl });
+    const deepgramUrl = `https://api.deepgram.com/v1/listen?${deepgramParams}`;
+
+    console.log('Sending request to Deepgram:', { 
+      url: deepgramUrl,
+      contentType: mime_type,
+      audioSize: audioData.length
+    });
 
     const response = await fetch(deepgramUrl, {
       method: 'POST',
@@ -72,19 +82,27 @@ serve(async (req) => {
     }
 
     const data = await response.json();
+    console.log('Deepgram response received:', {
+      hasResults: !!data.results,
+      hasChannels: !!data.results?.channels,
+      hasAlternatives: !!data.results?.channels?.[0]?.alternatives
+    });
     
     if (!data.results?.channels?.[0]?.alternatives?.[0]) {
       console.error('Invalid Deepgram response structure:', data);
       throw new Error('Invalid response from Deepgram');
     }
 
-    console.log('Successfully received Deepgram response');
-
     // Format transcript with speaker labels
     const words = data.results.channels[0].alternatives[0].words || [];
     let formattedTranscript = '';
     let currentSpeaker = null;
     let currentText = '';
+
+    console.log('Processing transcript with words:', {
+      wordCount: words.length,
+      hasSpeakerLabels: words.some(w => w.speaker)
+    });
 
     words.forEach((word: any) => {
       const speaker = `Speaker ${word.speaker || '1'}`;
@@ -135,7 +153,8 @@ serve(async (req) => {
 
       console.log('Successfully stored files:', {
         audio: audioFileName,
-        text: textFileName
+        text: textFileName,
+        transcriptLength: formattedTranscript.length
       });
 
     } catch (storageError) {
@@ -143,14 +162,14 @@ serve(async (req) => {
       // Continue execution even if storage fails
     }
 
-    // Return successful response
     return new Response(
       JSON.stringify({
         transcript: formattedTranscript,
         metadata: {
           duration: data.metadata?.duration,
           channels: data.metadata?.channels,
-          model: data.metadata?.model
+          model: data.metadata?.model,
+          options_used: deepgramParams
         },
         storedFileName: baseFileName
       }),

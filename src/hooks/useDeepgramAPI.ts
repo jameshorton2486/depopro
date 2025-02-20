@@ -13,20 +13,24 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
 
     const arrayBuffer = await chunk.arrayBuffer();
 
+    const requestOptions = {
+      model: options.model,
+      language: options.language,
+      smart_format: options.smart_format,
+      punctuate: options.punctuate,
+      diarize: options.diarize,
+      diarize_version: "3",
+      filler_words: options.filler_words,
+      detect_language: options.detect_language
+    };
+
+    console.log('Sending request with options:', requestOptions);
+
     const { data, error } = await supabase.functions.invoke('process-audio', {
       body: {
         audio: Array.from(new Uint8Array(arrayBuffer)),
         mime_type: chunk.type,
-        options: {
-          model: options.model,
-          language: options.language,
-          smart_format: options.smart_format,
-          punctuate: options.punctuate,
-          diarize: options.diarize,
-          diarize_version: "3",
-          filler_words: options.filler_words,
-          detect_language: options.detect_language
-        }
+        options: requestOptions
       }
     });
 
@@ -39,6 +43,12 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
       console.error('No transcript in response:', data);
       throw new Error('No transcript received from Deepgram');
     }
+
+    console.log('Received response:', {
+      transcriptLength: data.transcript.length,
+      metadata: data.metadata,
+      storedFileName: data.storedFileName
+    });
 
     return {
       transcript: data.transcript,
