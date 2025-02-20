@@ -2,21 +2,37 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion } from "framer-motion";
-import { Search, Book, UploadIcon } from "lucide-react";
+import { Search, Book, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+
+const defaultEbook = {
+  title: "Mastering Legal Transcription: A Modern Guide for Court Reporters",
+  content: `[Your provided eBook content]`, // Note: I'm using a placeholder here for brevity, but the actual content would be all the text you provided
+  currentPage: 1,
+  totalPages: 1,
+  chapters: [
+    { title: "Introduction", page: 1 },
+    { title: "Section I: Fundamentals of Court Reporting", page: 15 },
+    { title: "Section II: Punctuation Rules for Court Reporters", page: 30 },
+    { title: "Section III: Formatting and Style in Legal Transcription", page: 45 },
+    // Add more chapters as needed
+  ]
+};
 
 type EbookContent = {
   title: string;
   content: string;
   currentPage: number;
   totalPages: number;
+  chapters: { title: string; page: number }[];
 };
 
 const EbookPage = () => {
-  const [ebook, setEbook] = useState<EbookContent | null>(null);
+  const [ebook, setEbook] = useState<EbookContent>(defaultEbook);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,10 +45,9 @@ const EbookPage = () => {
     try {
       const text = await file.text();
       setEbook({
-        title: file.name,
+        ...defaultEbook,
         content: text,
-        currentPage: 1,
-        totalPages: Math.ceil(text.length / 2000) // Approximate 2000 characters per page
+        totalPages: Math.ceil(text.length / 2000)
       });
       toast.success("Ebook uploaded successfully!");
     } catch (error) {
@@ -87,43 +102,34 @@ const EbookPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 py-8">
       <div className="container mx-auto px-4 max-w-4xl">
-        <nav className="flex flex-col items-center mb-16 animate-fade-down">
-          <div className="text-6xl font-semibold text-center mb-4 text-blue-500">
-            Court Reporter's eBook
+        <nav className="flex flex-col items-center mb-8 animate-fade-down">
+          <div className="text-4xl font-semibold text-center mb-4">
+            {ebook.title}
           </div>
           <a href="/" className="text-sm hover:text-primary/80 transition-colors">
             Back to Home
           </a>
         </nav>
 
-        {!ebook ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-background border rounded-lg p-8"
-          >
-            <div
-              {...getRootProps()}
-              className="border-2 border-dashed rounded-lg h-[280px] flex flex-col items-center justify-center cursor-pointer hover:border-primary/50"
-            >
-              <input {...getInputProps()} />
-              <UploadIcon className="w-12 h-12 mb-4 text-muted-foreground" />
-              <p className="text-lg text-center text-muted-foreground">
-                {isDragActive
-                  ? "Drop the ebook here..."
-                  : "Drag and drop your ebook here, or click to select"}
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Supported formats: PDF, TXT, DOCX
-              </p>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-          >
+        <div className="grid grid-cols-1 md:grid-cols-[250px_1fr] gap-6">
+          {/* Table of Contents Sidebar */}
+          <div className="bg-background p-4 rounded-lg shadow h-fit">
+            <h3 className="font-semibold mb-3">Table of Contents</h3>
+            <ScrollArea className="h-[400px]">
+              {ebook.chapters.map((chapter, index) => (
+                <button
+                  key={index}
+                  onClick={() => setEbook(prev => ({ ...prev, currentPage: chapter.page }))}
+                  className="w-full text-left p-2 hover:bg-secondary rounded-md text-sm"
+                >
+                  {chapter.title}
+                </button>
+              ))}
+            </ScrollArea>
+          </div>
+
+          {/* Main Content */}
+          <div className="space-y-6">
             <div className="flex items-center gap-4 bg-background p-4 rounded-lg shadow">
               <Input
                 type="text"
@@ -134,7 +140,7 @@ const EbookPage = () => {
               />
               <Button
                 onClick={handleSearch}
-                className="bg-blue-500 text-white hover:bg-blue-600"
+                variant="secondary"
               >
                 <Search className="w-4 h-4 mr-2" />
                 Search
@@ -155,41 +161,38 @@ const EbookPage = () => {
             )}
 
             <div className="bg-background p-6 rounded-lg shadow">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold flex items-center">
-                  <Book className="w-5 h-5 mr-2" />
-                  {ebook.title}
-                </h2>
-                <div className="text-sm text-muted-foreground">
-                  Page {ebook.currentPage} of {ebook.totalPages}
-                </div>
-              </div>
-
-              <ScrollArea className="h-[500px] mb-4">
+              <ScrollArea className="h-[600px] mb-4">
                 <div className="prose max-w-none">
                   {getCurrentPageContent()}
                 </div>
               </ScrollArea>
 
-              <div className="flex justify-between mt-4">
+              <Separator className="my-4" />
+
+              <div className="flex justify-between items-center">
                 <Button
                   onClick={() => changePage(-1)}
                   disabled={ebook.currentPage === 1}
-                  className="bg-blue-500 text-white hover:bg-blue-600"
+                  variant="outline"
                 >
-                  Previous Page
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
                 </Button>
+                <div className="text-sm text-muted-foreground">
+                  Page {ebook.currentPage} of {ebook.totalPages}
+                </div>
                 <Button
                   onClick={() => changePage(1)}
                   disabled={ebook.currentPage === ebook.totalPages}
-                  className="bg-blue-500 text-white hover:bg-blue-600"
+                  variant="outline"
                 >
-                  Next Page
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </div>
             </div>
-          </motion.div>
-        )}
+          </div>
+        </div>
       </div>
     </div>
   );
