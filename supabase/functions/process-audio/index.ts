@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -16,6 +17,7 @@ serve(async (req) => {
     const { audio, mime_type, options } = await req.json();
 
     if (!audio || !mime_type) {
+      console.error('Missing required audio data or mime type');
       return new Response(
         JSON.stringify({ error: 'Missing required audio data or mime type' }),
         { 
@@ -27,11 +29,15 @@ serve(async (req) => {
 
     const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!deepgramKey) {
+      console.error('Deepgram API key not configured');
       throw new Error('Deepgram API key not configured');
     }
 
+    console.log('Initializing Deepgram with provided credentials');
     const deepgram = new Deepgram(deepgramKey);
+
     const audioData = new Uint8Array(audio);
+    console.log('Processing audio file of size:', audioData.length, 'bytes');
 
     const source = {
       buffer: audioData,
@@ -50,15 +56,18 @@ serve(async (req) => {
       detect_language: options?.detect_language ?? true
     };
 
-    console.log('Processing audio with options:', deepgramOptions);
+    console.log('Sending request to Deepgram with options:', JSON.stringify(deepgramOptions));
 
     const response = await deepgram.transcription.preRecorded(source, deepgramOptions);
+    console.log('Received response from Deepgram');
 
     if (!response?.results?.channels?.[0]?.alternatives?.[0]) {
+      console.error('Invalid response from Deepgram API:', response);
       throw new Error('Invalid response from Deepgram API');
     }
 
     const result = response.results.channels[0].alternatives[0];
+    console.log('Successfully processed transcript with confidence:', result.confidence);
 
     return new Response(
       JSON.stringify({
@@ -73,7 +82,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error processing audio:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
