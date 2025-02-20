@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -88,9 +87,81 @@ const DeepgramPage = () => {
   };
 
   const extractAudioChunk = async (file: File, start: number, end: number): Promise<Blob> => {
-    // For now, we'll return the whole file as one chunk
-    // In a production environment, you'd want to properly slice the audio file
-    return file;
+    return new Promise((resolve, reject) => {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const reader = new FileReader();
+
+      reader.onload = async (e) => {
+        try {
+          const audioBuffer = await audioContext.decodeAudioData(e.target?.result as ArrayBuffer);
+          
+          const sampleRate = audioBuffer.sampleRate;
+          const startSample = Math.floor(start * sampleRate);
+          const endSample = Math.floor(end * sampleRate);
+          const numberOfChannels = audioBuffer.numberOfChannels;
+          
+          const chunkLength = endSample - startSample;
+          const chunkBuffer = audioContext.createBuffer(
+            numberOfChannels,
+            chunkLength,
+            sampleRate
+          );
+
+          for (let channel = 0; channel < numberOfChannels; channel++) {
+            const channelData = audioBuffer.getChannelData(channel);
+            const chunkChannelData = chunkBuffer.getChannelData(channel);
+            
+            for (let i = 0; i < chunkLength; i++) {
+              chunkChannelData[i] = channelData[startSample + i];
+            }
+          }
+
+          const chunks: Float32Array[] = [];
+          for (let channel = 0; channel < numberOfChannels; channel++) {
+            chunks.push(chunkBuffer.getChannelData(channel));
+          }
+
+          const interleaved = new Float32Array(chunkLength * numberOfChannels);
+          for (let i = 0; i < chunkLength; i++) {
+            for (let channel = 0; channel < numberOfChannels; channel++) {
+              interleaved[i * numberOfChannels + channel] = chunks[channel][i];
+            }
+          }
+
+          const buffer = new ArrayBuffer(44 + interleaved.length * 2);
+          const view = new DataView(buffer);
+
+          writeString(view, 0, 'RIFF');
+          view.setUint32(4, 36 + interleaved.length * 2, true);
+          writeString(view, 8, 'WAVE');
+          writeString(view, 12, 'fmt ');
+          view.setUint32(16, 16, true);
+          view.setUint16(20, 1, true);
+          view.setUint16(22, numberOfChannels, true);
+          view.setUint32(24, sampleRate, true);
+          view.setUint32(28, sampleRate * numberOfChannels * 2, true);
+          view.setUint16(32, numberOfChannels * 2, true);
+          view.setUint16(34, 16, true);
+          writeString(view, 36, 'data');
+          view.setUint32(40, interleaved.length * 2, true);
+
+          const volume = 0.5;
+          for (let i = 0; i < interleaved.length; i++) {
+            view.setInt16(44 + i * 2, interleaved[i] * 0x7FFF * volume, true);
+          }
+
+          const wavBlob = new Blob([buffer], { type: 'audio/wav' });
+          resolve(wavBlob);
+        } catch (error) {
+          reject(error);
+        } finally {
+          audioContext.close();
+        }
+      };
+
+      reader.onerror = (error) => reject(error);
+      reader.readAsArrayBuffer(file);
+    });
   };
 
   const downloadTranscript = (format: 'txt' | 'docx') => {
@@ -148,6 +219,12 @@ const DeepgramPage = () => {
     maxFiles: 1,
     multiple: false
   });
+
+  const writeString = (view: DataView, offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-background to-secondary/20">
