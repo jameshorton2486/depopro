@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+interface DeepgramError {
+  err_code: string;
+  err_msg: string;
+  request_id: string;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -27,6 +33,11 @@ serve(async (req) => {
     if (!audio) {
       console.error('No audio data received');
       throw new Error('Audio data is required');
+    }
+
+    if (!mime_type) {
+      console.error('No MIME type specified');
+      throw new Error('MIME type is required');
     }
 
     // Log request details
@@ -58,7 +69,7 @@ serve(async (req) => {
         method: 'POST',
         headers: {
           'Authorization': `Token ${apiKey}`,
-          'Content-Type': mime_type || 'audio/mpeg',
+          'Content-Type': mime_type,
         },
         body: audioData,
       }
@@ -69,9 +80,40 @@ serve(async (req) => {
     console.log('Deepgram response headers:', Object.fromEntries(response.headers));
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Deepgram API error response:', errorText);
-      throw new Error(`Deepgram API error: ${response.status} - ${errorText}`);
+      const errorData = await response.json() as DeepgramError;
+      console.error('Deepgram API error:', errorData);
+
+      // Handle specific Deepgram error cases
+      switch (response.status) {
+        case 400:
+          if (errorData.err_code === "Bad Request") {
+            throw new Error("Invalid audio format or corrupted file");
+          }
+          throw new Error(errorData.err_msg || "Bad request");
+        
+        case 401:
+          if (errorData.err_code === "INVALID_AUTH") {
+            throw new Error("Invalid Deepgram API key");
+          } else if (errorData.err_code === "INSUFFICIENT_PERMISSIONS") {
+            throw new Error("Insufficient permissions for this operation");
+          }
+          throw new Error("Authentication failed");
+
+        case 402:
+          throw new Error("Insufficient credits in Deepgram account");
+
+        case 403:
+          throw new Error("No access to requested model");
+
+        case 429:
+          throw new Error("Too many requests. Please try again later");
+
+        case 503:
+          throw new Error("Deepgram service temporarily unavailable");
+
+        default:
+          throw new Error(`Deepgram API error: ${response.status} - ${errorData.err_msg || 'Unknown error'}`);
+      }
     }
 
     const result = await response.json();
@@ -91,15 +133,18 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('Processing error:', error);
-    // Include error stack trace if available
-    const errorDetails = error.stack || error.message;
+    
+    // Determine if this is a known error type
+    const isDeepgramError = error.message.includes('Deepgram');
+    const statusCode = isDeepgramError ? 400 : 500;
+    
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        details: errorDetails,
+        details: error.stack,
       }),
       { 
-        status: 500,
+        status: statusCode,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
