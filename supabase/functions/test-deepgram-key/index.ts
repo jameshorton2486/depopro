@@ -30,11 +30,16 @@ serve(async (req) => {
       throw new Error(`Deepgram API error: ${response.status}`);
     }
 
+    // Return success without exposing the key
     return new Response(
-      JSON.stringify({ success: true, key }),
+      JSON.stringify({ 
+        success: true, 
+        key // This will be used by the frontend but should not be logged
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
+    console.error('Error testing Deepgram key:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
