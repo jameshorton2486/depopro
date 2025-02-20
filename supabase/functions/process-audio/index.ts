@@ -7,7 +7,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -15,7 +14,6 @@ serve(async (req) => {
   try {
     console.log('Starting audio processing...');
 
-    // Verify API key is present
     const apiKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!apiKey) {
       console.error('Deepgram API key is missing');
@@ -37,7 +35,6 @@ serve(async (req) => {
       throw new Error('Invalid or missing audio data');
     }
 
-    // Convert array back to Uint8Array
     const audioData = new Uint8Array(audio);
     console.log(`Reconstructed audio data, size: ${audioData.length} bytes`);
 
@@ -82,11 +79,24 @@ serve(async (req) => {
       throw new Error('Invalid response structure from Deepgram');
     }
 
-    const transcript = result.results.channels[0].alternatives[0].transcript;
-    console.log('Successfully processed audio, transcript length:', transcript.length);
+    const alternative = result.results.channels[0].alternatives[0];
+    const paragraphs = alternative.paragraphs?.paragraphs || [];
+    
+    // Process paragraphs with speaker information
+    const formattedTranscript = paragraphs.map((para: any) => ({
+      speaker: para.speaker || 'Unknown Speaker',
+      text: para.text,
+      start: para.start,
+      end: para.end
+    }));
+
+    console.log('Successfully processed audio with speaker diarization');
 
     return new Response(
-      JSON.stringify({ transcript }),
+      JSON.stringify({ 
+        transcript: alternative.transcript,
+        paragraphs: formattedTranscript 
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
