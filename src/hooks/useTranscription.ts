@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,10 +41,10 @@ export const useTranscription = () => {
   const [transcript, setTranscript] = useState<string>("");
   const [utterances, setUtterances] = useState<TranscriptUtterance[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string>("");
-  const [model, setModel] = useState<string>("nova-2");
+  const [model, setModel] = useState<string>("nova-3");
   const [language, setLanguage] = useState<string>("en-US");
   const [options, setOptions] = useState<DeepgramOptions>({
-    model: "nova-2",
+    model: "nova-3",
     language: "en-US",
     smart_format: true,
     punctuate: true,
@@ -57,6 +56,12 @@ export const useTranscription = () => {
 
   const handleOptionsChange = (newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({ ...prev, ...newOptions }));
+    if (newOptions.model) {
+      setModel(newOptions.model);
+    }
+    if (newOptions.language) {
+      setLanguage(newOptions.language);
+    }
   };
 
   const processAudioChunk = async (chunk: Blob) => {

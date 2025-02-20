@@ -45,7 +45,9 @@ export const TranscriptionControls = ({
               <SelectValue placeholder="Select model" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="nova-3">Nova (Best)</SelectItem>
+              <SelectItem value="nova-3">Nova-3 (Latest)</SelectItem>
+              <SelectItem value="nova-2">Nova-2</SelectItem>
+              <SelectItem value="nova-2-medical">Nova-2-Medical</SelectItem>
               <SelectItem value="base">Base</SelectItem>
               <SelectItem value="enhanced">Enhanced</SelectItem>
             </SelectContent>
@@ -57,7 +59,7 @@ export const TranscriptionControls = ({
               <SelectValue placeholder="Select language" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="en">English</SelectItem>
+              <SelectItem value="en-US">English (US)</SelectItem>
               <SelectItem value="es">Spanish</SelectItem>
               <SelectItem value="fr">French</SelectItem>
               <SelectItem value="de">German</SelectItem>
