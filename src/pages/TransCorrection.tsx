@@ -15,11 +15,31 @@ const TransCorrection = () => {
   const [progress, setProgress] = useState(0);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [correctedText, setCorrectedText] = useState<string>("");
+  const [uploadedText, setUploadedText] = useState<string>("");
 
-  const processTranscript = async (text: string) => {
+  const processTranscript = async (text: string, useRules: boolean = true) => {
     try {
-      // Get the training rules
-      const rules = await openAIService.generateRulesFromSingleText(text);
+      // Get the training rules if needed
+      const rules = useRules ? await openAIService.generateRulesFromSingleText(text) : {
+        rules: [
+          // Basic formatting rules only
+          {
+            type: "formatting",
+            pattern: "spacing",
+            correction: "Ensure proper spacing around punctuation"
+          },
+          {
+            type: "capitalization",
+            pattern: "sentence",
+            correction: "Capitalize first word of sentences"
+          },
+          {
+            type: "formatting",
+            pattern: "linebreaks",
+            correction: "Maintain consistent line breaks"
+          }
+        ]
+      };
       
       // Process the text in chunks to avoid rate limits
       const chunks = text.match(/[^.!?]+[.!?]+/g) || [text];
@@ -82,23 +102,65 @@ const TransCorrection = () => {
       // Upload and process the file
       const { text } = await uploadAndProcessFile(file, setProgress);
       setUploadedFile(file);
-
-      toast.success("File uploaded successfully. Starting correction process...");
+      setUploadedText(text);
+      toast.success("File uploaded successfully");
       
-      // Process the transcript
-      const corrected = await processTranscript(text);
-      setCorrectedText(corrected);
-      
-      toast.success("Transcript correction completed!");
     } catch (error) {
       console.error("Error processing file:", error);
       toast.error("Error processing file");
       setUploadedFile(null);
+      setUploadedText("");
     } finally {
       setIsProcessing(false);
       setProgress(100);
     }
   }, []);
+
+  const handleInitialFormatting = async () => {
+    if (!uploadedText) {
+      toast.error("Please upload a file first");
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      setProgress(0);
+      
+      const corrected = await processTranscript(uploadedText, false);
+      setCorrectedText(corrected);
+      
+      toast.success("Initial formatting completed!");
+    } catch (error) {
+      console.error("Error during initial formatting:", error);
+      toast.error("Error during initial formatting");
+    } finally {
+      setIsProcessing(false);
+      setProgress(100);
+    }
+  };
+
+  const handleRulesFormatting = async () => {
+    if (!uploadedText) {
+      toast.error("Please upload a file first");
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      setProgress(0);
+      
+      const corrected = await processTranscript(uploadedText, true);
+      setCorrectedText(corrected);
+      
+      toast.success("Rules-based formatting completed!");
+    } catch (error) {
+      console.error("Error during rules-based formatting:", error);
+      toast.error("Error during rules-based formatting");
+    } finally {
+      setIsProcessing(false);
+      setProgress(100);
+    }
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -113,7 +175,6 @@ const TransCorrection = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <Link 
             to="/upload" 
@@ -169,6 +230,22 @@ const TransCorrection = () => {
             )}
           </div>
 
+          {uploadedFile && !isProcessing && (
+            <div className="flex justify-center gap-4 mt-4">
+              <Button
+                onClick={handleInitialFormatting}
+                variant="outline"
+              >
+                Initial Formatting
+              </Button>
+              <Button
+                onClick={handleRulesFormatting}
+              >
+                Rules-Based Formatting
+              </Button>
+            </div>
+          )}
+
           {correctedText && !isProcessing && (
             <div className="mt-8">
               <h3 className="text-lg font-semibold mb-2">Corrected Transcript</h3>
@@ -194,3 +271,4 @@ const TransCorrection = () => {
 };
 
 export default TransCorrection;
+
