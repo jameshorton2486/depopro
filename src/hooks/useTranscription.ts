@@ -2,7 +2,7 @@
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { getAudioDuration, extractAudioChunk } from "@/utils/audioUtils";
+import { getAudioDuration, extractAudioChunk, SUPPORTED_AUDIO_TYPES } from "@/utils/audioUtils";
 
 export const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2GB in bytes
 
@@ -49,9 +49,12 @@ export const useTranscription = () => {
         type: chunk.type,
       });
 
+      // Convert Blob to ArrayBuffer
+      const arrayBuffer = await chunk.arrayBuffer();
+
       const { data, error } = await supabase.functions.invoke('process-audio', {
         body: {
-          audio: await chunk.arrayBuffer(),
+          audio: Array.from(new Uint8Array(arrayBuffer)), // Convert to array for transmission
           model,
           language,
           mime_type: chunk.type,
@@ -86,6 +89,11 @@ export const useTranscription = () => {
       setProgress(0);
       setTranscript("");
       setProcessingStatus("Processing audio file...");
+
+      // Validate file type
+      if (!Object.keys(SUPPORTED_AUDIO_TYPES).includes(uploadedFile.type)) {
+        throw new Error(`Unsupported file type. Supported formats are: ${Object.values(SUPPORTED_AUDIO_TYPES).flat().join(', ')}`);
+      }
 
       const chunk = await extractAudioChunk(uploadedFile);
       setProcessingStatus("Sending audio to Deepgram...");

@@ -6,12 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface DeepgramError {
-  err_code: string;
-  err_msg: string;
-  request_id: string;
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -28,50 +22,24 @@ serve(async (req) => {
       throw new Error('API key configuration error');
     }
 
-    console.log('Got request:', {
-      method: req.method,
-      headers: Object.fromEntries(req.headers.entries()),
-      url: req.url
+    const requestData = await req.json();
+    console.log('Received request data:', {
+      hasAudio: !!requestData.audio,
+      audioLength: requestData.audio?.length,
+      mimeType: requestData.mime_type,
+      model: requestData.model,
+      language: requestData.language
     });
-
-    let requestData;
-    try {
-      requestData = await req.json();
-      console.log('Successfully parsed request JSON');
-    } catch (e) {
-      console.error('Failed to parse request JSON:', e);
-      throw new Error('Invalid request format');
-    }
 
     const { audio, model, language, mime_type } = requestData;
 
-    if (!audio) {
-      console.error('No audio data received');
-      throw new Error('Audio data is required');
+    if (!audio || !Array.isArray(audio)) {
+      throw new Error('Invalid or missing audio data');
     }
 
-    if (!mime_type) {
-      console.error('No MIME type specified');
-      throw new Error('MIME type is required');
-    }
-
-    // Log request details
-    console.log('Request details:', {
-      model,
-      language,
-      mime_type,
-      audioDataSize: audio.byteLength,
-    });
-
-    // Convert ArrayBuffer to Uint8Array for streaming
-    let audioData;
-    try {
-      audioData = new Uint8Array(audio);
-      console.log(`Successfully created Uint8Array of size: ${audioData.length} bytes`);
-    } catch (e) {
-      console.error('Failed to convert audio data to Uint8Array:', e);
-      throw new Error('Failed to process audio data');
-    }
+    // Convert array back to Uint8Array
+    const audioData = new Uint8Array(audio);
+    console.log(`Reconstructed audio data, size: ${audioData.length} bytes`);
 
     const queryParams = new URLSearchParams({
       model: model || 'nova-3',
@@ -81,93 +49,47 @@ serve(async (req) => {
       punctuate: 'true',
     });
 
-    console.log('Preparing Deepgram request...');
-    console.log('API URL:', `https://api.deepgram.com/v1/listen?${queryParams}`);
-
-    let response;
-    try {
-      response = await fetch(
-        `https://api.deepgram.com/v1/listen?${queryParams}`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${apiKey}`,
-            'Content-Type': mime_type,
-          },
-          body: audioData,
-        }
-      );
-      console.log('Deepgram response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      });
-    } catch (e) {
-      console.error('Failed to make Deepgram API request:', e);
-      throw new Error('Failed to communicate with Deepgram');
-    }
+    console.log('Making request to Deepgram...');
+    const response = await fetch(
+      `https://api.deepgram.com/v1/listen?${queryParams}`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${apiKey}`,
+          'Content-Type': mime_type,
+        },
+        body: audioData,
+      }
+    );
 
     if (!response.ok) {
-      let errorData;
-      try {
-        errorData = await response.json() as DeepgramError;
-        console.error('Deepgram API error:', errorData);
-      } catch (e) {
-        console.error('Failed to parse Deepgram error response:', e);
-        throw new Error(`Deepgram API error: ${response.status} - ${response.statusText}`);
-      }
-
-      switch (response.status) {
-        case 400:
-          throw new Error(errorData.err_msg || "Invalid request to Deepgram");
-        case 401:
-          throw new Error("Invalid Deepgram API key");
-        case 402:
-          throw new Error("Insufficient credits in Deepgram account");
-        case 403:
-          throw new Error("No access to requested Deepgram model");
-        case 429:
-          throw new Error("Too many requests to Deepgram. Please try again later");
-        case 503:
-          throw new Error("Deepgram service temporarily unavailable");
-        default:
-          throw new Error(`Deepgram API error: ${response.status} - ${errorData.err_msg || 'Unknown error'}`);
-      }
+      const errorText = await response.text();
+      console.error('Deepgram API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`Deepgram API error: ${response.status} - ${errorText}`);
     }
 
-    let result;
-    try {
-      result = await response.json();
-      console.log('Successfully parsed Deepgram response');
-    } catch (e) {
-      console.error('Failed to parse Deepgram response:', e);
-      throw new Error('Invalid response from Deepgram');
-    }
-
+    const result = await response.json();
+    
     if (!result.results?.channels?.[0]?.alternatives?.[0]) {
-      console.error('Invalid response structure from Deepgram:', result);
+      console.error('Invalid response structure:', result);
       throw new Error('Invalid response structure from Deepgram');
     }
 
     const transcript = result.results.channels[0].alternatives[0].transcript;
-    console.log('Successfully processed audio. Transcript length:', transcript.length);
+    console.log('Successfully processed audio, transcript length:', transcript.length);
 
     return new Response(
       JSON.stringify({ transcript }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Processing error:', {
-      message: error.message,
-      stack: error.stack,
-      cause: error.cause
-    });
-    
+    console.error('Processing error:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: error.stack,
-      }),
+      JSON.stringify({ error: error.message }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
