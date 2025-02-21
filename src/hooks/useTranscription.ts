@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { processAudioChunk } from "./useDeepgramAPI";
 import { DeepgramOptions } from "@/types/deepgram";
+import { AudioPreprocessor } from "@/utils/audioPreprocessing";
 import { toast } from "sonner";
 
 export const useTranscription = () => {
@@ -57,9 +58,14 @@ export const useTranscription = () => {
     setProgress(0);
 
     try {
-      setProcessingStatus("Preparing audio for processing...");
+      setProcessingStatus("Preprocessing audio...");
       
-      const result = await processAudioChunk(uploadedFile, options);
+      const preprocessor = new AudioPreprocessor();
+      const processedBuffer = await preprocessor.preprocessAudio(uploadedFile);
+      
+      setProcessingStatus("Processing audio...");
+      
+      const result = await processAudioChunk(processedBuffer, uploadedFile.type, options);
       
       if (!result?.transcript) {
         throw new Error("No transcript received from processing");
