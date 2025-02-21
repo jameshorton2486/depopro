@@ -27,7 +27,7 @@ const EbookPage = () => {
     content: ebookContent.content,
     currentPage: 1,
     totalPages: ebookContent.totalPages,
-    chapters: ebookContent.chapters.map(chapter => ({
+    chapters: [...ebookContent.chapters].map(chapter => ({
       title: chapter.title,
       page: chapter.page
     }))
@@ -43,12 +43,13 @@ const EbookPage = () => {
     setIsLoading(true);
     try {
       const text = await file.text();
-      setEbook({
-        ...ebookContent,
+      setEbook(prev => ({
+        ...prev,
         content: text,
         currentPage: 1,
-        totalPages: Math.ceil(text.length / 2000)
-      });
+        totalPages: Math.ceil(text.length / 2000),
+        chapters: [...prev.chapters]
+      }));
       toast.success("Ebook uploaded successfully!");
     } catch (error) {
       console.error("Error reading file:", error);

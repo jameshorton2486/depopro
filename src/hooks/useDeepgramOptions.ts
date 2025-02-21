@@ -3,40 +3,17 @@ import { useState, useEffect } from "react";
 import { DeepgramOptions } from "@/types/deepgram";
 
 const defaultOptions: DeepgramOptions = {
-  model: "nova-3",
-  language: "en-US",
+  model: "nova-2",
+  language: "en",
   smart_format: true,
   punctuate: true,
-  diarize: true,
-  filler_words: true,
-  detect_language: true
-};
-
-const loadSavedOptions = (): DeepgramOptions => {
-  try {
-    const saved = localStorage.getItem("deepgram_options");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return {
-        model: parsed.model || defaultOptions.model,
-        language: parsed.language || defaultOptions.language,
-        smart_format: parsed.smart_format ?? defaultOptions.smart_format,
-        punctuate: parsed.punctuate ?? defaultOptions.punctuate,
-        diarize: parsed.diarize ?? defaultOptions.diarize,
-        filler_words: parsed.filler_words ?? defaultOptions.filler_words,
-        detect_language: parsed.detect_language ?? defaultOptions.detect_language
-      };
-    }
-  } catch (error) {
-    console.warn("Error loading saved options, using defaults:", error);
-  }
-  return { ...defaultOptions };
+  diarize: false
 };
 
 export const useDeepgramOptions = () => {
   const [model, setModel] = useState(defaultOptions.model);
   const [language, setLanguage] = useState(defaultOptions.language);
-  const [options, setOptions] = useState<DeepgramOptions>(loadSavedOptions);
+  const [options, setOptions] = useState<DeepgramOptions>(defaultOptions);
 
   useEffect(() => {
     try {
