@@ -60,22 +60,53 @@ const validateAudioFile = (file: Blob) => {
 };
 
 const sliceArrayBuffer = (buffer: ArrayBuffer, chunkSize: number): ArrayBuffer[] => {
-  console.debug('📦 Slicing array buffer:', {
-    totalSize: `${(buffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-    chunkSize: `${(chunkSize / (1024 * 1024)).toFixed(2)}MB`
-  });
+  try {
+    const fileSize = buffer.byteLength;
+    console.debug('📦 Starting buffer slicing:', {
+      totalSize: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`,
+      chunkSize: `${(chunkSize / (1024 * 1024)).toFixed(2)}MB`,
+      estimatedChunks: Math.ceil(fileSize / chunkSize)
+    });
 
-  const chunks: ArrayBuffer[] = [];
-  let offset = 0;
+    const chunks: ArrayBuffer[] = [];
+    let offset = 0;
   
-  while (offset < buffer.byteLength) {
-    const chunk = buffer.slice(offset, offset + chunkSize);
-    chunks.push(chunk);
-    offset += chunkSize;
+    while (offset < buffer.byteLength) {
+      const currentChunkSize = Math.min(chunkSize, buffer.byteLength - offset);
+      const chunk = buffer.slice(offset, offset + currentChunkSize);
+      
+      if (chunk.byteLength === 0) {
+        console.error('❌ Created empty chunk at offset:', offset);
+        break;
+      }
+
+      chunks.push(chunk);
+      console.debug(`✓ Chunk ${chunks.length} created:`, {
+        offset: `${(offset / (1024 * 1024)).toFixed(2)}MB`,
+        size: `${(chunk.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+        remaining: `${((buffer.byteLength - (offset + currentChunkSize)) / (1024 * 1024)).toFixed(2)}MB`
+      });
+      
+      offset += currentChunkSize;
+    }
+    
+    console.debug(`✅ Buffer slicing complete:`, {
+      totalChunks: chunks.length,
+      averageChunkSize: `${(chunks.reduce((acc, chunk) => acc + chunk.byteLength, 0) / chunks.length / (1024 * 1024)).toFixed(2)}MB`,
+      smallestChunk: `${(Math.min(...chunks.map(c => c.byteLength)) / (1024 * 1024)).toFixed(2)}MB`,
+      largestChunk: `${(Math.max(...chunks.map(c => c.byteLength)) / (1024 * 1024)).toFixed(2)}MB`
+    });
+    
+    return chunks;
+  } catch (error) {
+    console.error('❌ Error during buffer slicing:', {
+      error: error.message,
+      stack: error.stack,
+      bufferSize: `${(buffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+      chunkSize: `${(chunkSize / (1024 * 1024)).toFixed(2)}MB`
+    });
+    throw error;
   }
-  
-  console.debug(`✅ Buffer sliced into ${chunks.length} chunks`);
-  return chunks;
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -107,7 +138,7 @@ const processChunkWithRetry = async (
         throw new Error('Empty audio chunk');
       }
 
-      console.debug('📤 Sending request to process-audio function:', {
+      console.debug(`📤 Sending chunk ${chunkIndex + 1} to process-audio:`, {
         dataLength: audioData.length,
         timestamp: new Date().toISOString()
       });
@@ -130,7 +161,7 @@ const processChunkWithRetry = async (
       ]);
 
       const processingTime = Date.now() - startTime;
-      console.debug(`⏱️ Chunk ${chunkIndex + 1} processing time:`, {
+      console.debug(`⏱️ Chunk ${chunkIndex + 1} processing completed:`, {
         ms: processingTime,
         seconds: (processingTime / 1000).toFixed(2)
       });
@@ -150,7 +181,7 @@ const processChunkWithRetry = async (
         throw new Error('No transcript received');
       }
 
-      console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
+      console.debug(`✅ Chunk ${chunkIndex + 1} processed:`, {
         transcriptLength: data.transcript.length,
         metadata: data.metadata
       });
@@ -173,19 +204,14 @@ const processChunkWithRetry = async (
           error: lastError,
           finalAttempt: attempts
         });
-        throw new Error(`Failed to process chunk ${chunkIndex + 1} after ${MAX_RETRIES} attempts: ${lastError.message}`);
+        throw error;
       }
 
-      // Exponential backoff with jitter
       const backoffTime = Math.min(1000 * Math.pow(2, attempts), 8000);
       const jitter = Math.random() * 1000;
       const waitTime = backoffTime + jitter;
       
-      console.debug(`⏳ Retrying in ${(waitTime / 1000).toFixed(2)}s...`, {
-        attempt: attempts,
-        backoffTime,
-        jitter
-      });
+      console.debug(`⏳ Retrying chunk ${chunkIndex + 1} in ${(waitTime / 1000).toFixed(2)}s...`);
       
       await delay(waitTime);
     }
