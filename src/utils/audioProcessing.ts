@@ -1,5 +1,5 @@
 
-import type { DeepgramOptions } from "@/types/deepgram";
+import type { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   MAX_RETRIES, 
@@ -58,7 +58,7 @@ export const processAudioChunk = async (
   buffer: ArrayBuffer,
   mimeType: string,
   options: DeepgramOptions
-): Promise<{ transcript: string }> => {
+): Promise<TranscriptionResult> => {
   console.debug('🎬 Starting audio chunk processing:', {
     bufferSize: `${(buffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
     mimeType,
