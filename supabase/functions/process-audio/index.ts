@@ -10,34 +10,22 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log("Function started:", req.method);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { 
-      headers: {
-        ...corsHeaders,
-        'Access-Control-Max-Age': '86400',
-      }
+      headers: corsHeaders
     });
   }
 
-  // Validate authorization
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ error: 'Missing or invalid authorization header' }),
-      { 
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-  }
-
   try {
-    console.debug('Starting process-audio function');
+    console.log('Starting process-audio function');
 
     // Validate environment
     const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!deepgramKey) {
+      console.error('DEEPGRAM_API_KEY not found in environment variables');
       throw new Error('DEEPGRAM_API_KEY is not configured');
     }
 
@@ -45,7 +33,7 @@ serve(async (req) => {
     let body;
     try {
       body = await req.json();
-      console.debug('Received request body:', {
+      console.log('Received request body:', {
         hasAudio: !!body.audio,
         mimeType: body.mime_type,
         hasOptions: !!body.options
@@ -65,35 +53,12 @@ serve(async (req) => {
       throw new Error('Missing mime_type');
     }
 
-    // Test Deepgram API connectivity
+    // Initialize Deepgram client
+    console.log('Initializing Deepgram client...');
     const deepgram = new Deepgram(deepgramKey);
-    
-    try {
-      console.debug('Testing Deepgram API connectivity...');
-      const testResponse = await fetch('https://api.deepgram.com/v1/projects', {
-        headers: {
-          'Authorization': `Token ${deepgramKey}`,
-        }
-      });
-
-      if (!testResponse.ok) {
-        const errorText = await testResponse.text();
-        console.error('Deepgram API test failed:', {
-          status: testResponse.status,
-          statusText: testResponse.statusText,
-          error: errorText
-        });
-        throw new Error(`Deepgram API test failed: ${testResponse.status} - ${errorText}`);
-      }
-
-      console.debug('Deepgram API test successful');
-    } catch (error) {
-      console.error('Failed to test Deepgram API:', error);
-      throw new Error(`Deepgram API connectivity test failed: ${error.message}`);
-    }
 
     // Process the audio
-    console.debug('Processing audio with Deepgram...');
+    console.log('Processing audio with Deepgram...');
     const source = {
       buffer: new Uint8Array(audio),
       mimetype: mime_type,
@@ -107,15 +72,17 @@ serve(async (req) => {
       numerals: true,
     };
 
+    console.log('Sending request to Deepgram with options:', transcriptionOptions);
     const response = await deepgram.transcription.preRecorded(source, transcriptionOptions);
     
     if (!response?.results?.channels?.[0]?.alternatives?.[0]) {
+      console.error('Invalid response structure from Deepgram:', response);
       throw new Error('Invalid response structure from Deepgram');
     }
 
     const transcript = response.results.channels[0].alternatives[0].transcript;
     
-    console.debug('Transcription successful:', {
+    console.log('Transcription successful:', {
       transcriptLength: transcript.length,
       wordCount: transcript.split(' ').length
     });
