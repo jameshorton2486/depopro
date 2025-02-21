@@ -29,6 +29,8 @@ export const sliceArrayBuffer = (buffer: ArrayBuffer, chunkSize: number = CHUNK_
           size: `${(chunk.byteLength / (1024 * 1024)).toFixed(2)}MB`,
           remaining: `${((buffer.byteLength - (offset + currentChunkSize)) / (1024 * 1024)).toFixed(2)}MB`
         });
+
+        offset += currentChunkSize;
       } catch (chunkError) {
         console.error(`❌ Error creating chunk at offset ${offset}:`, {
           error: chunkError.message,
@@ -36,9 +38,8 @@ export const sliceArrayBuffer = (buffer: ArrayBuffer, chunkSize: number = CHUNK_
           offset: `${(offset / (1024 * 1024)).toFixed(2)}MB`,
           remaining: `${((buffer.byteLength - offset) / (1024 * 1024)).toFixed(2)}MB`
         });
+        offset += chunkSize; // Move to next chunk even if this one failed
       }
-      
-      offset += currentChunkSize;
     }
     
     if (chunks.length === 0) {
