@@ -22,7 +22,7 @@ const validateAudioFile = (file: Blob) => {
   console.debug('🔍 Validating audio file:', {
     type: file.type,
     size: `${(file.size / (1024 * 1024)).toFixed(2)}MB`,
-    lastModified: new Date(file.lastModified).toISOString()
+    timestamp: new Date().toISOString()
   });
 
   const supportedTypes = [
@@ -269,4 +269,72 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
     });
     throw error;
   }
+};
+
+// Add API testing functionality
+export const testAPIs = async () => {
+  const results = {
+    supabase: { status: 'pending' as const, details: '' },
+    deepgram: { status: 'pending' as const, details: '' }
+  };
+
+  // Test Supabase Connection
+  try {
+    console.debug('🔍 Testing Supabase connection...');
+    const { data, error } = await supabase.from('transcripts').select('id').limit(1);
+    
+    if (error) {
+      console.error('❌ Supabase connection error:', error);
+      results.supabase = {
+        status: 'error' as const,
+        details: `Failed to connect to Supabase: ${error.message}`
+      };
+      toast.error("Supabase connection failed");
+    } else {
+      console.debug('✅ Supabase connection successful:', data);
+      results.supabase = {
+        status: 'success' as const,
+        details: 'Successfully connected to Supabase'
+      };
+      toast.success("Supabase connection successful");
+    }
+  } catch (error) {
+    console.error('❌ Unexpected Supabase error:', error);
+    results.supabase = {
+      status: 'error' as const,
+      details: `Unexpected Supabase error: ${error.message}`
+    };
+    toast.error("Supabase test failed");
+  }
+
+  // Test Deepgram Connection
+  try {
+    console.debug('🔍 Testing Deepgram connection...');
+    const { data, error } = await supabase.functions.invoke('test-deepgram-key');
+    
+    if (error) {
+      console.error('❌ Deepgram API test error:', error);
+      results.deepgram = {
+        status: 'error' as const,
+        details: `Failed to test Deepgram API: ${error.message}`
+      };
+      toast.error("Deepgram API test failed");
+    } else {
+      console.debug('✅ Deepgram API test successful:', data);
+      results.deepgram = {
+        status: 'success' as const,
+        details: data.message || 'Successfully tested Deepgram API'
+      };
+      toast.success("Deepgram API test successful");
+    }
+  } catch (error) {
+    console.error('❌ Unexpected Deepgram error:', error);
+    results.deepgram = {
+      status: 'error' as const,
+      details: `Unexpected Deepgram error: ${error.message}`
+    };
+    toast.error("Deepgram test failed");
+  }
+
+  return results;
 };
