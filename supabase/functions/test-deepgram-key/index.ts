@@ -22,9 +22,13 @@ serve(async (req) => {
     }
 
     console.debug('Testing Deepgram API connectivity...');
-    const deepgramResponse = await fetch('https://api.deepgram.com/v1/projects', {
+    const deepgramUrl = new URL('https://api.deepgram.com/v1/projects');
+    
+    const deepgramResponse = await fetch(deepgramUrl, {
+      method: 'GET',
       headers: {
         'Authorization': `Token ${deepgramKey}`,
+        'Content-Type': 'application/json'
       }
     });
 
@@ -32,6 +36,9 @@ serve(async (req) => {
       const errorText = await deepgramResponse.text();
       throw new Error(`Deepgram API test failed: ${deepgramResponse.status} - ${errorText}`);
     }
+
+    const deepgramData = await deepgramResponse.json();
+    console.debug('Deepgram API test successful');
 
     // Test Supabase connection using service role key
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -43,6 +50,7 @@ serve(async (req) => {
 
     console.debug('Testing Supabase connectivity...');
     const supabaseResponse = await fetch(`${supabaseUrl}/rest/v1/`, {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
         'apikey': supabaseKey

@@ -17,8 +17,7 @@ export const useTranscription = () => {
     language: "en",
     smart_format: true,
     diarize: false,
-    punctuate: true,
-    utterances: false
+    punctuate: true
   });
 
   const handleOptionsChange = (newOptions: Partial<DeepgramOptions>) => {
