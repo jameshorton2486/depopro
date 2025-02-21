@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranscription } from "@/hooks/useTranscription";
+import { useApiTest } from "@/hooks/useApiTest";
 import { DeepgramHeader } from "@/components/deepgram/DeepgramHeader";
 import { FileUploadArea } from "@/components/deepgram/FileUploadArea";
 import { TranscriptDisplay } from "@/components/deepgram/TranscriptDisplay";
@@ -8,10 +9,13 @@ import { ProcessingOverlay } from "@/components/deepgram/ProcessingOverlay";
 import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 export default function Deepgram() {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const transcription = useTranscription();
+  const { isTestingApi, testApiKeys } = useApiTest();
 
   useEffect(() => {
     testSupabaseConnection();
@@ -55,6 +59,22 @@ export default function Deepgram() {
   return (
     <div className="container mx-auto px-4 py-8">
       <DeepgramHeader />
+      <div className="flex justify-end mb-4">
+        <Button 
+          variant="outline"
+          onClick={testApiKeys}
+          disabled={isTestingApi}
+        >
+          {isTestingApi ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Testing API Keys...
+            </>
+          ) : (
+            'Test API Keys'
+          )}
+        </Button>
+      </div>
       <div className="mt-8 space-y-8">
         <FileUploadArea
           uploadedFile={transcription.uploadedFile}
@@ -87,4 +107,4 @@ export default function Deepgram() {
       </div>
     </div>
   );
-}
+};
