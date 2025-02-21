@@ -1,6 +1,7 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// @deno-types="https://raw.githubusercontent.com/deepgram/deepgram-node-sdk/main/dist/index.d.ts"
 import { Deepgram } from "https://esm.sh/@deepgram/sdk@1.3.1";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,18 +21,11 @@ serve(async (req) => {
   }
 
   try {
-    // Log request details for debugging
-    console.log("Request received:", {
-      method: req.method,
-      headers: Object.fromEntries(req.headers.entries()),
-    });
-
     const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!deepgramKey) {
       throw new Error('Deepgram API key not configured');
     }
 
-    // Parse request body
     const { audio, mime_type, options } = await req.json();
 
     if (!audio || !Array.isArray(audio)) {
@@ -42,25 +36,19 @@ serve(async (req) => {
       throw new Error('Missing mime_type in request');
     }
 
-    console.log("Processing audio with options:", { 
-      mime_type,
+    console.log("Processing audio chunk:", {
+      mimeType: mime_type,
       audioLength: audio.length,
-      options 
+      options: JSON.stringify(options, null, 2)
     });
 
-    // Initialize Deepgram client
     const deepgram = new Deepgram(deepgramKey);
     const source = {
       buffer: new Uint8Array(audio),
       mimetype: mime_type,
     };
 
-    // Send request to Deepgram with timeout
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Request timeout')), 30000)
-    );
-
-    const transcriptionPromise = deepgram.transcription.preRecorded(source, {
+    const response = await deepgram.transcription.preRecorded(source, {
       ...options,
       smart_format: true,
       punctuate: true,
@@ -68,8 +56,6 @@ serve(async (req) => {
       numerals: true,
     });
 
-    const response = await Promise.race([transcriptionPromise, timeoutPromise]);
-    
     if (!response?.results?.channels?.[0]?.alternatives?.[0]) {
       throw new Error('Invalid response from Deepgram');
     }
@@ -90,9 +76,8 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error processing request:", error);
     
-    const statusCode = error.message.includes('timeout') ? 408 :
-                      error.message.includes('format') ? 400 : 500;
-
+    const statusCode = error.message.includes('Invalid audio data') ? 400 : 500;
+    
     return new Response(
       JSON.stringify({ 
         error: error.message,
