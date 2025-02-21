@@ -1,8 +1,12 @@
 
 project_id = "relqexesmhirdxubfgmy"
 
+[functions]
+timeout = 60
+
 [functions.test-deepgram-key]
 verify_jwt = false
 
 [functions.process-audio]
 verify_jwt = false
+timeout = 60
