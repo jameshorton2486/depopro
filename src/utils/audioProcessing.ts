@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { DeepgramOptions } from "@/types/deepgram";
 import type { AudioProcessingResponse, AudioProcessingError } from "@/types/audio";
@@ -91,7 +90,8 @@ export const processChunkWithRetry = async (
     throw new Error(ERROR_MESSAGES.CHUNK_TOO_LARGE);
   }
 
-  const audioData = Array.from(new Uint8Array(chunkBuffer));
+  // Convert ArrayBuffer to Uint8Array (raw bytes) for processing
+  const audioData = new Uint8Array(chunkBuffer);
   
   if (audioData.length === 0) {
     console.error('❌ Empty audio chunk detected', {
@@ -101,9 +101,6 @@ export const processChunkWithRetry = async (
     });
     throw new Error(ERROR_MESSAGES.EMPTY_FILE);
   }
-
-  // Convert audio data to base64
-  const base64Audio = btoa(String.fromCharCode(...audioData));
 
   console.debug(`📊 Processing chunk ${chunkIndex + 1}/${totalChunks}:`, {
     chunkSize: `${(chunkBuffer.byteLength / 1024).toFixed(2)}KB`,
@@ -126,7 +123,8 @@ export const processChunkWithRetry = async (
     const { data, error } = await Promise.race([
       supabase.functions.invoke<AudioProcessingResponse>('process-audio', {
         body: {
-          audio: base64Audio,
+          // Send raw audio bytes instead of base64
+          audio: Array.from(audioData),
           mime_type: mimeType,
           options: {
             ...options,
