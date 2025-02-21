@@ -1,12 +1,11 @@
 
 import type { DeepgramOptions } from "@/types/deepgram";
-import type { AudioProcessingResponse, AudioProcessingError } from "@/types/audio";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   MAX_RETRIES, 
   TIMEOUT, 
   BASE_RETRY_DELAY,
   MAX_CHUNK_SIZE,
-  CHUNK_SIZE,
   DEBUG,
   SUPPORTED_AUDIO_TYPES,
   ERROR_MESSAGES
@@ -29,18 +28,6 @@ const exponentialBackoff = async <T>(
     } catch (error: any) {
       lastError = error;
       
-      // Enhanced error handling with specific error types
-      if (error.status === 401) {
-        console.error('❌ Authentication failed:', error);
-        throw new Error(ERROR_MESSAGES.AUTH_ERROR);
-      }
-      
-      if (error.status === 429) {
-        console.warn(`⚠️ Rate limit hit on attempt ${attempt}`);
-        const retryAfter = parseInt(error.headers?.['retry-after']) || 5;
-        delay = Math.max(delay, retryAfter * 1000);
-      }
-
       if (attempt === retries) {
         console.error(`❌ All ${retries} attempts failed:`, error);
         throw error;
@@ -52,8 +39,7 @@ const exponentialBackoff = async <T>(
       console.warn(`⚠️ Attempt ${attempt} failed. Retrying in ${(delay/1000).toFixed(1)}s:`, {
         error: error.message,
         nextDelay: `${(delay/1000).toFixed(1)}s`,
-        remainingAttempts: retries - attempt,
-        errorType: error.status ? `HTTP ${error.status}` : error.name
+        remainingAttempts: retries - attempt
       });
 
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -70,7 +56,7 @@ export const processChunkWithRetry = async (
   chunkIndex: number,
   totalChunks: number
 ): Promise<string> => {
-  // Enhanced file validation
+  // File validation
   if (!SUPPORTED_AUDIO_TYPES.includes(mimeType as any)) {
     console.error('❌ Unsupported audio format:', {
       providedType: mimeType,
@@ -79,119 +65,51 @@ export const processChunkWithRetry = async (
     throw new Error(ERROR_MESSAGES.UNSUPPORTED_TYPE);
   }
 
-  console.debug('📍 Audio format validation:', {
-    mimeType,
-    isSupported: true,
-    timestamp: new Date().toISOString()
-  });
-
-  // Enhanced chunk size validation
   if (chunkBuffer.byteLength > MAX_CHUNK_SIZE) {
-    console.error(`❌ Chunk ${chunkIndex + 1} exceeds maximum size:`, {
-      size: chunkBuffer.byteLength,
-      maxSize: MAX_CHUNK_SIZE,
-      difference: `${((chunkBuffer.byteLength - MAX_CHUNK_SIZE) / 1024).toFixed(2)}KB over limit`
-    });
+    console.error(`❌ Chunk ${chunkIndex + 1} exceeds maximum size`);
     throw new Error(ERROR_MESSAGES.CHUNK_TOO_LARGE);
   }
 
-  // Convert ArrayBuffer to Uint8Array (raw bytes) for processing
   const audioData = new Uint8Array(chunkBuffer);
   
   if (audioData.length === 0) {
-    console.error('❌ Empty audio chunk detected', {
-      chunkIndex: chunkIndex + 1,
-      totalChunks,
-      timestamp: new Date().toISOString()
-    });
     throw new Error(ERROR_MESSAGES.EMPTY_FILE);
   }
-
-  console.debug(`📊 Processing chunk ${chunkIndex + 1}/${totalChunks}:`, {
-    chunkSize: `${(chunkBuffer.byteLength / 1024).toFixed(2)}KB`,
-    mimeType,
-    options: JSON.stringify(options, null, 2),
-    timestamp: new Date().toISOString()
-  });
 
   return await exponentialBackoff(async () => {
     const processingStartTime = Date.now();
     
-    console.debug("🛠️ Sending request to Deepgram with payload:", {
-      mimeType,
-      chunkSize: `${(chunkBuffer.byteLength / 1024).toFixed(2)}KB`,
-      options: options,
-      chunkIndex: chunkIndex + 1,
-      totalChunks
-    });
-
     // Create form data for the request
     const formData = new FormData();
     const audioBlob = new Blob([audioData], { type: mimeType });
     formData.append('audio', audioBlob);
-
-    // Get API key from localStorage with enhanced error handling
-    const apiKey = localStorage.getItem('DEEPGRAM_API_KEY');
-    if (!apiKey) {
-      throw new Error('Deepgram API key not found. Please set your API key first.');
-    }
+    formData.append('options', JSON.stringify(options));
 
     try {
-      const response = await Promise.race([
-        fetch('https://api.deepgram.com/v1/listen', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${apiKey}`,
-          },
-          body: formData
-        }),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => {
-            console.error(`⏱️ Timeout reached after ${TIMEOUT}ms for chunk ${chunkIndex + 1}`);
-            reject(new Error(ERROR_MESSAGES.TIMEOUT_ERROR));
-          }, TIMEOUT)
-        )
-      ]);
+      const { data, error } = await supabase.functions.invoke('transcribe', {
+        body: formData
+      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        if (response.status === 401) {
-          throw new Error(ERROR_MESSAGES.AUTH_ERROR);
-        } else if (response.status === 429) {
-          throw new Error(ERROR_MESSAGES.RATE_LIMIT);
-        }
-        throw new Error(error.message || ERROR_MESSAGES.PROCESSING_ERROR);
+      if (error) {
+        throw error;
       }
 
-      const data = await response.json();
       const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript;
 
-      const processingTime = Date.now() - processingStartTime;
-
-      if (!transcript || transcript.length < 5) {
-        console.error('❌ Invalid transcript in response:', { 
-          data,
-          chunkIndex: chunkIndex + 1,
-          processingTime: `${(processingTime / 1000).toFixed(2)}s`,
-          timestamp: new Date().toISOString()
-        });
+      if (!transcript) {
         throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
       }
 
+      const processingTime = Date.now() - processingStartTime;
       console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
         transcriptLength: transcript.length,
-        processingTime: `${(processingTime / 1000).toFixed(2)}s`,
-        metadata: data.metadata,
-        timestamp: new Date().toISOString()
+        processingTime: `${(processingTime / 1000).toFixed(2)}s`
       });
 
       return transcript;
     } catch (error: any) {
-      // Enhanced network error handling
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
-      }
-      throw error;
+      console.error('❌ Processing error:', error);
+      throw new Error(error.message || ERROR_MESSAGES.PROCESSING_ERROR);
     }
   });
 };
