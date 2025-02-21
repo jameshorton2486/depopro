@@ -18,11 +18,13 @@ serve(async (req) => {
     const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
     
     if (!deepgramKey) {
+      console.error('DEEPGRAM_API_KEY not found in environment variables');
       throw new Error('DEEPGRAM_API_KEY is not configured in environment variables');
     }
 
     console.log('Testing Deepgram API with key length:', deepgramKey.length);
 
+    // Test the Deepgram API by making a request to their projects endpoint
     const response = await fetch('https://api.deepgram.com/v1/projects', {
       method: 'GET',
       headers: {
@@ -31,19 +33,21 @@ serve(async (req) => {
       }
     });
 
-    const responseText = await response.text();
     console.log('Deepgram API Response Status:', response.status);
     
-    // Log a safe version of the response for debugging
-    try {
-      const responseData = JSON.parse(responseText);
-      console.log('Deepgram API Response:', JSON.stringify(responseData, null, 2));
-    } catch (e) {
-      console.log('Raw response text:', responseText);
-    }
+    const responseText = await response.text();
+    console.log('Raw response:', responseText);
 
     if (!response.ok) {
       throw new Error(`Deepgram API returned status ${response.status}: ${responseText}`);
+    }
+
+    // Try to parse the response as JSON for additional validation
+    try {
+      JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse Deepgram response as JSON:', e);
+      throw new Error('Invalid response format from Deepgram API');
     }
 
     return new Response(
@@ -83,3 +87,4 @@ serve(async (req) => {
     );
   }
 });
+
