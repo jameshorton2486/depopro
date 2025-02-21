@@ -7,91 +7,51 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log("Function started:", req.method);
-
-  // Handle CORS preflight requests
+  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.log('Starting API keys test...');
+    console.log('Starting Deepgram API key verification...');
+    const apiKey = Deno.env.get('DEEPGRAM_API_KEY');
 
-    // Test Deepgram API Key
-    const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
-    if (!deepgramKey) {
+    if (!apiKey) {
       console.error('DEEPGRAM_API_KEY not found in environment variables');
       throw new Error('DEEPGRAM_API_KEY is not configured');
     }
 
-    console.log('Testing Deepgram API connectivity...');
+    console.log('Testing Deepgram API key by making a request to /v1/projects...');
     
-    try {
-      const deepgramResponse = await fetch('https://api.deepgram.com/v1/projects', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Token ${deepgramKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('Deepgram API response status:', deepgramResponse.status);
-
-      if (!deepgramResponse.ok) {
-        const errorText = await deepgramResponse.text();
-        console.error('Deepgram API error response:', errorText);
-        throw new Error(`Deepgram API test failed: Status ${deepgramResponse.status} - ${errorText}`);
+    const response = await fetch('https://api.deepgram.com/v1/projects', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Token ${apiKey}`,
+        'Content-Type': 'application/json'
       }
+    });
 
-      const deepgramData = await deepgramResponse.json();
-      console.log('Deepgram API test successful:', deepgramData);
-    } catch (deepgramError) {
-      console.error('Error testing Deepgram API:', deepgramError);
-      throw new Error(`Deepgram API test failed: ${deepgramError.message}`);
+    const responseText = await response.text();
+    console.log('Deepgram API Response Status:', response.status);
+    console.log('Deepgram API Response:', responseText);
+
+    if (!response.ok) {
+      throw new Error(`Deepgram API returned status ${response.status}: ${responseText}`);
     }
 
-    // Test Supabase connection using service role key
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-
-    if (!supabaseKey || !supabaseUrl) {
-      console.error('Missing Supabase configuration');
-      throw new Error('Supabase configuration is incomplete');
-    }
-
-    console.log('Testing Supabase connectivity...');
-    
+    let responseData;
     try {
-      const supabaseResponse = await fetch(`${supabaseUrl}/rest/v1/`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey
-        }
-      });
-
-      console.log('Supabase API response status:', supabaseResponse.status);
-
-      if (!supabaseResponse.ok) {
-        const errorText = await supabaseResponse.text();
-        console.error('Supabase API error response:', errorText);
-        throw new Error(`Supabase API test failed: Status ${supabaseResponse.status}`);
-      }
-    } catch (supabaseError) {
-      console.error('Error testing Supabase API:', supabaseError);
-      throw new Error(`Supabase API test failed: ${supabaseError.message}`);
+      responseData = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse response as JSON:', e);
+      throw new Error('Invalid response format from Deepgram API');
     }
-
-    console.log('All API tests completed successfully');
 
     return new Response(
       JSON.stringify({
         status: 'success',
-        message: 'All API keys are valid and working',
-        tests: {
-          deepgram: 'passed',
-          supabase: 'passed'
-        }
+        message: 'Deepgram API key is valid and working',
+        details: responseData
       }),
       { 
         headers: { 
@@ -99,10 +59,10 @@ serve(async (req) => {
           'Content-Type': 'application/json'
         }
       }
-    );
+    )
 
   } catch (error) {
-    console.error('API test error:', error);
+    console.error('Error testing Deepgram API:', error);
     
     return new Response(
       JSON.stringify({
@@ -117,6 +77,6 @@ serve(async (req) => {
           'Content-Type': 'application/json'
         }
       }
-    );
+    )
   }
-});
+})
