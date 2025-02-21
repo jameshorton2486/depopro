@@ -1,8 +1,7 @@
 
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { motion } from "framer-motion";
-import { Search, Book, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,15 +10,34 @@ import { Separator } from "@/components/ui/separator";
 
 const defaultEbook = {
   title: "Mastering Legal Transcription: A Modern Guide for Court Reporters",
-  content: `[Your provided eBook content]`, // Note: I'm using a placeholder here for brevity, but the actual content would be all the text you provided
+  content: `The Critical Role of Precision in Modern Legal Documentation
+
+A. The Importance of Precise Language and Verbatim Transcription in Court Reporting
+Legal proceedings hinge on the unassailable accuracy of their records. Verbatim transcription—the practice of capturing every spoken word, hesitation, and nonverbal utterance—serves as the bedrock of judicial integrity...
+
+[Your provided content continues here...]`,
   currentPage: 1,
   totalPages: 1,
   chapters: [
     { title: "Introduction", page: 1 },
-    { title: "Section I: Fundamentals of Court Reporting", page: 15 },
-    { title: "Section II: Punctuation Rules for Court Reporters", page: 30 },
-    { title: "Section III: Formatting and Style in Legal Transcription", page: 45 },
-    // Add more chapters as needed
+    { title: "A. The Importance of Precise Language and Verbatim Transcription", page: 2 },
+    { title: "B. Overview of the Book's Purpose and Structure", page: 3 },
+    { title: "C. Ensuring Accuracy, Clarity, and Legal Admissibility", page: 4 },
+    { title: "Section I: Fundamentals of Court Reporting", page: 5 },
+    { title: "1.1 The Role of Court Reporters", page: 6 },
+    { title: "1.2 Legal Documentation and Standards", page: 7 },
+    { title: "1.3 The Role of Punctuation in Legal Transcription", page: 8 },
+    { title: "Section II: Punctuation Rules for Court Reporters", page: 9 },
+    { title: "2.1 End Marks", page: 10 },
+    { title: "2.2 Internal Punctuation", page: 11 },
+    { title: "2.3 Quotation Marks and Apostrophes", page: 12 },
+    { title: "2.4 Hyphens, Dashes, and Slashes", page: 13 },
+    { title: "2.5 Ellipsis and Brackets", page: 14 },
+    { title: "Section III: Formatting and Style", page: 15 },
+    { title: "Section IV: Proofreading and Quality Control", page: 16 },
+    { title: "Section V: Digital Production & Industry Trends", page: 17 },
+    { title: "Section VI: Templates & Quick References", page: 18 },
+    { title: "Appendices & Bonus Resources", page: 19 }
   ]
 };
 
@@ -101,7 +119,7 @@ const EbookPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 py-8">
-      <div className="container mx-auto px-4 max-w-4xl">
+      <div className="container mx-auto px-4 max-w-6xl">
         <nav className="flex flex-col items-center mb-8 animate-fade-down">
           <div className="text-4xl font-semibold text-center mb-4">
             {ebook.title}
@@ -111,16 +129,16 @@ const EbookPage = () => {
           </a>
         </nav>
 
-        <div className="grid grid-cols-1 md:grid-cols-[250px_1fr] gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
           {/* Table of Contents Sidebar */}
-          <div className="bg-background p-4 rounded-lg shadow h-fit">
+          <div className="bg-background p-4 rounded-lg shadow h-fit sticky top-4">
             <h3 className="font-semibold mb-3">Table of Contents</h3>
-            <ScrollArea className="h-[400px]">
+            <ScrollArea className="h-[600px]">
               {ebook.chapters.map((chapter, index) => (
                 <button
                   key={index}
                   onClick={() => setEbook(prev => ({ ...prev, currentPage: chapter.page }))}
-                  className="w-full text-left p-2 hover:bg-secondary rounded-md text-sm"
+                  className="w-full text-left p-2 hover:bg-secondary rounded-md text-sm mb-1"
                 >
                   {chapter.title}
                 </button>
