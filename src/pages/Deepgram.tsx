@@ -57,8 +57,11 @@ export default function Deepgram() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <DeepgramHeader />
+    <div className="container mx-auto px-4 py-8 space-y-8">
+      <div className="mb-8">
+        <DeepgramHeader />
+      </div>
+      
       <div className="flex justify-end mb-4">
         <Button 
           variant="outline"
@@ -75,7 +78,8 @@ export default function Deepgram() {
           )}
         </Button>
       </div>
-      <div className="mt-8 space-y-8">
+
+      <div className="space-y-8">
         <FileUploadArea
           uploadedFile={transcription.uploadedFile}
           isProcessing={transcription.isProcessing}
@@ -107,4 +111,4 @@ export default function Deepgram() {
       </div>
     </div>
   );
-};
+}
