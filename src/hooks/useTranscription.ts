@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { processAudioChunk } from "@/utils/audioProcessing";
+import { processAudioInChunks } from "@/hooks/useDeepgramAPI";
 import { DeepgramOptions } from "@/types/deepgram";
 import { AudioPreprocessor } from "@/utils/audioPreprocessing";
 import { toast } from "sonner";
@@ -81,18 +81,13 @@ export const useTranscription = () => {
     setProgress(0);
 
     try {
-      setProcessingStatus("Preprocessing audio...");
-      console.debug('🔄 Creating audio preprocessor');
-      const preprocessor = new AudioPreprocessor();
-      
-      console.debug('🎵 Starting audio preprocessing');
-      const processedBuffer = await preprocessor.preprocessAudio(uploadedFile);
-      console.debug('✅ Audio preprocessing complete');
-      
       setProcessingStatus("Processing audio...");
-      console.debug('🎙 Starting audio processing with Deepgram');
+      console.debug('🎙 Starting audio processing');
       
-      const result = await processAudioChunk(processedBuffer, uploadedFile.type, options);
+      const result = await processAudioInChunks(uploadedFile, options, (progress) => {
+        setProgress(progress);
+      });
+
       console.debug('📝 Received processing result:', {
         success: !!result?.transcript,
         transcriptLength: result?.transcript?.length || 0

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
 import { validateAudioFile } from "@/utils/audioValidation";
 import { sliceArrayBuffer } from "@/utils/audioChunking";
-import { processChunkWithRetry } from "@/utils/audioProcessing";
+import { processAudioChunk } from "@/utils/audioProcessing";
 
 export type APITestStatus = 'pending' | 'success' | 'error';
 
@@ -18,21 +18,47 @@ export interface APITestResults {
   deepgram: APITestResult;
 }
 
-export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) => {
+export const processChunkWithRetry = async (
+  chunkBuffer: ArrayBuffer,
+  mimeType: string,
+  options: DeepgramOptions,
+  chunkIndex: number,
+  totalChunks: number
+): Promise<string> => {
   try {
-    console.debug('🎬 Starting audio processing:', {
-      timestamp: new Date().toISOString(),
-      chunkInfo: {
-        size: `${(chunk.size / (1024 * 1024)).toFixed(2)}MB`,
-        type: chunk.type
-      },
-      options: JSON.stringify(options, null, 2)
+    console.debug(`🔄 Processing chunk ${chunkIndex + 1}/${totalChunks}`, {
+      chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+      mimeType
     });
 
-    validateAudioFile(chunk);
+    const result = await processAudioChunk(chunkBuffer, mimeType, options);
+    
+    console.debug(`✅ Chunk ${chunkIndex + 1}/${totalChunks} processed`, {
+      transcriptLength: result.transcript.length
+    });
+
+    return result.transcript;
+  } catch (error) {
+    console.error(`❌ Error processing chunk ${chunkIndex + 1}/${totalChunks}:`, error);
+    throw error;
+  }
+};
+
+export const processAudioInChunks = async (
+  file: Blob,
+  options: DeepgramOptions,
+  onProgress?: (progress: number) => void
+) => {
+  try {
+    console.debug('🎬 Starting chunked audio processing:', {
+      fileSize: `${(file.size / (1024 * 1024)).toFixed(2)}MB`,
+      type: file.type
+    });
+
+    validateAudioFile(file);
 
     console.debug('🔄 Converting blob to array buffer...');
-    const arrayBuffer = await chunk.arrayBuffer();
+    const arrayBuffer = await file.arrayBuffer();
     console.debug('✅ Array buffer created:', {
       size: `${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`
     });
@@ -62,7 +88,7 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
       const batchPromises = batch.map((chunkBuffer, batchIndex) => 
         processChunkWithRetry(
           chunkBuffer,
-          chunk.type,
+          file.type,
           options,
           i + batchIndex,
           chunks.length
@@ -78,6 +104,10 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
       // Only add non-empty results to transcript
       allTranscripts += results.filter(Boolean).join(' ');
       completedChunks += batch.length;
+
+      if (onProgress) {
+        onProgress(Math.round((completedChunks / chunks.length) * 100));
+      }
 
       console.debug('📈 Processing progress:', {
         completedChunks,
