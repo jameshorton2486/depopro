@@ -48,49 +48,61 @@ export const processChunkWithRetry = async (
       });
 
       const startTime = Date.now();
-      const { data, error } = await Promise.race([
-        supabase.functions.invoke<ProcessAudioResponse>('process-audio', {
-          body: {
-            audio: audioData,
-            mime_type: mimeType,
-            options: {
-              ...options,
-              diarize_version: options.diarize ? "3" : undefined
+      
+      // Add more detailed error handling for the Edge Function call
+      try {
+        const { data, error } = await Promise.race([
+          supabase.functions.invoke<ProcessAudioResponse>('process-audio', {
+            body: {
+              audio: audioData,
+              mime_type: mimeType,
+              options: {
+                ...options,
+                diarize_version: options.diarize ? "3" : undefined
+              }
             }
-          }
-        }),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Request timeout')), TIMEOUT)
-        )
-      ]);
+          }),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error(`Timeout after ${TIMEOUT}ms`)), TIMEOUT)
+          )
+        ]);
 
-      const processingTime = Date.now() - startTime;
-      console.debug(`⏱️ Chunk ${chunkIndex + 1} processing completed:`, {
-        ms: processingTime,
-        seconds: (processingTime / 1000).toFixed(2)
-      });
-
-      if (error) {
-        console.error(`❌ Function error (attempt ${attempts + 1}):`, {
-          error,
-          statusCode: error.status,
-          message: error.message,
-          details: error.details
+        const processingTime = Date.now() - startTime;
+        console.debug(`⏱️ Chunk ${chunkIndex + 1} processing completed:`, {
+          ms: processingTime,
+          seconds: (processingTime / 1000).toFixed(2)
         });
-        throw error;
+
+        if (error) {
+          console.error(`❌ Function error (attempt ${attempts + 1}):`, {
+            error,
+            statusCode: error.status,
+            message: error.message,
+            details: error.details,
+            context: error.context
+          });
+          throw error;
+        }
+
+        if (!data?.transcript) {
+          console.error('❌ No transcript in response:', { data });
+          throw new Error('No transcript received');
+        }
+
+        console.debug(`✅ Chunk ${chunkIndex + 1} processed:`, {
+          transcriptLength: data.transcript.length,
+          metadata: data.metadata
+        });
+
+        return data.transcript;
+      } catch (fetchError) {
+        console.error(`❌ Edge Function error for chunk ${chunkIndex + 1}:`, {
+          error: fetchError.message,
+          stack: fetchError.stack,
+          context: fetchError.context
+        });
+        throw fetchError;
       }
-
-      if (!data?.transcript) {
-        console.error('❌ No transcript in response:', { data });
-        throw new Error('No transcript received');
-      }
-
-      console.debug(`✅ Chunk ${chunkIndex + 1} processed:`, {
-        transcriptLength: data.transcript.length,
-        metadata: data.metadata
-      });
-
-      return data.transcript;
 
     } catch (error) {
       lastError = error;
@@ -108,10 +120,10 @@ export const processChunkWithRetry = async (
           error: lastError,
           finalAttempt: attempts
         });
-        // Return empty string instead of throwing error to allow processing to continue
         return '';
       }
 
+      // Exponential backoff with maximum wait time and jitter
       const backoffTime = Math.min(1000 * Math.pow(2, attempts), 8000);
       const jitter = Math.random() * 1000;
       const waitTime = backoffTime + jitter;
@@ -122,5 +134,5 @@ export const processChunkWithRetry = async (
     }
   }
 
-  return ''; // Return empty string if all retries failed
+  return '';
 };

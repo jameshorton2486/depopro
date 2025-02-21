@@ -1,5 +1,5 @@
 
-export const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB chunks
+export const CHUNK_SIZE = 500 * 1024; // 500KB chunks (reduced from 1MB)
 export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB max file size
 export const TIMEOUT = 30000; // 30 second timeout
 export const MAX_RETRIES = 3;
