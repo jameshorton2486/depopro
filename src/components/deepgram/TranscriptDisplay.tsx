@@ -2,6 +2,7 @@
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 
 interface TranscriptDisplayProps {
   transcript: string;
@@ -10,6 +11,18 @@ interface TranscriptDisplayProps {
 
 export const TranscriptDisplay = ({ transcript, onDownload }: TranscriptDisplayProps) => {
   if (!transcript) return null;
+
+  const handleTranscriptComplete = () => {
+    // Automatically trigger Word document download when transcript is ready
+    createAndDownloadWordDoc(transcript);
+  };
+
+  // Call handleTranscriptComplete when component mounts with a transcript
+  React.useEffect(() => {
+    if (transcript) {
+      handleTranscriptComplete();
+    }
+  }, [transcript]);
 
   return (
     <div className="mt-6 space-y-4">
