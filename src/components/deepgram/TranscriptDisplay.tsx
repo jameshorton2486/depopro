@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,7 +19,7 @@ export const TranscriptDisplay = ({ transcript, onDownload }: TranscriptDisplayP
   };
 
   // Call handleTranscriptComplete when component mounts with a transcript
-  React.useEffect(() => {
+  useEffect(() => {
     if (transcript) {
       handleTranscriptComplete();
     }
