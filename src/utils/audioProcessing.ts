@@ -1,23 +1,15 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { DeepgramOptions } from "@/types/deepgram";
+import type { DeepgramOptions } from "@/types/deepgram";
+import type { AudioProcessingResponse, AudioProcessingError } from "@/types/audio";
 import { 
   MAX_RETRIES, 
   TIMEOUT, 
   BASE_RETRY_DELAY,
   MAX_CHUNK_SIZE,
-  CHUNK_SIZE 
+  CHUNK_SIZE,
+  DEBUG 
 } from "./audioConstants";
-
-interface ProcessAudioResponse {
-  transcript: string;
-  metadata?: {
-    duration?: number;
-    channels?: number;
-    model?: string;
-    processed_at?: string;
-  };
-}
 
 const exponentialBackoff = async <T>(
   fn: () => Promise<T>, 
@@ -29,9 +21,9 @@ const exponentialBackoff = async <T>(
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.debug(`🔄 Attempt ${attempt}/${retries} starting...`);
+      if (DEBUG) console.debug(`🔄 Attempt ${attempt}/${retries} starting...`);
       const result = await fn();
-      console.debug(`✅ Attempt ${attempt} succeeded`);
+      if (DEBUG) console.debug(`✅ Attempt ${attempt} succeeded`);
       return result;
     } catch (error) {
       lastError = error;
@@ -50,16 +42,12 @@ const exponentialBackoff = async <T>(
       }
 
       const jitter = Math.random() * 1000;
-      delay = Math.min(delay * 2 + jitter, 15000); // Cap at 15 seconds
+      delay = Math.min(delay * 2 + jitter, 15000);
 
       console.warn(`⚠️ Attempt ${attempt} failed. Retrying in ${(delay/1000).toFixed(1)}s:`, {
         error: error.message,
         nextDelay: `${(delay/1000).toFixed(1)}s`,
-        remainingAttempts: retries - attempt,
-        errorDetails: {
-          stack: error.stack,
-          cause: error.cause
-        }
+        remainingAttempts: retries - attempt
       });
 
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -76,13 +64,15 @@ export const processChunkWithRetry = async (
   chunkIndex: number,
   totalChunks: number
 ): Promise<string> => {
-  console.debug(`🎯 Starting chunk processing:`, {
-    chunkIndex: chunkIndex + 1,
-    totalChunks,
-    chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-    maxChunkSize: `${(MAX_CHUNK_SIZE / (1024 * 1024)).toFixed(2)}MB`,
-    timestamp: new Date().toISOString()
-  });
+  if (DEBUG) {
+    console.debug(`🎯 Starting chunk processing:`, {
+      chunkIndex: chunkIndex + 1,
+      totalChunks,
+      chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+      maxChunkSize: `${(MAX_CHUNK_SIZE / (1024 * 1024)).toFixed(2)}MB`,
+      timestamp: new Date().toISOString()
+    });
+  }
 
   if (chunkBuffer.byteLength > MAX_CHUNK_SIZE) {
     console.error(`❌ Chunk ${chunkIndex + 1} exceeds maximum size:`, {
@@ -104,18 +94,20 @@ export const processChunkWithRetry = async (
     throw new Error('Empty audio chunk');
   }
 
-  console.debug(`📊 Processing chunk ${chunkIndex + 1}/${totalChunks}:`, {
-    chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-    mimeType,
-    options: JSON.stringify(options, null, 2),
-    timestamp: new Date().toISOString()
-  });
+  if (DEBUG) {
+    console.debug(`📊 Processing chunk ${chunkIndex + 1}/${totalChunks}:`, {
+      chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+      mimeType,
+      options: JSON.stringify(options, null, 2),
+      timestamp: new Date().toISOString()
+    });
+  }
 
   return await exponentialBackoff(async () => {
     const processingStartTime = Date.now();
     
     const { data, error } = await Promise.race([
-      supabase.functions.invoke<ProcessAudioResponse>('process-audio', {
+      supabase.functions.invoke<AudioProcessingResponse>('process-audio', {
         body: {
           audio: audioData,
           mime_type: mimeType,
@@ -169,12 +161,14 @@ export const processChunkWithRetry = async (
       throw new Error('Invalid transcript received');
     }
 
-    console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
-      transcriptLength: data.transcript.length,
-      processingTime: `${(processingTime / 1000).toFixed(2)}s`,
-      metadata: data.metadata,
-      timestamp: new Date().toISOString()
-    });
+    if (DEBUG) {
+      console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
+        transcriptLength: data.transcript.length,
+        processingTime: `${(processingTime / 1000).toFixed(2)}s`,
+        metadata: data.metadata,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     return data.transcript;
   });
