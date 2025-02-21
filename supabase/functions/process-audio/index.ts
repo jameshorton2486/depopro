@@ -1,7 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
-import { Deepgram } from "https://esm.sh/@deepgram/sdk@3.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,40 +8,53 @@ const corsHeaders = {
 
 async function processAudio(audioData: number[], mimeType: string, options: any) {
   try {
-    const deepgram = new Deepgram(Deno.env.get('DEEPGRAM_API_KEY')!);
-    
     // Convert number array back to Uint8Array
     const audioBuffer = new Uint8Array(audioData);
 
-    // Set up source object
-    const source = {
-      buffer: audioBuffer,
-      mimetype: mimeType
+    // Prepare the request URL and headers
+    const url = 'https://api.deepgram.com/v1/listen';
+    const headers = {
+      'Authorization': `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
+      'Content-Type': mimeType
     };
 
-    // Ensure options are properly formatted
-    const deepgramOptions = {
-      smart_format: true,
-      model: options.model || "nova-2",
-      language: options.language || "en",
-      punctuate: options.punctuate !== false,
-      utterances: false,
-      ...options,
-      diarize: options.diarize === true
-    };
+    // Prepare query parameters based on options
+    const queryParams = new URLSearchParams({
+      model: options.model || 'nova-2',
+      language: options.language || 'en',
+      smart_format: 'true',
+      punctuate: (options.punctuate !== false).toString()
+    });
 
-    if (deepgramOptions.diarize) {
-      deepgramOptions.diarize_version = "3";
+    if (options.diarize) {
+      queryParams.append('diarize', 'true');
+      queryParams.append('diarize_version', '3');
     }
 
-    console.log("🎯 Sending to Deepgram:", { 
-      mimeType, 
-      options: deepgramOptions,
+    console.log("🎯 Sending to Deepgram API:", {
+      url,
+      mimeType,
+      options,
       bufferSize: audioBuffer.length
     });
 
-    const result = await deepgram.transcription.preRecorded(source, deepgramOptions);
+    const response = await fetch(`${url}?${queryParams.toString()}`, {
+      method: 'POST',
+      headers,
+      body: audioBuffer
+    });
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Deepgram API error:", {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`Deepgram API error: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
     console.log("✅ Received response from Deepgram");
 
     if (!result?.results?.channels?.[0]?.alternatives?.[0]) {
@@ -89,7 +100,10 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('❌ Server error:', error);
+    console.error('❌ Server error:', {
+      message: error.message,
+      stack: error.stack
+    });
     
     return new Response(
       JSON.stringify({
