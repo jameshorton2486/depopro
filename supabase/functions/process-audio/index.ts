@@ -4,6 +4,7 @@ import { Deepgram } from "https://esm.sh/@deepgram/sdk@1.3.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -22,16 +23,22 @@ const SUPPORTED_MIME_TYPES = [
 const FUNCTION_TIMEOUT = 25000; // 25 seconds
 
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { 
+      headers: {
+        ...corsHeaders,
+        'Access-Control-Max-Age': '86400',
+      }
+    });
+  }
+
   // Log request details for debugging
   console.log("Received request:", {
     method: req.method,
     headers: Object.fromEntries(req.headers.entries()),
     url: req.url
   });
-
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
 
   try {
     const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
@@ -64,7 +71,6 @@ serve(async (req) => {
       );
     }
 
-    // Check mime_type before using includes()
     if (!mime_type || !SUPPORTED_MIME_TYPES.includes(mime_type)) {
       console.error('Unsupported MIME type:', mime_type);
       return new Response(

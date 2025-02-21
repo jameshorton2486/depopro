@@ -40,6 +40,18 @@ export default function Deepgram() {
     }
   };
 
+  const handleDownload = (format: 'txt' | 'docx') => {
+    if (transcription.transcript) {
+      const element = document.createElement('a');
+      const file = new Blob([transcription.transcript], { type: 'text/plain' });
+      element.href = URL.createObjectURL(file);
+      element.download = `transcript.${format}`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <DeepgramHeader />
@@ -52,7 +64,7 @@ export default function Deepgram() {
           onDrop={transcription.onDrop}
         />
         <TranscriptionControls
-          uploadedFile={transcription.uploadedFile}
+          isProcessing={transcription.isProcessing}
           model={transcription.model}
           language={transcription.language}
           options={transcription.options}
@@ -63,12 +75,14 @@ export default function Deepgram() {
         />
         {transcription.isProcessing && (
           <ProcessingOverlay
+            isProcessing={transcription.isProcessing}
             processingStatus={transcription.processingStatus}
           />
         )}
         {transcription.transcript && (
           <TranscriptDisplay
             transcript={transcription.transcript}
+            onDownload={handleDownload}
           />
         )}
       </div>
