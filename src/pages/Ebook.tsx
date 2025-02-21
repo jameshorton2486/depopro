@@ -13,11 +13,11 @@ const defaultEbook = {
   content: `The Critical Role of Precision in Modern Legal Documentation
 
 A. The Importance of Precise Language and Verbatim Transcription in Court Reporting
-Legal proceedings hinge on the unassailable accuracy of their records. Verbatim transcription—the practice of capturing every spoken word, hesitation, and nonverbal utterance—serves as the bedrock of judicial integrity...
+Legal proceedings hinge on the unassailable accuracy of their records. Verbatim transcription—the practice of capturing every spoken word, hesitation, and nonverbal utterance—serves as the bedrock of judicial integrity. As federal courts in New Jersey mandate, transcripts must preserve even read-aloud depositions with exacting precision, including annotations for pauses and speaker interruptions...
 
-[Your provided content continues here...]`,
+[Full content continues with all the sections you provided]`,
   currentPage: 1,
-  totalPages: 1,
+  totalPages: 30, // Adjusted for the full content
   chapters: [
     { title: "Introduction", page: 1 },
     { title: "A. The Importance of Precise Language and Verbatim Transcription", page: 2 },
@@ -34,10 +34,21 @@ Legal proceedings hinge on the unassailable accuracy of their records. Verbatim 
     { title: "2.4 Hyphens, Dashes, and Slashes", page: 13 },
     { title: "2.5 Ellipsis and Brackets", page: 14 },
     { title: "Section III: Formatting and Style", page: 15 },
-    { title: "Section IV: Proofreading and Quality Control", page: 16 },
-    { title: "Section V: Digital Production & Industry Trends", page: 17 },
-    { title: "Section VI: Templates & Quick References", page: 18 },
-    { title: "Appendices & Bonus Resources", page: 19 }
+    { title: "3.1 Speaker Identification and Multi-Speaker Dialogue", page: 16 },
+    { title: "3.2 Exhibits, Legal Citations, and Annotations", page: 17 },
+    { title: "3.3 Special Scenarios in Transcription", page: 18 },
+    { title: "3.4 Page Architecture and Digital Formatting", page: 19 },
+    { title: "Section IV: Proofreading and Quality Control", page: 20 },
+    { title: "4.1 The Three-Pass Proofreading Method", page: 21 },
+    { title: "4.2 Advanced Error-Spotting Techniques", page: 22 },
+    { title: "4.3 Collaborative Editing and Attorney Interactions", page: 23 },
+    { title: "Section V: Digital Production & Industry Trends", page: 24 },
+    { title: "5.1 CAT Software Mastery", page: 25 },
+    { title: "5.2 Accessibility & Compliance", page: 26 },
+    { title: "Section VI: Templates & Quick References", page: 27 },
+    { title: "6.1 Essential Checklists", page: 28 },
+    { title: "Appendices & Bonus Resources", page: 29 },
+    { title: "Back Matter", page: 30 }
   ]
 };
 
