@@ -1,8 +1,9 @@
 
+import { ReactNode } from "react";
 import Navbar from "./Navbar";
 
 interface LayoutProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 const Layout = ({ children }: LayoutProps) => {
