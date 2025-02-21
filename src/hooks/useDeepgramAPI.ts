@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
@@ -19,11 +18,17 @@ interface ProcessAudioResponse {
 }
 
 const validateAudioFile = (file: Blob) => {
-  console.debug('🔍 Validating audio file:', {
+  const fileInfo: Record<string, any> = {
     type: file.type,
     size: `${(file.size / (1024 * 1024)).toFixed(2)}MB`,
     timestamp: new Date().toISOString()
-  });
+  };
+
+  if (file instanceof File) {
+    fileInfo.lastModified = new Date(file.lastModified).toISOString();
+  }
+
+  console.debug('🔍 Validating audio file:', fileInfo);
 
   const supportedTypes = [
     'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/aac',
@@ -271,11 +276,22 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
   }
 };
 
-// Add API testing functionality
-export const testAPIs = async () => {
-  const results = {
-    supabase: { status: 'pending' as const, details: '' },
-    deepgram: { status: 'pending' as const, details: '' }
+type APITestStatus = 'pending' | 'success' | 'error';
+
+interface APITestResult {
+  status: APITestStatus;
+  details: string;
+}
+
+interface APITestResults {
+  supabase: APITestResult;
+  deepgram: APITestResult;
+}
+
+export const testAPIs = async (): Promise<APITestResults> => {
+  const results: APITestResults = {
+    supabase: { status: 'pending', details: '' },
+    deepgram: { status: 'pending', details: '' }
   };
 
   // Test Supabase Connection
@@ -286,22 +302,22 @@ export const testAPIs = async () => {
     if (error) {
       console.error('❌ Supabase connection error:', error);
       results.supabase = {
-        status: 'error' as const,
+        status: 'error',
         details: `Failed to connect to Supabase: ${error.message}`
       };
       toast.error("Supabase connection failed");
     } else {
       console.debug('✅ Supabase connection successful:', data);
       results.supabase = {
-        status: 'success' as const,
+        status: 'success',
         details: 'Successfully connected to Supabase'
       };
       toast.success("Supabase connection successful");
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Unexpected Supabase error:', error);
     results.supabase = {
-      status: 'error' as const,
+      status: 'error',
       details: `Unexpected Supabase error: ${error.message}`
     };
     toast.error("Supabase test failed");
@@ -315,22 +331,22 @@ export const testAPIs = async () => {
     if (error) {
       console.error('❌ Deepgram API test error:', error);
       results.deepgram = {
-        status: 'error' as const,
+        status: 'error',
         details: `Failed to test Deepgram API: ${error.message}`
       };
       toast.error("Deepgram API test failed");
     } else {
       console.debug('✅ Deepgram API test successful:', data);
       results.deepgram = {
-        status: 'success' as const,
+        status: 'success',
         details: data.message || 'Successfully tested Deepgram API'
       };
       toast.success("Deepgram API test successful");
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Unexpected Deepgram error:', error);
     results.deepgram = {
-      status: 'error' as const,
+      status: 'error',
       details: `Unexpected Deepgram error: ${error.message}`
     };
     toast.error("Deepgram test failed");
