@@ -1,21 +1,11 @@
+
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
 import { validateAudioFile } from "@/utils/audioValidation";
 import { sliceArrayBuffer } from "@/utils/audioChunking";
-import { processChunkWithRetry } from "@/utils/audioProcessing";
-
-export type APITestStatus = 'pending' | 'success' | 'error';
-
-export interface APITestResult {
-  status: APITestStatus;
-  details: string;
-}
-
-export interface APITestResults {
-  supabase: APITestResult;
-  deepgram: APITestResult;
-}
+import { processInBatches } from "@/utils/batchProcessing";
+import { testAPIs } from "@/utils/apiTesting";
+export { type APITestResults, type APITestStatus, type APITestResult } from "@/utils/apiTesting";
 
 export const processAudioInChunks = async (
   file: Blob,
@@ -43,80 +33,20 @@ export const processAudioInChunks = async (
       totalSize: `${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`
     });
 
-    let allTranscripts = '';
-    let completedChunks = 0;
-    let failedChunks = 0;
-    
-    // Process chunks with controlled concurrency
-    const batchSize = 2;
-    console.debug(`🚀 Starting batch processing with concurrency of ${batchSize}`);
-
-    for (let i = 0; i < chunks.length; i += batchSize) {
-      const batch = chunks.slice(i, i + batchSize);
-      console.debug(`📦 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(chunks.length/batchSize)}:`, {
-        batchSize: batch.length,
-        startIndex: i
-      });
-
-      const batchPromises = batch.map((chunkBuffer, batchIndex) => 
-        processChunkWithRetry(
-          chunkBuffer,
-          file.type,
-          options,
-          i + batchIndex,
-          chunks.length
-        )
-      );
-
-      const results = await Promise.all(batchPromises);
-      
-      // Count failed chunks (empty strings)
-      const batchFailures = results.filter(r => !r).length;
-      failedChunks += batchFailures;
-      
-      // Only add non-empty results to transcript
-      allTranscripts += results.filter(Boolean).join(' ');
-      completedChunks += batch.length;
-
-      if (onProgress) {
-        onProgress(Math.round((completedChunks / chunks.length) * 100));
-      }
-
-      console.debug('📈 Processing progress:', {
-        completedChunks,
-        failedChunks,
-        totalChunks: chunks.length,
-        percent: Math.round((completedChunks / chunks.length) * 100),
-        transcriptLength: allTranscripts.length
-      });
-
-      // Notify user of failed chunks
-      if (batchFailures > 0) {
-        toast.error(`Failed to process ${batchFailures} chunk(s) in current batch`);
-      }
-    }
+    const result = await processInBatches(chunks, file.type, options, onProgress);
 
     console.debug('🎉 Processing completed:', {
-      finalTranscriptLength: allTranscripts.length,
-      chunksProcessed: chunks.length,
-      successfulChunks: chunks.length - failedChunks,
-      failedChunks
+      finalTranscriptLength: result.transcript.length,
+      ...result.metadata
     });
 
-    if (failedChunks > 0) {
-      toast.warning(`Completed with ${failedChunks} failed chunk(s). Some audio content may be missing.`);
+    if (result.metadata.failedChunks > 0) {
+      toast.warning(`Completed with ${result.metadata.failedChunks} failed chunk(s). Some audio content may be missing.`);
     } else {
       toast.success('Audio processing completed successfully!');
     }
 
-    return {
-      transcript: allTranscripts.trim(),
-      metadata: { 
-        chunksProcessed: chunks.length,
-        successfulChunks: chunks.length - failedChunks,
-        failedChunks
-      }
-    };
+    return result;
   } catch (error) {
     console.error('❌ Error processing audio:', {
       error: error.message,
@@ -127,69 +57,4 @@ export const processAudioInChunks = async (
   }
 };
 
-export const testAPIs = async (): Promise<APITestResults> => {
-  const results: APITestResults = {
-    supabase: { status: 'pending', details: '' },
-    deepgram: { status: 'pending', details: '' }
-  };
-
-  // Test Supabase Connection
-  try {
-    console.debug('🔍 Testing Supabase connection...');
-    const { data, error } = await supabase.from('transcripts').select('id').limit(1);
-    
-    if (error) {
-      console.error('❌ Supabase connection error:', error);
-      results.supabase = {
-        status: 'error',
-        details: `Failed to connect to Supabase: ${error.message}`
-      };
-      toast.error("Supabase connection failed");
-    } else {
-      console.debug('✅ Supabase connection successful:', data);
-      results.supabase = {
-        status: 'success',
-        details: 'Successfully connected to Supabase'
-      };
-      toast.success("Supabase connection successful");
-    }
-  } catch (error: any) {
-    console.error('❌ Unexpected Supabase error:', error);
-    results.supabase = {
-      status: 'error',
-      details: `Unexpected Supabase error: ${error.message}`
-    };
-    toast.error("Supabase test failed");
-  }
-
-  // Test Deepgram Connection
-  try {
-    console.debug('🔍 Testing Deepgram connection...');
-    const { data, error } = await supabase.functions.invoke('test-deepgram-key');
-    
-    if (error) {
-      console.error('❌ Deepgram API test error:', error);
-      results.deepgram = {
-        status: 'error',
-        details: `Failed to test Deepgram API: ${error.message}`
-      };
-      toast.error("Deepgram API test failed");
-    } else {
-      console.debug('✅ Deepgram API test successful:', data);
-      results.deepgram = {
-        status: 'success',
-        details: data.message || 'Successfully tested Deepgram API'
-      };
-      toast.success("Deepgram API test successful");
-    }
-  } catch (error: any) {
-    console.error('❌ Unexpected Deepgram error:', error);
-    results.deepgram = {
-      status: 'error',
-      details: `Unexpected Deepgram error: ${error.message}`
-    };
-    toast.error("Deepgram test failed");
-  }
-
-  return results;
-};
+export { testAPIs };
