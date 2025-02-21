@@ -64,18 +64,17 @@ export default function Deepgram() {
           onDrop={transcription.onDrop}
         />
         <TranscriptionControls
-          isProcessing={transcription.isProcessing}
           model={transcription.model}
           language={transcription.language}
           options={transcription.options}
-          setModel={transcription.setModel}
-          setLanguage={transcription.setLanguage}
-          handleOptionsChange={transcription.handleOptionsChange}
+          onModelChange={transcription.setModel}
+          onLanguageChange={transcription.setLanguage}
+          onOptionsChange={transcription.handleOptionsChange}
           handleTranscribe={transcription.handleTranscribe}
+          isProcessing={transcription.isProcessing}
         />
         {transcription.isProcessing && (
           <ProcessingOverlay
-            isProcessing={transcription.isProcessing}
             processingStatus={transcription.processingStatus}
           />
         )}
