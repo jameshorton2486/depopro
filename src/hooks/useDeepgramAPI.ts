@@ -3,16 +3,17 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
 
-const CHUNK_SIZE = 1 * 1024 * 1024; // Reduced to 1MB chunks for better handling
-const TIMEOUT = 30000; // 30 second timeout per chunk
-const MAX_RETRIES_PER_CHUNK = 3;
+const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB chunks
+const TIMEOUT = 30000; // 30 second timeout
+const MAX_RETRIES = 3;
 
 interface ProcessAudioResponse {
   transcript: string;
   metadata?: {
-    chunkIndex: number;
-    totalChunks: number;
-    [key: string]: any;
+    duration?: number;
+    channels?: number;
+    model?: string;
+    processed_at?: string;
   };
 }
 
@@ -38,53 +39,53 @@ const processChunkWithRetry = async (
   chunkIndex: number,
   totalChunks: number
 ): Promise<string> => {
-  let retries = 0;
+  let attempts = 0;
 
-  while (retries < MAX_RETRIES_PER_CHUNK) {
+  while (attempts < MAX_RETRIES) {
     try {
-      console.debug(`Attempt ${retries + 1} for chunk ${chunkIndex + 1}/${totalChunks}`);
+      console.debug(`Processing chunk ${chunkIndex + 1}/${totalChunks}, attempt ${attempts + 1}`);
 
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), TIMEOUT);
-      });
+      const audioData = Array.from(new Uint8Array(chunkBuffer));
+      
+      if (audioData.length === 0) {
+        throw new Error('Empty audio chunk');
+      }
 
-      const processPromise = supabase.functions.invoke<ProcessAudioResponse>('process-audio', {
-        body: {
-          audio: Array.from(new Uint8Array(chunkBuffer)),
-          mime_type: mimeType,
-          options: {
-            ...options,
-            diarize_version: options.diarize ? "3" : undefined
-          },
-          isPartialChunk: totalChunks > 1,
-          chunkIndex,
-          totalChunks
+      const { data, error } = await supabase.functions.invoke<ProcessAudioResponse>(
+        'process-audio',
+        {
+          body: {
+            audio: audioData,
+            mime_type: mimeType,
+            options: {
+              ...options,
+              diarize_version: options.diarize ? "3" : undefined
+            }
+          }
         }
-      });
-
-      const { data, error } = await Promise.race([processPromise, timeoutPromise]);
+      );
 
       if (error) {
-        console.error('Supabase function error:', error);
+        console.error('Function error:', error);
         throw error;
       }
 
       if (!data?.transcript) {
-        console.error('No transcript in response:', data);
-        throw new Error('No transcript received from Deepgram');
+        throw new Error('No transcript received');
       }
 
       return data.transcript;
+
     } catch (error) {
-      retries++;
-      console.warn(`Chunk ${chunkIndex + 1} failed, attempt ${retries}/${MAX_RETRIES_PER_CHUNK}:`, error);
+      attempts++;
+      console.warn(`Chunk ${chunkIndex + 1} failed:`, error);
       
-      if (retries === MAX_RETRIES_PER_CHUNK) {
-        throw new Error(`Failed to process chunk ${chunkIndex + 1} after ${MAX_RETRIES_PER_CHUNK} attempts`);
+      if (attempts === MAX_RETRIES) {
+        throw new Error(`Failed to process chunk ${chunkIndex + 1} after ${MAX_RETRIES} attempts`);
       }
 
       // Exponential backoff
-      await delay(Math.min(1000 * Math.pow(2, retries), 8000));
+      await delay(Math.min(1000 * Math.pow(2, attempts), 8000));
     }
   }
 
@@ -97,7 +98,7 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
       throw new Error('Invalid audio chunk');
     }
 
-    console.debug('Starting audio processing:', {
+    console.debug('Processing audio:', {
       size: `${(chunk.size / (1024 * 1024)).toFixed(2)}MB`,
       type: chunk.type,
       options: JSON.stringify(options, null, 2)
@@ -106,16 +107,15 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
     const arrayBuffer = await chunk.arrayBuffer();
     const chunks = sliceArrayBuffer(arrayBuffer, CHUNK_SIZE);
     
-    console.debug('Split audio into chunks:', {
-      numberOfChunks: chunks.length,
-      chunkSize: `${(CHUNK_SIZE / (1024 * 1024)).toFixed(2)}MB`,
-      totalSize: `${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`
+    console.debug('Split into chunks:', {
+      count: chunks.length,
+      chunkSize: `${(CHUNK_SIZE / (1024 * 1024)).toFixed(2)}MB`
     });
 
     let allTranscripts = '';
     
-    // Process chunks with some parallelization but not all at once
-    const batchSize = 3; // Process 3 chunks at a time
+    // Process chunks with controlled concurrency
+    const batchSize = 3;
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize);
       const batchPromises = batch.map((chunkBuffer, batchIndex) => 
@@ -128,22 +128,14 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
         )
       );
 
-      const batchResults = await Promise.all(batchPromises);
-      allTranscripts += batchResults.join(' ');
+      const results = await Promise.all(batchPromises);
+      allTranscripts += results.join(' ');
 
       console.debug(`Completed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)}`);
     }
 
-    const finalTranscript = allTranscripts.trim();
-    
-    console.debug('All chunks processed successfully:', {
-      totalChunks: chunks.length,
-      finalTranscriptLength: finalTranscript.length,
-      wordCount: finalTranscript.split(' ').length
-    });
-
     return {
-      transcript: finalTranscript,
+      transcript: allTranscripts.trim(),
       metadata: { chunksProcessed: chunks.length }
     };
   } catch (error) {
