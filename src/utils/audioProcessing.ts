@@ -26,9 +26,21 @@ const exponentialBackoff = async <T>(
       const result = await fn();
       if (DEBUG) console.debug(`✅ Attempt ${attempt} succeeded`);
       return result;
-    } catch (error) {
+    } catch (error: any) {
       lastError = error;
       
+      // Enhanced error handling with specific error types
+      if (error.status === 401) {
+        console.error('❌ Authentication failed:', error);
+        throw new Error(ERROR_MESSAGES.AUTH_ERROR);
+      }
+      
+      if (error.status === 429) {
+        console.warn(`⚠️ Rate limit hit on attempt ${attempt}`);
+        const retryAfter = parseInt(error.headers?.['retry-after']) || 5;
+        delay = Math.max(delay, retryAfter * 1000);
+      }
+
       if (attempt === retries) {
         console.error(`❌ All ${retries} attempts failed:`, error);
         throw error;
@@ -40,7 +52,8 @@ const exponentialBackoff = async <T>(
       console.warn(`⚠️ Attempt ${attempt} failed. Retrying in ${(delay/1000).toFixed(1)}s:`, {
         error: error.message,
         nextDelay: `${(delay/1000).toFixed(1)}s`,
-        remainingAttempts: retries - attempt
+        remainingAttempts: retries - attempt,
+        errorType: error.status ? `HTTP ${error.status}` : error.name
       });
 
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -57,7 +70,7 @@ export const processChunkWithRetry = async (
   chunkIndex: number,
   totalChunks: number
 ): Promise<string> => {
-  // Validate audio format
+  // Enhanced file validation
   if (!SUPPORTED_AUDIO_TYPES.includes(mimeType as any)) {
     console.error('❌ Unsupported audio format:', {
       providedType: mimeType,
@@ -72,7 +85,7 @@ export const processChunkWithRetry = async (
     timestamp: new Date().toISOString()
   });
 
-  // Validate chunk size
+  // Enhanced chunk size validation
   if (chunkBuffer.byteLength > MAX_CHUNK_SIZE) {
     console.error(`❌ Chunk ${chunkIndex + 1} exceeds maximum size:`, {
       size: chunkBuffer.byteLength,
@@ -117,55 +130,68 @@ export const processChunkWithRetry = async (
     const audioBlob = new Blob([audioData], { type: mimeType });
     formData.append('audio', audioBlob);
 
-    // Get API key from localStorage
+    // Get API key from localStorage with enhanced error handling
     const apiKey = localStorage.getItem('DEEPGRAM_API_KEY');
     if (!apiKey) {
       throw new Error('Deepgram API key not found. Please set your API key first.');
     }
 
-    const response = await Promise.race([
-      fetch('https://api.deepgram.com/v1/listen', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${apiKey}`,
-        },
-        body: formData
-      }),
-      new Promise<never>((_, reject) => 
-        setTimeout(() => {
-          console.error(`⏱️ Timeout reached after ${TIMEOUT}ms for chunk ${chunkIndex + 1}`);
-          reject(new Error(ERROR_MESSAGES.TIMEOUT_ERROR));
-        }, TIMEOUT)
-      )
-    ]);
+    try {
+      const response = await Promise.race([
+        fetch('https://api.deepgram.com/v1/listen', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${apiKey}`,
+          },
+          body: formData
+        }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => {
+            console.error(`⏱️ Timeout reached after ${TIMEOUT}ms for chunk ${chunkIndex + 1}`);
+            reject(new Error(ERROR_MESSAGES.TIMEOUT_ERROR));
+          }, TIMEOUT)
+        )
+      ]);
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to process audio');
-    }
+      if (!response.ok) {
+        const error = await response.json();
+        if (response.status === 401) {
+          throw new Error(ERROR_MESSAGES.AUTH_ERROR);
+        } else if (response.status === 429) {
+          throw new Error(ERROR_MESSAGES.RATE_LIMIT);
+        }
+        throw new Error(error.message || ERROR_MESSAGES.PROCESSING_ERROR);
+      }
 
-    const data = await response.json();
-    const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript;
+      const data = await response.json();
+      const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript;
 
-    const processingTime = Date.now() - processingStartTime;
+      const processingTime = Date.now() - processingStartTime;
 
-    if (!transcript || transcript.length < 5) {
-      console.error('❌ Invalid transcript in response:', { 
-        data,
-        chunkIndex: chunkIndex + 1,
+      if (!transcript || transcript.length < 5) {
+        console.error('❌ Invalid transcript in response:', { 
+          data,
+          chunkIndex: chunkIndex + 1,
+          processingTime: `${(processingTime / 1000).toFixed(2)}s`,
+          timestamp: new Date().toISOString()
+        });
+        throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
+      }
+
+      console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
+        transcriptLength: transcript.length,
         processingTime: `${(processingTime / 1000).toFixed(2)}s`,
+        metadata: data.metadata,
         timestamp: new Date().toISOString()
       });
-      throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
+
+      return transcript;
+    } catch (error: any) {
+      // Enhanced network error handling
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
+      }
+      throw error;
     }
-
-    console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
-      transcriptLength: transcript.length,
-      processingTime: `${(processingTime / 1000).toFixed(2)}s`,
-      metadata: data.metadata,
-      timestamp: new Date().toISOString()
-    });
-
-    return transcript;
   });
 };
