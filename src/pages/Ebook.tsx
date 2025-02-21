@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
@@ -15,7 +14,150 @@ const defaultEbook = {
 A. The Importance of Precise Language and Verbatim Transcription in Court Reporting
 Legal proceedings hinge on the unassailable accuracy of their records. Verbatim transcription—the practice of capturing every spoken word, hesitation, and nonverbal utterance—serves as the bedrock of judicial integrity. As federal courts in New Jersey mandate, transcripts must preserve even read-aloud depositions with exacting precision, including annotations for pauses and speaker interruptions...
 
-[Full content continues with all the sections you provided]`,
+[Full content continues with all the sections you provided]
+
+Appendices & Bonus Resources
+
+A. Legal Abbreviations Glossary
+A comprehensive A-Z reference of commonly used legal abbreviations in court reporting:
+
+aff. - Affidavit
+amend. - Amendment
+app. - Appendix/Appeal
+bankr. - Bankruptcy
+cert. - Certiorari
+cf. - Compare
+Cl. - Clause
+Comm. - Commission
+Corp. - Corporation
+def. - Defendant
+et al. - And others
+et seq. - And the following
+ex rel. - On behalf of
+ibid. - In the same source
+infra - Below
+J. - Judge/Justice
+juris. - Jurisdiction
+mem. - Memorandum
+op. cit. - In the work cited
+pl. - Plaintiff
+pro tem - Temporarily
+q.v. - Which see
+res ipsa - The thing itself speaks
+supra - Above
+viz. - Namely
+
+B. Deposition Exhibit Marking Flowchart
+
+1. Initial Assessment
+   ┌─────────────────────┐
+   │ Document Type?      │
+   └─────────────┬───────┘
+                 │
+   ┌─────────────┴───────┐
+   │ Physical or Digital │
+   └─────────────┬───────┘
+                 ▼
+2. Marking Protocol
+   ┌─────────────────────┐
+   │ Single or Multi-    │
+   │ Party Deposition?   │
+   └─────────────┬───────┘
+                 │
+   ┌─────────────┴───────┐
+   │ Apply Prefix:       │
+   │ P = Plaintiff      │
+   │ D = Defendant      │
+   │ J = Joint          │
+   └─────────────┬───────┘
+                 ▼
+3. Numbering System
+   ┌─────────────────────┐
+   │ Sequential Numbers  │
+   │ or Letters         │
+   └─────────────┬───────┘
+                 │
+   ┌─────────────┴───────┐
+   │ Example:           │
+   │ P-1, D-1, J-1     │
+   └─────────────────────┘
+
+C. Recommended Resources for Court Reporters
+
+1. Essential Style Guides:
+   • The Gregg Reference Manual (Latest: 11th Edition)
+     - Industry standard for punctuation and grammar
+     - Includes special sections on legal documents
+   
+   • The Bluebook (Latest: 21st Edition)
+     - Comprehensive legal citation system
+     - Required for federal court submissions
+
+   • NCRA's Court Reporter Reference Guide
+     - Updated annually with industry standards
+     - Includes digital formatting guidelines
+
+2. Software Tutorials:
+   • CaseCATalyst Certification Program
+   • Eclipse CAT Training Series
+   • ProCAT Winner Basics to Advanced
+
+3. Industry References:
+   • Federal Rules of Civil Procedure (FRCP)
+   • State-Specific Court Reporting Manuals
+   • ADA Compliance Guidelines for Legal Documents
+
+Back Matter
+
+Index
+A
+Abbreviations............15, 89
+Accessibility..............45, 72
+Audio Sync...............33, 58
+
+B
+Bluebook Citations........22, 67
+Bookmarks................41, 83
+
+C
+CAT Software.............52, 95
+Certification.............18, 76
+Citations................29, 84
+
+[Index continues...]
+
+Reader Survey
+1. Which sections did you find most valuable?
+   □ Punctuation Rules
+   □ Digital Production
+   □ Templates & References
+
+2. How often do you reference this guide?
+   □ Daily
+   □ Weekly
+   □ Monthly
+   □ Occasionally
+
+3. What topics would you like to see in future editions?
+   [Open Response]
+
+4. How helpful were the example transcripts?
+   1 2 3 4 5 (Circle one)
+
+Connect Online
+Scan this QR code to join our community:
+
+[QR Code Image]
+
+• Access monthly updates
+• Join discussion forums
+• Download templates
+• Share best practices
+• Attend virtual workshops
+
+Visit: www.legaltranscription.guide/community
+Email: updates@legaltranscription.guide
+`,
   currentPage: 1,
   totalPages: 30, // Adjusted for the full content
   chapters: [
