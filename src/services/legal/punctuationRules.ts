@@ -1,5 +1,7 @@
 
-export const PUNCTUATION_EXAMPLES = {
+import type { PunctuationExamples } from './types';
+
+export const PUNCTUATION_EXAMPLES: PunctuationExamples = {
   period: {
     rule: "Use periods to end complete statements and mark abbreviations.",
     examples: [

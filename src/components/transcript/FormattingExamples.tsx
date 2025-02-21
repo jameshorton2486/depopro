@@ -2,11 +2,12 @@
 import React from 'react';
 import { PUNCTUATION_EXAMPLES } from '@/services/transcriptProcessing';
 import { Card } from "@/components/ui/card";
+import type { PunctuationExamples } from '@/services/legal/types';
 
 const FormattingExamples = () => {
   return (
     <div className="space-y-6">
-      {Object.entries(PUNCTUATION_EXAMPLES).map(([type, data]) => (
+      {Object.entries(PUNCTUATION_EXAMPLES as PunctuationExamples).map(([type, data]) => (
         <Card key={type} className="p-4">
           <h3 className="font-semibold text-lg mb-2 capitalize">{type}</h3>
           <p className="text-muted-foreground mb-4">{data.rule}</p>
