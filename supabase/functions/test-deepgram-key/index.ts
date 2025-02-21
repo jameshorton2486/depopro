@@ -22,11 +22,6 @@ serve(async (req) => {
     }
 
     console.log('Testing Deepgram API with key length:', deepgramKey.length);
-    
-    // First, let's verify the key format
-    if (!deepgramKey.startsWith('')) {
-      throw new Error('Invalid Deepgram API key format. Key should start with "". Please check your key.');
-    }
 
     const response = await fetch('https://api.deepgram.com/v1/projects', {
       method: 'GET',
