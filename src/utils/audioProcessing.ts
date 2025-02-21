@@ -108,7 +108,8 @@ export const processChunkWithRetry = async (
           error: lastError,
           finalAttempt: attempts
         });
-        throw error;
+        // Return empty string instead of throwing error to allow processing to continue
+        return '';
       }
 
       const backoffTime = Math.min(1000 * Math.pow(2, attempts), 8000);
@@ -121,5 +122,5 @@ export const processChunkWithRetry = async (
     }
   }
 
-  throw lastError || new Error('Unexpected error in retry loop');
+  return ''; // Return empty string if all retries failed
 };

@@ -46,6 +46,7 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
 
     let allTranscripts = '';
     let completedChunks = 0;
+    let failedChunks = 0;
     
     // Process chunks with controlled concurrency
     const batchSize = 3;
@@ -69,25 +70,49 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
       );
 
       const results = await Promise.all(batchPromises);
-      allTranscripts += results.join(' ');
+      
+      // Count failed chunks (empty strings)
+      const batchFailures = results.filter(r => !r).length;
+      failedChunks += batchFailures;
+      
+      // Only add non-empty results to transcript
+      allTranscripts += results.filter(Boolean).join(' ');
       completedChunks += batch.length;
 
       console.debug('📈 Processing progress:', {
         completedChunks,
+        failedChunks,
         totalChunks: chunks.length,
         percent: Math.round((completedChunks / chunks.length) * 100),
         transcriptLength: allTranscripts.length
       });
+
+      // Notify user of failed chunks
+      if (batchFailures > 0) {
+        toast.error(`Failed to process ${batchFailures} chunk(s) in current batch`);
+      }
     }
 
-    console.debug('🎉 Processing completed successfully:', {
+    console.debug('🎉 Processing completed:', {
       finalTranscriptLength: allTranscripts.length,
-      chunksProcessed: chunks.length
+      chunksProcessed: chunks.length,
+      successfulChunks: chunks.length - failedChunks,
+      failedChunks
     });
+
+    if (failedChunks > 0) {
+      toast.warning(`Completed with ${failedChunks} failed chunk(s). Some audio content may be missing.`);
+    } else {
+      toast.success('Audio processing completed successfully!');
+    }
 
     return {
       transcript: allTranscripts.trim(),
-      metadata: { chunksProcessed: chunks.length }
+      metadata: { 
+        chunksProcessed: chunks.length,
+        successfulChunks: chunks.length - failedChunks,
+        failedChunks
+      }
     };
   } catch (error) {
     console.error('❌ Error processing audio:', {

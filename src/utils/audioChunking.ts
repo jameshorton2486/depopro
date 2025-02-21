@@ -14,22 +14,35 @@ export const sliceArrayBuffer = (buffer: ArrayBuffer, chunkSize: number = CHUNK_
     let offset = 0;
   
     while (offset < buffer.byteLength) {
-      const currentChunkSize = Math.min(chunkSize, buffer.byteLength - offset);
-      const chunk = buffer.slice(offset, offset + currentChunkSize);
-      
-      if (chunk.byteLength === 0) {
-        console.error('❌ Created empty chunk at offset:', offset);
-        break;
-      }
+      try {
+        const currentChunkSize = Math.min(chunkSize, buffer.byteLength - offset);
+        const chunk = buffer.slice(offset, offset + currentChunkSize);
+        
+        if (chunk.byteLength === 0) {
+          console.error('❌ Created empty chunk at offset:', offset);
+          break;
+        }
 
-      chunks.push(chunk);
-      console.debug(`✓ Chunk ${chunks.length} created:`, {
-        offset: `${(offset / (1024 * 1024)).toFixed(2)}MB`,
-        size: `${(chunk.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-        remaining: `${((buffer.byteLength - (offset + currentChunkSize)) / (1024 * 1024)).toFixed(2)}MB`
-      });
+        chunks.push(chunk);
+        console.debug(`✓ Chunk ${chunks.length} created:`, {
+          offset: `${(offset / (1024 * 1024)).toFixed(2)}MB`,
+          size: `${(chunk.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+          remaining: `${((buffer.byteLength - (offset + currentChunkSize)) / (1024 * 1024)).toFixed(2)}MB`
+        });
+      } catch (chunkError) {
+        console.error(`❌ Error creating chunk at offset ${offset}:`, {
+          error: chunkError.message,
+          stack: chunkError.stack,
+          offset: `${(offset / (1024 * 1024)).toFixed(2)}MB`,
+          remaining: `${((buffer.byteLength - offset) / (1024 * 1024)).toFixed(2)}MB`
+        });
+      }
       
       offset += currentChunkSize;
+    }
+    
+    if (chunks.length === 0) {
+      throw new Error('No valid chunks could be created from the buffer');
     }
     
     console.debug(`✅ Buffer slicing complete:`, {
