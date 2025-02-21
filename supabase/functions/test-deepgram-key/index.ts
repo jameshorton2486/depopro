@@ -7,59 +7,82 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  console.log("Function started:", req.method);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.debug('Starting API keys test...');
+    console.log('Starting API keys test...');
 
     // Test Deepgram API Key
     const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!deepgramKey) {
+      console.error('DEEPGRAM_API_KEY not found in environment variables');
       throw new Error('DEEPGRAM_API_KEY is not configured');
     }
 
-    console.debug('Testing Deepgram API connectivity...');
-    const deepgramUrl = new URL('https://api.deepgram.com/v1/projects');
+    console.log('Testing Deepgram API connectivity...');
     
-    const deepgramResponse = await fetch(deepgramUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Token ${deepgramKey}`,
-        'Content-Type': 'application/json'
+    try {
+      const deepgramResponse = await fetch('https://api.deepgram.com/v1/projects', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Token ${deepgramKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('Deepgram API response status:', deepgramResponse.status);
+
+      if (!deepgramResponse.ok) {
+        const errorText = await deepgramResponse.text();
+        console.error('Deepgram API error response:', errorText);
+        throw new Error(`Deepgram API test failed: Status ${deepgramResponse.status} - ${errorText}`);
       }
-    });
 
-    if (!deepgramResponse.ok) {
-      const errorText = await deepgramResponse.text();
-      throw new Error(`Deepgram API test failed: ${deepgramResponse.status} - ${errorText}`);
+      const deepgramData = await deepgramResponse.json();
+      console.log('Deepgram API test successful:', deepgramData);
+    } catch (deepgramError) {
+      console.error('Error testing Deepgram API:', deepgramError);
+      throw new Error(`Deepgram API test failed: ${deepgramError.message}`);
     }
-
-    const deepgramData = await deepgramResponse.json();
-    console.debug('Deepgram API test successful');
 
     // Test Supabase connection using service role key
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
 
     if (!supabaseKey || !supabaseUrl) {
+      console.error('Missing Supabase configuration');
       throw new Error('Supabase configuration is incomplete');
     }
 
-    console.debug('Testing Supabase connectivity...');
-    const supabaseResponse = await fetch(`${supabaseUrl}/rest/v1/`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey
-      }
-    });
+    console.log('Testing Supabase connectivity...');
+    
+    try {
+      const supabaseResponse = await fetch(`${supabaseUrl}/rest/v1/`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey
+        }
+      });
 
-    if (!supabaseResponse.ok) {
-      throw new Error(`Supabase API test failed: ${supabaseResponse.status}`);
+      console.log('Supabase API response status:', supabaseResponse.status);
+
+      if (!supabaseResponse.ok) {
+        const errorText = await supabaseResponse.text();
+        console.error('Supabase API error response:', errorText);
+        throw new Error(`Supabase API test failed: Status ${supabaseResponse.status}`);
+      }
+    } catch (supabaseError) {
+      console.error('Error testing Supabase API:', supabaseError);
+      throw new Error(`Supabase API test failed: ${supabaseError.message}`);
     }
+
+    console.log('All API tests completed successfully');
 
     return new Response(
       JSON.stringify({
