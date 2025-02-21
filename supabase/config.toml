@@ -1,8 +1,5 @@
 
 project_id = "relqexesmhirdxubfgmy"
 
-[functions.process-audio]
-verify_jwt = false
-
-[functions.test-deepgram-key]
-verify_jwt = false
+[global.env_vars]
+XRG_RUNTIME = "deno"
