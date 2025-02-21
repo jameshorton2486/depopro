@@ -1,43 +1,36 @@
 
 // @deno-types="https://raw.githubusercontent.com/deepgram/deepgram-node-sdk/main/dist/index.d.ts"
 import { Deepgram } from "https://esm.sh/@deepgram/sdk@1.3.1";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
-      headers: {
-        ...corsHeaders,
-        'Access-Control-Max-Age': '86400',
-      }
-    });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    console.debug('Starting process-audio function');
+
     // Validate environment
     const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!deepgramKey) {
-      throw new Error('DEEPGRAM_API_KEY is not configured in environment variables');
+      throw new Error('DEEPGRAM_API_KEY is not configured');
     }
-
-    // Log request method and headers for debugging
-    console.log('Request details:', {
-      method: req.method,
-      headers: Object.fromEntries(req.headers.entries()),
-      url: req.url
-    });
 
     // Parse and validate request body
     let body;
     try {
       body = await req.json();
+      console.debug('Received request body:', {
+        hasAudio: !!body.audio,
+        mimeType: body.mime_type,
+        hasOptions: !!body.options
+      });
     } catch (error) {
       console.error('Failed to parse request body:', error);
       throw new Error('Invalid JSON in request body');
@@ -46,27 +39,18 @@ serve(async (req) => {
     const { audio, mime_type, options } = body;
 
     // Validate required fields
-    if (!audio) {
-      throw new Error('Missing audio data in request');
-    }
-    if (!Array.isArray(audio)) {
-      throw new Error('Audio data must be an array');
+    if (!audio || !Array.isArray(audio)) {
+      throw new Error('Invalid or missing audio data');
     }
     if (!mime_type) {
-      throw new Error('Missing mime_type in request');
+      throw new Error('Missing mime_type');
     }
-
-    console.log('Processing request with:', {
-      mimeType: mime_type,
-      audioLength: audio.length,
-      options: JSON.stringify(options, null, 2)
-    });
 
     // Test Deepgram API connectivity
     const deepgram = new Deepgram(deepgramKey);
     
     try {
-      // First test the API key with a simple projects request
+      console.debug('Testing Deepgram API connectivity...');
       const testResponse = await fetch('https://api.deepgram.com/v1/projects', {
         headers: {
           'Authorization': `Token ${deepgramKey}`,
@@ -83,19 +67,20 @@ serve(async (req) => {
         throw new Error(`Deepgram API test failed: ${testResponse.status} - ${errorText}`);
       }
 
-      console.log('Deepgram API test successful');
+      console.debug('Deepgram API test successful');
     } catch (error) {
       console.error('Failed to test Deepgram API:', error);
       throw new Error(`Deepgram API connectivity test failed: ${error.message}`);
     }
 
     // Prepare transcription request
+    console.debug('Preparing transcription request with options:', options);
+    
     const source = {
       buffer: new Uint8Array(audio),
       mimetype: mime_type,
     };
 
-    // Set up transcription options
     const transcriptionOptions = {
       ...options,
       smart_format: true,
@@ -104,14 +89,13 @@ serve(async (req) => {
       numerals: true,
     };
 
-    console.log('Sending request to Deepgram with options:', transcriptionOptions);
-
     // Send request to Deepgram with timeout
     const timeoutMs = 30000;
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error(`Request timeout after ${timeoutMs}ms`)), timeoutMs)
     );
 
+    console.debug('Sending request to Deepgram...');
     const transcriptionPromise = deepgram.transcription.preRecorded(source, transcriptionOptions);
     
     const response = await Promise.race([transcriptionPromise, timeoutPromise]);
@@ -123,7 +107,7 @@ serve(async (req) => {
 
     const transcript = response.results.channels[0].alternatives[0].transcript;
     
-    console.log('Transcription successful:', {
+    console.debug('Transcription successful:', {
       transcriptLength: transcript.length,
       wordCount: transcript.split(' ').length
     });
@@ -178,3 +162,4 @@ serve(async (req) => {
     );
   }
 });
+

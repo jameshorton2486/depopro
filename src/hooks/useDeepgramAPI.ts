@@ -144,8 +144,7 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
 
     return {
       transcript: finalTranscript,
-      metadata: { chunksProcessed: chunks.length },
-      storedFileName: `processed_${Date.now()}.txt`
+      metadata: { chunksProcessed: chunks.length }
     };
   } catch (error) {
     console.error("Error processing chunks:", error);
