@@ -2,15 +2,14 @@
 import { useRef, useEffect } from 'react';
 
 interface ProcessingOverlayProps {
-  isProcessing: boolean;
   processingStatus: string;
 }
 
-export const ProcessingOverlay = ({ isProcessing, processingStatus }: ProcessingOverlayProps) => {
+export const ProcessingOverlay = ({ processingStatus }: ProcessingOverlayProps) => {
   const processingRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isProcessing) {
+    if (processingStatus) {
       const mainContent = document.querySelector('main');
       if (mainContent) {
         mainContent.setAttribute('inert', '');
@@ -22,7 +21,7 @@ export const ProcessingOverlay = ({ isProcessing, processingStatus }: Processing
         mainContent.removeAttribute('inert');
       }
     }
-  }, [isProcessing]);
+  }, [processingStatus]);
 
   return (
     <div
