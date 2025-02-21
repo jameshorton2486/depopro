@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
 
 const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB chunks
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB max file size
 const TIMEOUT = 30000; // 30 second timeout
 const MAX_RETRIES = 3;
 
@@ -16,6 +17,25 @@ interface ProcessAudioResponse {
     processed_at?: string;
   };
 }
+
+const validateAudioFile = (file: Blob) => {
+  const supportedTypes = [
+    'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/aac',
+    'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'
+  ];
+
+  if (!supportedTypes.includes(file.type)) {
+    throw new Error(`Unsupported file type: ${file.type}. Supported types: ${supportedTypes.join(', ')}`);
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`File size (${Math.round(file.size / 1024 / 1024)}MB) exceeds limit of ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`);
+  }
+
+  if (file.size === 0) {
+    throw new Error('File is empty');
+  }
+};
 
 const sliceArrayBuffer = (buffer: ArrayBuffer, chunkSize: number): ArrayBuffer[] => {
   const chunks: ArrayBuffer[] = [];
@@ -40,10 +60,11 @@ const processChunkWithRetry = async (
   totalChunks: number
 ): Promise<string> => {
   let attempts = 0;
+  let lastError: Error | null = null;
 
   while (attempts < MAX_RETRIES) {
     try {
-      console.debug(`Processing chunk ${chunkIndex + 1}/${totalChunks}, attempt ${attempts + 1}`);
+      console.debug(`Processing chunk ${chunkIndex + 1}/${totalChunks}, attempt ${attempts + 1}/${MAX_RETRIES}`);
 
       const audioData = Array.from(new Uint8Array(chunkBuffer));
       
@@ -51,9 +72,9 @@ const processChunkWithRetry = async (
         throw new Error('Empty audio chunk');
       }
 
-      const { data, error } = await supabase.functions.invoke<ProcessAudioResponse>(
-        'process-audio',
-        {
+      const startTime = Date.now();
+      const { data, error } = await Promise.race([
+        supabase.functions.invoke<ProcessAudioResponse>('process-audio', {
           body: {
             audio: audioData,
             mime_type: mimeType,
@@ -62,11 +83,17 @@ const processChunkWithRetry = async (
               diarize_version: options.diarize ? "3" : undefined
             }
           }
-        }
-      );
+        }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), TIMEOUT)
+        )
+      ]);
+
+      const processingTime = Date.now() - startTime;
+      console.debug(`Chunk ${chunkIndex + 1} processed in ${processingTime}ms`);
 
       if (error) {
-        console.error('Function error:', error);
+        console.error(`Function error (attempt ${attempts + 1}):`, error);
         throw error;
       }
 
@@ -77,26 +104,29 @@ const processChunkWithRetry = async (
       return data.transcript;
 
     } catch (error) {
+      lastError = error;
       attempts++;
-      console.warn(`Chunk ${chunkIndex + 1} failed:`, error);
+      console.warn(`Chunk ${chunkIndex + 1} failed (attempt ${attempts}):`, error);
       
       if (attempts === MAX_RETRIES) {
-        throw new Error(`Failed to process chunk ${chunkIndex + 1} after ${MAX_RETRIES} attempts`);
+        console.error(`All ${MAX_RETRIES} attempts failed for chunk ${chunkIndex + 1}`, lastError);
+        throw new Error(`Failed to process chunk ${chunkIndex + 1} after ${MAX_RETRIES} attempts: ${lastError.message}`);
       }
 
-      // Exponential backoff
-      await delay(Math.min(1000 * Math.pow(2, attempts), 8000));
+      // Exponential backoff with jitter
+      const backoffTime = Math.min(1000 * Math.pow(2, attempts), 8000);
+      const jitter = Math.random() * 1000;
+      await delay(backoffTime + jitter);
     }
   }
 
-  throw new Error('Unexpected error in retry loop');
+  throw lastError || new Error('Unexpected error in retry loop');
 };
 
 export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) => {
   try {
-    if (!chunk || chunk.size === 0) {
-      throw new Error('Invalid audio chunk');
-    }
+    // Validate input file
+    validateAudioFile(chunk);
 
     console.debug('Processing audio:', {
       size: `${(chunk.size / (1024 * 1024)).toFixed(2)}MB`,
@@ -113,6 +143,7 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
     });
 
     let allTranscripts = '';
+    let completedChunks = 0;
     
     // Process chunks with controlled concurrency
     const batchSize = 3;
@@ -130,8 +161,13 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
 
       const results = await Promise.all(batchPromises);
       allTranscripts += results.join(' ');
+      completedChunks += batch.length;
 
-      console.debug(`Completed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)}`);
+      console.debug('Processing progress:', {
+        completedChunks,
+        totalChunks: chunks.length,
+        percent: Math.round((completedChunks / chunks.length) * 100)
+      });
     }
 
     return {
@@ -139,7 +175,7 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
       metadata: { chunksProcessed: chunks.length }
     };
   } catch (error) {
-    console.error("Error processing chunks:", error);
+    console.error("Error processing audio:", error);
     throw error;
   }
 };
