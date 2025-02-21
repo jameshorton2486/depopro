@@ -123,7 +123,7 @@ export default function Deepgram() {
         {transcription.transcript && (
           <TranscriptDisplay
             transcript={transcription.transcript}
-            onSave={transcription.handleDownload}
+            onDownload={transcription.handleDownload}
           />
         )}
       </div>
