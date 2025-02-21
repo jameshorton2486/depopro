@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import type { DeepgramOptions } from "@/types/deepgram";
 import type { AudioProcessingResponse, AudioProcessingError } from "@/types/audio";
@@ -123,7 +124,6 @@ export const processChunkWithRetry = async (
     const { data, error } = await Promise.race([
       supabase.functions.invoke<AudioProcessingResponse>('process-audio', {
         body: {
-          // Send raw audio bytes instead of base64
           audio: Array.from(audioData),
           mime_type: mimeType,
           options: {
