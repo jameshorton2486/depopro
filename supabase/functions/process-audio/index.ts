@@ -14,23 +14,45 @@ serve(async (req) => {
   }
 
   try {
+    console.log('🎬 Starting audio processing request')
+    
     const { audio, mime_type, options } = await req.json()
 
     if (!audio || !mime_type) {
+      console.error('❌ Missing required parameters:', { audio: !!audio, mime_type: !!mime_type })
       throw new Error('Missing required parameters')
     }
 
-    console.log('Processing audio request:', {
+    console.log('📊 Processing audio request:', {
       mimeType: mime_type,
+      audioLength: audio.length,
       options: JSON.stringify(options),
       timestamp: new Date().toISOString()
     })
 
+    // Validate Deepgram API key
+    const apiKey = Deno.env.get('DEEPGRAM_API_KEY')
+    if (!apiKey) {
+      console.error('❌ Missing Deepgram API key')
+      throw new Error('Deepgram API key not configured')
+    }
+
     // Initialize Deepgram client
-    const deepgram = new DeepgramClient(Deno.env.get('DEEPGRAM_API_KEY') || '')
+    const deepgram = new DeepgramClient(apiKey)
 
     // Convert array to Uint8Array for Deepgram
+    console.log('🔄 Converting audio data to Uint8Array')
     const audioData = new Uint8Array(audio)
+
+    if (audioData.length === 0) {
+      console.error('❌ Empty audio data received')
+      throw new Error('Empty audio data')
+    }
+
+    console.log('🚀 Sending request to Deepgram API:', {
+      dataSize: `${(audioData.length / 1024).toFixed(2)}KB`,
+      timestamp: new Date().toISOString()
+    })
 
     // Process with Deepgram
     const response = await deepgram.listen.prerecorded.transcribeFile(
@@ -59,7 +81,12 @@ serve(async (req) => {
 
     const transcript = response.results?.channels?.[0]?.alternatives?.[0]?.transcript || ''
 
-    console.log('Transcription completed:', {
+    if (!transcript) {
+      console.error('❌ No transcript received from Deepgram')
+      throw new Error('No transcript received')
+    }
+
+    console.log('✅ Transcription completed successfully:', {
       length: transcript.length,
       metadata: response.metadata,
       timestamp: new Date().toISOString()
@@ -79,7 +106,11 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error processing audio:', error)
+    console.error('❌ Error processing audio:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    })
     
     return new Response(
       JSON.stringify({ 
