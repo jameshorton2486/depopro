@@ -8,7 +8,9 @@ import {
   BASE_RETRY_DELAY,
   MAX_CHUNK_SIZE,
   CHUNK_SIZE,
-  DEBUG 
+  DEBUG,
+  SUPPORTED_AUDIO_TYPES,
+  ERROR_MESSAGES
 } from "./audioConstants";
 
 const exponentialBackoff = async <T>(
@@ -64,23 +66,29 @@ export const processChunkWithRetry = async (
   chunkIndex: number,
   totalChunks: number
 ): Promise<string> => {
-  if (DEBUG) {
-    console.debug(`🎯 Starting chunk processing:`, {
-      chunkIndex: chunkIndex + 1,
-      totalChunks,
-      chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-      maxChunkSize: `${(MAX_CHUNK_SIZE / (1024 * 1024)).toFixed(2)}MB`,
-      timestamp: new Date().toISOString()
+  // Validate audio format
+  if (!SUPPORTED_AUDIO_TYPES.includes(mimeType as any)) {
+    console.error('❌ Unsupported audio format:', {
+      providedType: mimeType,
+      supportedTypes: SUPPORTED_AUDIO_TYPES
     });
+    throw new Error(ERROR_MESSAGES.UNSUPPORTED_TYPE);
   }
 
+  console.debug('📍 Audio format validation:', {
+    mimeType,
+    isSupported: true,
+    timestamp: new Date().toISOString()
+  });
+
+  // Validate chunk size
   if (chunkBuffer.byteLength > MAX_CHUNK_SIZE) {
     console.error(`❌ Chunk ${chunkIndex + 1} exceeds maximum size:`, {
       size: chunkBuffer.byteLength,
       maxSize: MAX_CHUNK_SIZE,
-      difference: `${((chunkBuffer.byteLength - MAX_CHUNK_SIZE) / (1024 * 1024)).toFixed(2)}MB over limit`
+      difference: `${((chunkBuffer.byteLength - MAX_CHUNK_SIZE) / 1024).toFixed(2)}KB over limit`
     });
-    throw new Error(`Chunk size ${chunkBuffer.byteLength} exceeds maximum allowed size of ${MAX_CHUNK_SIZE}`);
+    throw new Error(ERROR_MESSAGES.CHUNK_TOO_LARGE);
   }
 
   const audioData = Array.from(new Uint8Array(chunkBuffer));
@@ -91,25 +99,34 @@ export const processChunkWithRetry = async (
       totalChunks,
       timestamp: new Date().toISOString()
     });
-    throw new Error('Empty audio chunk');
+    throw new Error(ERROR_MESSAGES.EMPTY_FILE);
   }
 
-  if (DEBUG) {
-    console.debug(`📊 Processing chunk ${chunkIndex + 1}/${totalChunks}:`, {
-      chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-      mimeType,
-      options: JSON.stringify(options, null, 2),
-      timestamp: new Date().toISOString()
-    });
-  }
+  // Convert audio data to base64
+  const base64Audio = btoa(String.fromCharCode(...audioData));
+
+  console.debug(`📊 Processing chunk ${chunkIndex + 1}/${totalChunks}:`, {
+    chunkSize: `${(chunkBuffer.byteLength / 1024).toFixed(2)}KB`,
+    mimeType,
+    options: JSON.stringify(options, null, 2),
+    timestamp: new Date().toISOString()
+  });
 
   return await exponentialBackoff(async () => {
     const processingStartTime = Date.now();
     
+    console.debug("🛠️ Sending request to Deepgram with payload:", {
+      mimeType,
+      chunkSize: `${(chunkBuffer.byteLength / 1024).toFixed(2)}KB`,
+      options: options,
+      chunkIndex: chunkIndex + 1,
+      totalChunks
+    });
+
     const { data, error } = await Promise.race([
       supabase.functions.invoke<AudioProcessingResponse>('process-audio', {
         body: {
-          audio: audioData,
+          audio: base64Audio,
           mime_type: mimeType,
           options: {
             ...options,
@@ -125,7 +142,7 @@ export const processChunkWithRetry = async (
       new Promise<never>((_, reject) => 
         setTimeout(() => {
           console.error(`⏱️ Timeout reached after ${TIMEOUT}ms for chunk ${chunkIndex + 1}`);
-          reject(new Error(`Timeout after ${TIMEOUT}ms`));
+          reject(new Error(ERROR_MESSAGES.TIMEOUT_ERROR));
         }, TIMEOUT)
       )
     ]);
@@ -145,7 +162,7 @@ export const processChunkWithRetry = async (
       console.error(`❌ Function error for chunk ${chunkIndex + 1}:`, errorDetails);
 
       if (error.status === 413 || error.message?.includes('too large')) {
-        throw new Error('Chunk size too large for processing');
+        throw new Error(ERROR_MESSAGES.FILE_TOO_LARGE);
       }
       
       throw error;
@@ -158,17 +175,15 @@ export const processChunkWithRetry = async (
         processingTime: `${(processingTime / 1000).toFixed(2)}s`,
         timestamp: new Date().toISOString()
       });
-      throw new Error('Invalid transcript received');
+      throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
     }
 
-    if (DEBUG) {
-      console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
-        transcriptLength: data.transcript.length,
-        processingTime: `${(processingTime / 1000).toFixed(2)}s`,
-        metadata: data.metadata,
-        timestamp: new Date().toISOString()
-      });
-    }
+    console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
+      transcriptLength: data.transcript.length,
+      processingTime: `${(processingTime / 1000).toFixed(2)}s`,
+      metadata: data.metadata,
+      timestamp: new Date().toISOString()
+    });
 
     return data.transcript;
   });
