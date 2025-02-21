@@ -3,3 +3,6 @@ project_id = "relqexesmhirdxubfgmy"
 
 [global.env_vars]
 XRG_RUNTIME = "deno"
+
+[functions.test-deepgram-key]
+verify_jwt = false
