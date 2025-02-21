@@ -49,7 +49,7 @@ export const processAudioChunk = async (chunk: Blob, options: DeepgramOptions) =
     let failedChunks = 0;
     
     // Process chunks with controlled concurrency
-    const batchSize = 3;
+    const batchSize = 2; // Reduced from 3 to 2
     console.debug(`🚀 Starting batch processing with concurrency of ${batchSize}`);
 
     for (let i = 0; i < chunks.length; i += batchSize) {
