@@ -8,18 +8,29 @@ import { SearchResults } from "@/components/ebook/SearchResults";
 import { ContentDisplay } from "@/components/ebook/ContentDisplay";
 import { ebookContent } from "@/data/ebookContent";
 
-type EbookContent = {
+interface Chapter {
+  title: string;
+  page: number;
+}
+
+interface EbookContent {
   title: string;
   content: string;
   currentPage: number;
   totalPages: number;
-  chapters: { title: string; page: number }[];
-};
+  chapters: Chapter[];
+}
 
 const EbookPage = () => {
   const [ebook, setEbook] = useState<EbookContent>({
-    ...ebookContent,
+    title: ebookContent.title,
+    content: ebookContent.content,
     currentPage: 1,
+    totalPages: ebookContent.totalPages,
+    chapters: ebookContent.chapters.map(chapter => ({
+      title: chapter.title,
+      page: chapter.page
+    }))
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<string[]>([]);
@@ -127,4 +138,3 @@ const EbookPage = () => {
 };
 
 export default EbookPage;
-

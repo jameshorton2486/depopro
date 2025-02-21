@@ -1,16 +1,35 @@
 
 // @deno-types="https://raw.githubusercontent.com/deepgram/deepgram-node-sdk/main/dist/index.d.ts"
 import { Deepgram } from "https://esm.sh/@deepgram/sdk@1.3.1";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { 
+      headers: {
+        ...corsHeaders,
+        'Access-Control-Max-Age': '86400',
+      }
+    });
+  }
+
+  // Validate authorization
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Missing or invalid authorization header' }),
+      { 
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
   }
 
   try {
@@ -73,9 +92,8 @@ serve(async (req) => {
       throw new Error(`Deepgram API connectivity test failed: ${error.message}`);
     }
 
-    // Prepare transcription request
-    console.debug('Preparing transcription request with options:', options);
-    
+    // Process the audio
+    console.debug('Processing audio with Deepgram...');
     const source = {
       buffer: new Uint8Array(audio),
       mimetype: mime_type,
@@ -89,19 +107,9 @@ serve(async (req) => {
       numerals: true,
     };
 
-    // Send request to Deepgram with timeout
-    const timeoutMs = 30000;
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error(`Request timeout after ${timeoutMs}ms`)), timeoutMs)
-    );
-
-    console.debug('Sending request to Deepgram...');
-    const transcriptionPromise = deepgram.transcription.preRecorded(source, transcriptionOptions);
-    
-    const response = await Promise.race([transcriptionPromise, timeoutPromise]);
+    const response = await deepgram.transcription.preRecorded(source, transcriptionOptions);
     
     if (!response?.results?.channels?.[0]?.alternatives?.[0]) {
-      console.error('Invalid Deepgram response:', response);
       throw new Error('Invalid response structure from Deepgram');
     }
 
@@ -129,31 +137,15 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    // Ensure we have a proper error message
-    const errorMessage = error?.message || 'An unknown error occurred';
-    const errorStack = error?.stack || new Error().stack;
+    console.error('Error in process-audio function:', error);
     
-    console.error('Error in process-audio function:', {
-      message: errorMessage,
-      stack: errorStack,
-      error: error
-    });
-    
-    // Determine appropriate status code
-    const statusCode = 
-      errorMessage.includes('API key') ? 401 :
-      errorMessage.includes('timeout') ? 408 :
-      errorMessage.includes('Invalid') ? 400 :
-      500;
-
     return new Response(
       JSON.stringify({
-        error: errorMessage,
-        details: errorStack,
+        error: error.message || 'An unknown error occurred',
         timestamp: new Date().toISOString()
       }),
       { 
-        status: statusCode,
+        status: error.status || 500,
         headers: { 
           ...corsHeaders,
           'Content-Type': 'application/json'
@@ -162,4 +154,3 @@ serve(async (req) => {
     );
   }
 });
-
