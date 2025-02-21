@@ -1,21 +1,43 @@
 
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranscription } from "@/hooks/useTranscription";
 import { useApiTest } from "@/hooks/useApiTest";
+import { supabase } from "@/integrations/supabase/client";
 import { DeepgramHeader } from "@/components/deepgram/DeepgramHeader";
 import { FileUploadArea } from "@/components/deepgram/FileUploadArea";
 import { TranscriptDisplay } from "@/components/deepgram/TranscriptDisplay";
 import { ProcessingOverlay } from "@/components/deepgram/ProcessingOverlay";
 import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
 export default function Deepgram() {
+  const navigate = useNavigate();
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const transcription = useTranscription();
   const { isTestingApi, testApiKeys } = useApiTest();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate("/auth");
+        return;
+      }
+    };
+    
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        navigate("/auth");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   useEffect(() => {
     testSupabaseConnection();
@@ -44,22 +66,18 @@ export default function Deepgram() {
     }
   };
 
-  const handleDownload = (format: 'txt' | 'docx') => {
-    if (transcription.transcript) {
-      const element = document.createElement('a');
-      const file = new Blob([transcription.transcript], { type: 'text/plain' });
-      element.href = URL.createObjectURL(file);
-      element.download = `transcript.${format}`;
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-    }
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
   };
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
-      <div className="mb-8">
+      <div className="flex justify-between items-center mb-8">
         <DeepgramHeader />
+        <Button variant="outline" onClick={handleSignOut}>
+          Sign Out
+        </Button>
       </div>
       
       <div className="flex justify-end mb-4">
@@ -105,7 +123,7 @@ export default function Deepgram() {
         {transcription.transcript && (
           <TranscriptDisplay
             transcript={transcription.transcript}
-            onDownload={handleDownload}
+            onDownload={transcription.handleDownload}
           />
         )}
       </div>

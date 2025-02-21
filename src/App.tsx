@@ -1,26 +1,23 @@
 
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Layout from '@/components/layout/Layout';
-import ModelTraining from '@/pages/ModelTraining';
-import Ebook from '@/pages/Ebook';
-import TransCorrection from '@/pages/TransCorrection';
-import Deepgram from '@/pages/Deepgram';
-import { Toaster } from "@/components/ui/sonner";
+import { Routes, Route } from "react-router-dom";
+import Layout from "@/components/layout/Layout";
+import Deepgram from "@/pages/Deepgram";
+import Ebook from "@/pages/Ebook";
+import TransCorrection from "@/pages/TransCorrection";
+import ModelTraining from "@/pages/ModelTraining";
+import Auth from "@/pages/Auth";
 
 function App() {
   return (
-    <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Navigate to="/deepgram" replace />} />
-          <Route path="/model_training" element={<ModelTraining />} />
-          <Route path="/ebook" element={<Ebook />} />
-          <Route path="/transcorrection" element={<TransCorrection />} />
-          <Route path="/deepgram" element={<Deepgram />} />
-        </Routes>
-      </Layout>
-      <Toaster />
-    </Router>
+    <Routes>
+      <Route path="/auth" element={<Auth />} />
+      <Route element={<Layout />}>
+        <Route path="/" element={<Deepgram />} />
+        <Route path="/ebook" element={<Ebook />} />
+        <Route path="/correction" element={<TransCorrection />} />
+        <Route path="/training" element={<ModelTraining />} />
+      </Route>
+    </Routes>
   );
 }
 
