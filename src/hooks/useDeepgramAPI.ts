@@ -1,10 +1,9 @@
-
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
 import { validateAudioFile } from "@/utils/audioValidation";
 import { sliceArrayBuffer } from "@/utils/audioChunking";
-import { processAudioChunk } from "@/utils/audioProcessing";
+import { processChunkWithRetry } from "@/utils/audioProcessing";
 
 export type APITestStatus = 'pending' | 'success' | 'error';
 
@@ -17,32 +16,6 @@ export interface APITestResults {
   supabase: APITestResult;
   deepgram: APITestResult;
 }
-
-export const processChunkWithRetry = async (
-  chunkBuffer: ArrayBuffer,
-  mimeType: string,
-  options: DeepgramOptions,
-  chunkIndex: number,
-  totalChunks: number
-): Promise<string> => {
-  try {
-    console.debug(`🔄 Processing chunk ${chunkIndex + 1}/${totalChunks}`, {
-      chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-      mimeType
-    });
-
-    const result = await processAudioChunk(chunkBuffer, mimeType, options);
-    
-    console.debug(`✅ Chunk ${chunkIndex + 1}/${totalChunks} processed`, {
-      transcriptLength: result.transcript.length
-    });
-
-    return result.transcript;
-  } catch (error) {
-    console.error(`❌ Error processing chunk ${chunkIndex + 1}/${totalChunks}:`, error);
-    throw error;
-  }
-};
 
 export const processAudioInChunks = async (
   file: Blob,
@@ -75,7 +48,7 @@ export const processAudioInChunks = async (
     let failedChunks = 0;
     
     // Process chunks with controlled concurrency
-    const batchSize = 2; // Reduced from 3 to 2
+    const batchSize = 2;
     console.debug(`🚀 Starting batch processing with concurrency of ${batchSize}`);
 
     for (let i = 0; i < chunks.length; i += batchSize) {

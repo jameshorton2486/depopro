@@ -3,7 +3,6 @@ import type { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   MAX_RETRIES, 
-  TIMEOUT, 
   BASE_RETRY_DELAY,
   MAX_CHUNK_SIZE,
   DEBUG,
@@ -40,13 +39,6 @@ const exponentialBackoff = async <T>(
 
       const jitter = Math.random() * 1000;
       delay = Math.min(delay * 2 + jitter, 15000);
-
-      console.warn(`⚠️ Retrying in ${(delay/1000).toFixed(1)}s:`, {
-        error: error.message,
-        nextDelay: `${(delay/1000).toFixed(1)}s`,
-        remainingAttempts: retries - attempt
-      });
-
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -54,88 +46,77 @@ const exponentialBackoff = async <T>(
   throw lastError;
 };
 
-export const processAudioChunk = async (
-  buffer: ArrayBuffer,
+export const processChunkWithRetry = async (
+  chunkBuffer: ArrayBuffer,
   mimeType: string,
-  options: DeepgramOptions
-): Promise<TranscriptionResult> => {
-  console.debug('🎬 Starting audio chunk processing:', {
-    bufferSize: `${(buffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-    mimeType,
-    options: JSON.stringify(options, null, 2)
-  });
-
-  // File validation
-  if (!SUPPORTED_AUDIO_TYPES.includes(mimeType as any)) {
-    console.error('❌ Unsupported audio format:', {
-      providedType: mimeType,
-      supportedTypes: SUPPORTED_AUDIO_TYPES
-    });
-    throw new Error(ERROR_MESSAGES.UNSUPPORTED_TYPE);
-  }
-
-  if (buffer.byteLength > MAX_CHUNK_SIZE) {
-    console.error('❌ Buffer exceeds maximum size:', {
-      size: `${(buffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-      maxSize: `${(MAX_CHUNK_SIZE / (1024 * 1024)).toFixed(2)}MB`
-    });
-    throw new Error(ERROR_MESSAGES.CHUNK_TOO_LARGE);
-  }
-
-  const audioData = new Uint8Array(buffer);
-  
-  if (audioData.length === 0) {
-    console.error('❌ Empty audio data');
-    throw new Error(ERROR_MESSAGES.EMPTY_FILE);
-  }
-
-  return await exponentialBackoff(async () => {
-    const processingStartTime = Date.now();
-    console.debug('📦 Preparing form data');
-    
-    const formData = new FormData();
-    const audioBlob = new Blob([audioData], { type: mimeType });
-    formData.append('audio', audioBlob);
-    formData.append('options', JSON.stringify(options));
-
-    console.debug('🚀 Invoking transcribe function');
-    const { data, error } = await supabase.functions.invoke('transcribe', {
-      body: formData
+  options: DeepgramOptions,
+  chunkIndex: number,
+  totalChunks: number
+): Promise<string> => {
+  try {
+    console.debug(`🔄 Processing chunk ${chunkIndex + 1}/${totalChunks}`, {
+      chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+      mimeType
     });
 
-    if (error) {
-      console.error('❌ Supabase function error:', {
-        error: error.message,
-        details: error.details,
-        hint: error.hint
+    // File validation
+    if (!SUPPORTED_AUDIO_TYPES.includes(mimeType as any)) {
+      console.error('❌ Unsupported audio format:', {
+        providedType: mimeType,
+        supportedTypes: SUPPORTED_AUDIO_TYPES
       });
-      throw error;
+      throw new Error(ERROR_MESSAGES.UNSUPPORTED_TYPE);
     }
 
-    if (!data) {
-      console.error('❌ No data received from transcribe function');
-      throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
+    if (chunkBuffer.byteLength > MAX_CHUNK_SIZE) {
+      console.error('❌ Buffer exceeds maximum size:', {
+        size: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+        maxSize: `${(MAX_CHUNK_SIZE / (1024 * 1024)).toFixed(2)}MB`
+      });
+      throw new Error(ERROR_MESSAGES.CHUNK_TOO_LARGE);
     }
 
-    console.debug('📊 Processing response:', {
-      success: !!data,
-      hasResults: !!data.results,
-      hasTranscript: !!data.results?.channels?.[0]?.alternatives?.[0]?.transcript
+    const audioData = new Uint8Array(chunkBuffer);
+    
+    if (audioData.length === 0) {
+      console.error('❌ Empty audio data');
+      throw new Error(ERROR_MESSAGES.EMPTY_FILE);
+    }
+
+    return await exponentialBackoff(async () => {
+      const processingStartTime = Date.now();
+      console.debug('📦 Preparing form data');
+      
+      const formData = new FormData();
+      const audioBlob = new Blob([audioData], { type: mimeType });
+      formData.append('audio', audioBlob);
+      formData.append('options', JSON.stringify(options));
+
+      console.debug('🚀 Invoking transcribe function');
+      const { data, error } = await supabase.functions.invoke('transcribe', {
+        body: formData
+      });
+
+      if (error) {
+        console.error('❌ Supabase function error:', error);
+        throw error;
+      }
+
+      if (!data?.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
+        console.error('❌ Invalid response from transcribe function:', data);
+        throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
+      }
+
+      const transcript = data.results.channels[0].alternatives[0].transcript;
+      console.debug(`✅ Chunk ${chunkIndex + 1}/${totalChunks} processed`, {
+        transcriptLength: transcript.length,
+        processingTime: `${(Date.now() - processingStartTime) / 1000}s`
+      });
+
+      return transcript;
     });
-
-    const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript;
-
-    if (!transcript) {
-      console.error('❌ No transcript in response:', data);
-      throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
-    }
-
-    const processingTime = Date.now() - processingStartTime;
-    console.debug('✅ Processing complete:', {
-      transcriptLength: transcript.length,
-      processingTime: `${(processingTime / 1000).toFixed(2)}s`
-    });
-
-    return { transcript };
-  });
+  } catch (error) {
+    console.error(`❌ Error processing chunk ${chunkIndex + 1}/${totalChunks}:`, error);
+    throw error;
+  }
 };
