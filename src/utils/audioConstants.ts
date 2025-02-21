@@ -11,3 +11,7 @@ export const SUPPORTED_AUDIO_TYPES = [
   'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/aac',
   'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'
 ] as const;
+
+// Debug constants
+export const DEBUG = true; // Enable/disable debug logging
+export const SIMULATE_ERRORS = false; // For testing error handling

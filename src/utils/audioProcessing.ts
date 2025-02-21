@@ -5,7 +5,8 @@ import {
   MAX_RETRIES, 
   TIMEOUT, 
   BASE_RETRY_DELAY,
-  MAX_CHUNK_SIZE 
+  MAX_CHUNK_SIZE,
+  CHUNK_SIZE 
 } from "./audioConstants";
 
 interface ProcessAudioResponse {
@@ -28,14 +29,22 @@ const exponentialBackoff = async <T>(
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      return await fn();
+      console.debug(`🔄 Attempt ${attempt}/${retries} starting...`);
+      const result = await fn();
+      console.debug(`✅ Attempt ${attempt} succeeded`);
+      return result;
     } catch (error) {
       lastError = error;
       
       if (attempt === retries) {
         console.error(`❌ All ${retries} attempts failed:`, {
           finalError: error,
-          totalAttempts: attempt
+          totalAttempts: attempt,
+          errorDetails: {
+            message: error.message,
+            stack: error.stack,
+            cause: error.cause
+          }
         });
         throw error;
       }
@@ -46,7 +55,11 @@ const exponentialBackoff = async <T>(
       console.warn(`⚠️ Attempt ${attempt} failed. Retrying in ${(delay/1000).toFixed(1)}s:`, {
         error: error.message,
         nextDelay: `${(delay/1000).toFixed(1)}s`,
-        remainingAttempts: retries - attempt
+        remainingAttempts: retries - attempt,
+        errorDetails: {
+          stack: error.stack,
+          cause: error.cause
+        }
       });
 
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -63,10 +76,19 @@ export const processChunkWithRetry = async (
   chunkIndex: number,
   totalChunks: number
 ): Promise<string> => {
+  console.debug(`🎯 Starting chunk processing:`, {
+    chunkIndex: chunkIndex + 1,
+    totalChunks,
+    chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+    maxChunkSize: `${(MAX_CHUNK_SIZE / (1024 * 1024)).toFixed(2)}MB`,
+    timestamp: new Date().toISOString()
+  });
+
   if (chunkBuffer.byteLength > MAX_CHUNK_SIZE) {
     console.error(`❌ Chunk ${chunkIndex + 1} exceeds maximum size:`, {
       size: chunkBuffer.byteLength,
-      maxSize: MAX_CHUNK_SIZE
+      maxSize: MAX_CHUNK_SIZE,
+      difference: `${((chunkBuffer.byteLength - MAX_CHUNK_SIZE) / (1024 * 1024)).toFixed(2)}MB over limit`
     });
     throw new Error(`Chunk size ${chunkBuffer.byteLength} exceeds maximum allowed size of ${MAX_CHUNK_SIZE}`);
   }
@@ -74,14 +96,19 @@ export const processChunkWithRetry = async (
   const audioData = Array.from(new Uint8Array(chunkBuffer));
   
   if (audioData.length === 0) {
-    console.error('❌ Empty audio chunk detected');
+    console.error('❌ Empty audio chunk detected', {
+      chunkIndex: chunkIndex + 1,
+      totalChunks,
+      timestamp: new Date().toISOString()
+    });
     throw new Error('Empty audio chunk');
   }
 
-  console.debug(`🎯 Processing chunk ${chunkIndex + 1}/${totalChunks}:`, {
+  console.debug(`📊 Processing chunk ${chunkIndex + 1}/${totalChunks}:`, {
     chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
     mimeType,
-    options
+    options: JSON.stringify(options, null, 2),
+    timestamp: new Date().toISOString()
   });
 
   return await exponentialBackoff(async () => {
@@ -104,7 +131,10 @@ export const processChunkWithRetry = async (
         }
       }),
       new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error(`Timeout after ${TIMEOUT}ms`)), TIMEOUT)
+        setTimeout(() => {
+          console.error(`⏱️ Timeout reached after ${TIMEOUT}ms for chunk ${chunkIndex + 1}`);
+          reject(new Error(`Timeout after ${TIMEOUT}ms`));
+        }, TIMEOUT)
       )
     ]);
 
@@ -116,7 +146,8 @@ export const processChunkWithRetry = async (
         message: error.message,
         details: error.details,
         context: error.context,
-        processingTime
+        processingTime: `${(processingTime / 1000).toFixed(2)}s`,
+        timestamp: new Date().toISOString()
       };
       
       console.error(`❌ Function error for chunk ${chunkIndex + 1}:`, errorDetails);
@@ -129,14 +160,20 @@ export const processChunkWithRetry = async (
     }
 
     if (!data?.transcript || data.transcript.length < 5) {
-      console.error('❌ Invalid transcript in response:', { data });
+      console.error('❌ Invalid transcript in response:', { 
+        data,
+        chunkIndex: chunkIndex + 1,
+        processingTime: `${(processingTime / 1000).toFixed(2)}s`,
+        timestamp: new Date().toISOString()
+      });
       throw new Error('Invalid transcript received');
     }
 
-    console.debug(`✅ Chunk ${chunkIndex + 1} processed:`, {
+    console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
       transcriptLength: data.transcript.length,
       processingTime: `${(processingTime / 1000).toFixed(2)}s`,
-      metadata: data.metadata
+      metadata: data.metadata,
+      timestamp: new Date().toISOString()
     });
 
     return data.transcript;
