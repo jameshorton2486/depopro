@@ -9,6 +9,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Validate audio data format and structure
+function validateAudioData(audio: unknown): boolean {
+  if (!audio || !Array.isArray(audio)) return false;
+  // Check if array contains valid numbers
+  return audio.every(num => typeof num === 'number' && num >= 0 && num <= 255);
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -16,61 +23,72 @@ serve(async (req) => {
   }
 
   try {
-    const { audio, mime_type, options } = await req.json();
-
-    // Detailed request validation logging
-    console.log('🔍 Validating request data:', {
-      hasAudio: !!audio,
-      audioType: typeof audio,
-      isArray: Array.isArray(audio),
-      mimeType: mime_type,
-      options: JSON.stringify(options, null, 2),
+    // Log raw request details
+    console.log('🔍 Incoming request:', {
+      method: req.method,
+      headers: Object.fromEntries(req.headers.entries()),
       timestamp: new Date().toISOString()
     });
 
-    if (!audio || !Array.isArray(audio)) {
-      console.error('❌ Invalid audio data:', { 
+    const body = await req.json();
+    console.log('📦 Raw request body:', {
+      keys: Object.keys(body),
+      hasAudio: !!body.audio,
+      mimeType: body.mime_type,
+      timestamp: new Date().toISOString()
+    });
+
+    const { audio, mime_type, options } = body;
+
+    // Detailed audio data validation
+    console.log('🎵 Audio data analysis:', {
+      audioPresent: !!audio,
+      audioType: typeof audio,
+      isArray: Array.isArray(audio),
+      arrayLength: Array.isArray(audio) ? audio.length : 0,
+      sampleValues: Array.isArray(audio) ? audio.slice(0, 5) : [],
+      mimeType: mime_type,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!validateAudioData(audio)) {
+      console.error('❌ Invalid audio data format:', {
         audioPresent: !!audio,
         audioType: typeof audio,
-        isArray: Array.isArray(audio)
+        isArray: Array.isArray(audio),
+        validNumbers: Array.isArray(audio) ? audio.slice(0, 5).every(num => typeof num === 'number') : false,
+        timestamp: new Date().toISOString()
       });
-      throw new Error('Invalid audio data: must be an array of numbers');
+      throw new Error('Invalid audio data format: must be an array of numbers (0-255)');
     }
 
     if (!mime_type || typeof mime_type !== 'string') {
-      console.error('❌ Invalid mime_type:', { 
+      console.error('❌ Invalid mime_type:', {
         mimeTypePresent: !!mime_type,
         mimeTypeValue: mime_type,
-        type: typeof mime_type 
+        type: typeof mime_type
       });
       throw new Error('Invalid mime_type: must be a string');
     }
 
-    // Log audio data characteristics
-    console.log('📊 Audio data statistics:', {
-      arrayLength: audio.length,
-      firstFewBytes: audio.slice(0, 5),
-      mimeType: mime_type,
-      timestamp: new Date().toISOString()
-    });
-
-    // Convert number array back to Uint8Array
+    // Convert validated number array to Uint8Array
     const audioBuffer = new Uint8Array(audio);
-
-    console.log('🔄 Converted to Uint8Array:', {
+    
+    console.log('🔄 Audio buffer created:', {
+      originalLength: audio.length,
       bufferLength: audioBuffer.length,
-      firstFewBytes: Array.from(audioBuffer.slice(0, 5)),
+      bufferSample: Array.from(audioBuffer.slice(0, 5)),
       timestamp: new Date().toISOString()
     });
 
-    // Prepare the request URL and headers
+    // Prepare request for Deepgram
     const url = 'https://api.deepgram.com/v1/listen';
     const headers = {
       'Authorization': `Token ${DEEPGRAM_API_KEY}`,
       'Content-Type': mime_type
     };
 
-    // Prepare query parameters based on options
+    // Configure Deepgram parameters
     const queryParams = new URLSearchParams({
       model: options?.model || 'nova-2',
       language: options?.language || 'en',
@@ -88,10 +106,6 @@ serve(async (req) => {
     const requestUrl = `${url}?${queryParams.toString()}`;
     console.log('📡 Sending request to Deepgram:', {
       url: requestUrl,
-      headers: {
-        ...headers,
-        'Authorization': 'Token [REDACTED]'
-      },
       contentLength: audioBuffer.length,
       mimeType: mime_type,
       options: queryParams.toString(),
@@ -105,7 +119,7 @@ serve(async (req) => {
     });
 
     const responseText = await response.text();
-    console.log('📥 Raw response from Deepgram:', {
+    console.log('📥 Deepgram raw response:', {
       status: response.status,
       statusText: response.statusText,
       headers: Object.fromEntries(response.headers.entries()),
@@ -134,7 +148,7 @@ serve(async (req) => {
       });
       throw new Error('Invalid JSON response from Deepgram');
     }
-    
+
     if (!result?.results?.channels?.[0]?.alternatives?.[0]) {
       console.error('❌ Invalid response format from Deepgram:', {
         result: JSON.stringify(result, null, 2),
