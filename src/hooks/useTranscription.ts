@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { processAudioChunk } from "./useDeepgramAPI";
+import { processAudioChunk } from "@/utils/audioProcessing";
 import { DeepgramOptions } from "@/types/deepgram";
 import { AudioPreprocessor } from "@/utils/audioPreprocessing";
 import { toast } from "sonner";
@@ -29,29 +29,52 @@ export const useTranscription = () => {
     if (files.length === 0) return;
     
     const file = files[0];
+    console.debug('📁 File dropped:', {
+      name: file.name,
+      type: file.type,
+      size: `${(file.size / (1024 * 1024)).toFixed(2)}MB`
+    });
+
     const supportedTypes = [
       'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/aac',
       'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'
     ];
 
     if (!supportedTypes.includes(file.type)) {
+      console.error('❌ Unsupported file type:', {
+        providedType: file.type,
+        supportedTypes
+      });
       toast.error("Unsupported file type. Please upload an audio or video file.");
       return;
     }
 
     if (file.size > 2000 * 1024 * 1024) { // 2GB limit
+      console.error('❌ File too large:', {
+        size: `${(file.size / (1024 * 1024 * 1024)).toFixed(2)}GB`,
+        maxSize: '2GB'
+      });
       toast.error("File is too large. Maximum size is 2GB.");
       return;
     }
 
     setUploadedFile(file);
+    console.debug('✅ File accepted');
   };
 
   const handleTranscribe = async () => {
     if (!uploadedFile) {
+      console.error('❌ No file uploaded');
       toast.error("Please upload a file first");
       return;
     }
+
+    console.debug('🎬 Starting transcription process:', {
+      fileName: uploadedFile.name,
+      fileType: uploadedFile.type,
+      fileSize: `${(uploadedFile.size / (1024 * 1024)).toFixed(2)}MB`,
+      options: JSON.stringify(options, null, 2)
+    });
 
     setIsProcessing(true);
     setTranscript("");
@@ -59,28 +82,42 @@ export const useTranscription = () => {
 
     try {
       setProcessingStatus("Preprocessing audio...");
-      
+      console.debug('🔄 Creating audio preprocessor');
       const preprocessor = new AudioPreprocessor();
+      
+      console.debug('🎵 Starting audio preprocessing');
       const processedBuffer = await preprocessor.preprocessAudio(uploadedFile);
+      console.debug('✅ Audio preprocessing complete');
       
       setProcessingStatus("Processing audio...");
+      console.debug('🎙 Starting audio processing with Deepgram');
       
       const result = await processAudioChunk(processedBuffer, uploadedFile.type, options);
+      console.debug('📝 Received processing result:', {
+        success: !!result?.transcript,
+        transcriptLength: result?.transcript?.length || 0
+      });
       
       if (!result?.transcript) {
         throw new Error("No transcript received from processing");
       }
 
       setTranscript(result.transcript);
+      console.debug('✅ Transcription completed successfully');
       toast.success("Transcription completed successfully!");
       
-    } catch (error) {
-      console.error("Transcription error:", error);
+    } catch (error: any) {
+      console.error("❌ Transcription error:", {
+        error: error.message,
+        stack: error.stack,
+        type: error.name
+      });
       toast.error(`Transcription failed: ${error.message}`);
     } finally {
       setIsProcessing(false);
       setProcessingStatus("");
       setProgress(0);
+      console.debug('🏁 Transcription process finished');
     }
   };
 

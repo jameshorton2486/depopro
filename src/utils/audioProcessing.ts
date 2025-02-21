@@ -27,6 +27,11 @@ const exponentialBackoff = async <T>(
       return result;
     } catch (error: any) {
       lastError = error;
+      console.error(`❌ Attempt ${attempt} failed:`, {
+        error: error.message,
+        stack: error.stack,
+        type: error.name
+      });
       
       if (attempt === retries) {
         console.error(`❌ All ${retries} attempts failed:`, error);
@@ -36,7 +41,7 @@ const exponentialBackoff = async <T>(
       const jitter = Math.random() * 1000;
       delay = Math.min(delay * 2 + jitter, 15000);
 
-      console.warn(`⚠️ Attempt ${attempt} failed. Retrying in ${(delay/1000).toFixed(1)}s:`, {
+      console.warn(`⚠️ Retrying in ${(delay/1000).toFixed(1)}s:`, {
         error: error.message,
         nextDelay: `${(delay/1000).toFixed(1)}s`,
         remainingAttempts: retries - attempt
@@ -49,13 +54,17 @@ const exponentialBackoff = async <T>(
   throw lastError;
 };
 
-export const processChunkWithRetry = async (
-  chunkBuffer: ArrayBuffer,
+export const processAudioChunk = async (
+  buffer: ArrayBuffer,
   mimeType: string,
-  options: DeepgramOptions,
-  chunkIndex: number,
-  totalChunks: number
-): Promise<string> => {
+  options: DeepgramOptions
+): Promise<{ transcript: string }> => {
+  console.debug('🎬 Starting audio chunk processing:', {
+    bufferSize: `${(buffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+    mimeType,
+    options: JSON.stringify(options, null, 2)
+  });
+
   // File validation
   if (!SUPPORTED_AUDIO_TYPES.includes(mimeType as any)) {
     console.error('❌ Unsupported audio format:', {
@@ -65,51 +74,68 @@ export const processChunkWithRetry = async (
     throw new Error(ERROR_MESSAGES.UNSUPPORTED_TYPE);
   }
 
-  if (chunkBuffer.byteLength > MAX_CHUNK_SIZE) {
-    console.error(`❌ Chunk ${chunkIndex + 1} exceeds maximum size`);
+  if (buffer.byteLength > MAX_CHUNK_SIZE) {
+    console.error('❌ Buffer exceeds maximum size:', {
+      size: `${(buffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+      maxSize: `${(MAX_CHUNK_SIZE / (1024 * 1024)).toFixed(2)}MB`
+    });
     throw new Error(ERROR_MESSAGES.CHUNK_TOO_LARGE);
   }
 
-  const audioData = new Uint8Array(chunkBuffer);
+  const audioData = new Uint8Array(buffer);
   
   if (audioData.length === 0) {
+    console.error('❌ Empty audio data');
     throw new Error(ERROR_MESSAGES.EMPTY_FILE);
   }
 
   return await exponentialBackoff(async () => {
     const processingStartTime = Date.now();
+    console.debug('📦 Preparing form data');
     
-    // Create form data for the request
     const formData = new FormData();
     const audioBlob = new Blob([audioData], { type: mimeType });
     formData.append('audio', audioBlob);
     formData.append('options', JSON.stringify(options));
 
-    try {
-      const { data, error } = await supabase.functions.invoke('transcribe', {
-        body: formData
+    console.debug('🚀 Invoking transcribe function');
+    const { data, error } = await supabase.functions.invoke('transcribe', {
+      body: formData
+    });
+
+    if (error) {
+      console.error('❌ Supabase function error:', {
+        error: error.message,
+        details: error.details,
+        hint: error.hint
       });
-
-      if (error) {
-        throw error;
-      }
-
-      const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript;
-
-      if (!transcript) {
-        throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
-      }
-
-      const processingTime = Date.now() - processingStartTime;
-      console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
-        transcriptLength: transcript.length,
-        processingTime: `${(processingTime / 1000).toFixed(2)}s`
-      });
-
-      return transcript;
-    } catch (error: any) {
-      console.error('❌ Processing error:', error);
-      throw new Error(error.message || ERROR_MESSAGES.PROCESSING_ERROR);
+      throw error;
     }
+
+    if (!data) {
+      console.error('❌ No data received from transcribe function');
+      throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
+    }
+
+    console.debug('📊 Processing response:', {
+      success: !!data,
+      hasResults: !!data.results,
+      hasTranscript: !!data.results?.channels?.[0]?.alternatives?.[0]?.transcript
+    });
+
+    const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript;
+
+    if (!transcript) {
+      console.error('❌ No transcript in response:', data);
+      throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
+    }
+
+    const processingTime = Date.now() - processingStartTime;
+    console.debug('✅ Processing complete:', {
+      transcriptLength: transcript.length,
+      processingTime: `${(processingTime / 1000).toFixed(2)}s`
+    });
+
+    return { transcript };
   });
 };
