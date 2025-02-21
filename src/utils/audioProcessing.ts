@@ -1,5 +1,4 @@
 
-import { supabase } from "@/integrations/supabase/client";
 import type { DeepgramOptions } from "@/types/deepgram";
 import type { AudioProcessingResponse, AudioProcessingError } from "@/types/audio";
 import { 
@@ -31,15 +30,7 @@ const exponentialBackoff = async <T>(
       lastError = error;
       
       if (attempt === retries) {
-        console.error(`❌ All ${retries} attempts failed:`, {
-          finalError: error,
-          totalAttempts: attempt,
-          errorDetails: {
-            message: error.message,
-            stack: error.stack,
-            cause: error.cause
-          }
-        });
+        console.error(`❌ All ${retries} attempts failed:`, error);
         throw error;
       }
 
@@ -121,21 +112,24 @@ export const processChunkWithRetry = async (
       totalChunks
     });
 
-    const { data, error } = await Promise.race([
-      supabase.functions.invoke<AudioProcessingResponse>('process-audio', {
-        body: {
-          audio: Array.from(audioData),
-          mime_type: mimeType,
-          options: {
-            ...options,
-            diarize_version: options.diarize ? "3" : undefined,
-            chunk_info: {
-              index: chunkIndex,
-              total: totalChunks,
-              size: chunkBuffer.byteLength
-            }
-          }
-        }
+    // Create form data for the request
+    const formData = new FormData();
+    const audioBlob = new Blob([audioData], { type: mimeType });
+    formData.append('audio', audioBlob);
+
+    // Get API key from localStorage
+    const apiKey = localStorage.getItem('DEEPGRAM_API_KEY');
+    if (!apiKey) {
+      throw new Error('Deepgram API key not found. Please set your API key first.');
+    }
+
+    const response = await Promise.race([
+      fetch('https://api.deepgram.com/v1/listen', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${apiKey}`,
+        },
+        body: formData
       }),
       new Promise<never>((_, reject) => 
         setTimeout(() => {
@@ -145,28 +139,17 @@ export const processChunkWithRetry = async (
       )
     ]);
 
-    const processingTime = Date.now() - processingStartTime;
-
-    if (error) {
-      const errorDetails = {
-        status: error.status,
-        message: error.message,
-        details: error.details,
-        context: error.context,
-        processingTime: `${(processingTime / 1000).toFixed(2)}s`,
-        timestamp: new Date().toISOString()
-      };
-      
-      console.error(`❌ Function error for chunk ${chunkIndex + 1}:`, errorDetails);
-
-      if (error.status === 413 || error.message?.includes('too large')) {
-        throw new Error(ERROR_MESSAGES.FILE_TOO_LARGE);
-      }
-      
-      throw error;
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to process audio');
     }
 
-    if (!data?.transcript || data.transcript.length < 5) {
+    const data = await response.json();
+    const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript;
+
+    const processingTime = Date.now() - processingStartTime;
+
+    if (!transcript || transcript.length < 5) {
       console.error('❌ Invalid transcript in response:', { 
         data,
         chunkIndex: chunkIndex + 1,
@@ -177,12 +160,12 @@ export const processChunkWithRetry = async (
     }
 
     console.debug(`✅ Chunk ${chunkIndex + 1} processed successfully:`, {
-      transcriptLength: data.transcript.length,
+      transcriptLength: transcript.length,
       processingTime: `${(processingTime / 1000).toFixed(2)}s`,
       metadata: data.metadata,
       timestamp: new Date().toISOString()
     });
 
-    return data.transcript;
+    return transcript;
   });
 };

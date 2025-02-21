@@ -1,146 +1,75 @@
 
-import { useState } from "react";
-import { AlertTriangle, Check, X, AlertCircle, Trash2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useState, useEffect } from "react";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 export const DeepgramHeader = () => {
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
 
-  const verifyApiKey = async () => {
-    setIsVerifying(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('test-deepgram-key');
-      
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw new Error(`Failed to call verification endpoint: ${error.message}`);
-      }
-
-      if (!data) {
-        throw new Error('No response received from verification endpoint');
-      }
-
-      if (data.error) {
-        // Handle specific error cases
-        let errorMessage = 'Failed to verify Deepgram API key';
-        let details = data.details || data.error;
-
-        if (data.error === 'Invalid API key') {
-          errorMessage = 'Invalid or unauthorized Deepgram API key';
-        } else if (data.error === 'Deepgram API key not configured') {
-          errorMessage = 'Deepgram API key is not configured';
-          details = 'Please set up your API key in Supabase Edge Function secrets';
-        }
-
-        toast.error(errorMessage, {
-          icon: <AlertCircle className="h-4 w-4 text-red-500" />,
-          description: details,
-          duration: 5000
-        });
-        return;
-      }
-
-      if (data.success) {
-        toast.success("Deepgram API key is valid!", {
-          icon: <Check className="h-4 w-4 text-green-500" />,
-          description: data.message,
-          duration: 3000
-        });
-      } else {
-        throw new Error("Unexpected response from verification endpoint");
-      }
-    } catch (error) {
-      console.error("Error verifying API key:", error);
-      toast.error("Failed to verify Deepgram API key", {
-        icon: <X className="h-4 w-4 text-red-500" />,
-        description: error.message,
-        duration: 5000
-      });
-    } finally {
-      setIsVerifying(false);
+  useEffect(() => {
+    const savedKey = localStorage.getItem("DEEPGRAM_API_KEY");
+    if (savedKey) {
+      setApiKey(savedKey);
     }
-  };
+  }, []);
 
-  const clearAllData = async () => {
-    if (!confirm("Warning: This will clear all saved preferences and cached data. This action cannot be undone. Are you sure?")) {
+  const handleSaveKey = () => {
+    if (!apiKey.trim()) {
+      toast.error("Please enter a valid API key");
       return;
     }
 
-    setIsClearing(true);
-    try {
-      // Clear localStorage
-      localStorage.clear();
-      
-      // Clear IndexedDB if used
-      const databases = await window.indexedDB.databases();
-      databases.forEach(db => {
-        if (db.name) window.indexedDB.deleteDatabase(db.name);
-      });
-
-      // Clear session storage
-      sessionStorage.clear();
-
-      // Clear any cache storage
-      if ('caches' in window) {
-        const cacheKeys = await caches.keys();
-        await Promise.all(cacheKeys.map(key => caches.delete(key)));
-      }
-
-      toast.success("All data cleared successfully", {
-        icon: <Check className="h-4 w-4 text-green-500" />,
-        description: "Application cache and storage have been cleared",
-        duration: 3000
-      });
-    } catch (error) {
-      console.error("Error clearing data:", error);
-      toast.error("Failed to clear some data", {
-        icon: <X className="h-4 w-4 text-red-500" />,
-        description: error.message,
-        duration: 5000
-      });
-    } finally {
-      setIsClearing(false);
-    }
+    localStorage.setItem("DEEPGRAM_API_KEY", apiKey.trim());
+    setIsEditing(false);
+    toast.success("API key saved successfully");
   };
 
   return (
-    <Alert className="mb-6 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>
-          Choose a model and language, then upload an audio file to begin transcription.
-        </AlertDescription>
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">Deepgram Transcription</h1>
+      <p className="text-muted-foreground">
+        Convert your audio and video files to text using Deepgram's AI-powered transcription.
+      </p>
+      
+      <div className="flex items-center gap-4">
+        {isEditing ? (
+          <>
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Enter your Deepgram API key"
+              className="max-w-md"
+            />
+            <Button onClick={handleSaveKey}>Save Key</Button>
+            <Button variant="outline" onClick={() => setIsEditing(false)}>
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" onClick={() => setIsEditing(true)}>
+            {apiKey ? "Change API Key" : "Set API Key"}
+          </Button>
+        )}
       </div>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={clearAllData}
-          disabled={isClearing}
-          className="text-destructive hover:bg-destructive/10"
-        >
-          {isClearing ? (
-            "Clearing..."
-          ) : (
-            <>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Clear Data
-            </>
-          )}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={verifyApiKey}
-          disabled={isVerifying}
-        >
-          {isVerifying ? "Verifying..." : "Verify API Key"}
-        </Button>
-      </div>
-    </Alert>
+      
+      {!apiKey && (
+        <p className="text-sm text-yellow-600">
+          Please set your Deepgram API key to start transcribing.
+          You can get one from{" "}
+          <a
+            href="https://console.deepgram.com/signup"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-yellow-700"
+          >
+            Deepgram's Console
+          </a>
+          .
+        </p>
+      )}
+    </div>
   );
 };
