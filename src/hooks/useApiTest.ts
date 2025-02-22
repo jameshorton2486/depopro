@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { testAPIs } from './useDeepgramAPI';
+import { testAPIs } from '@/utils/apiTesting';
 import { toast } from "sonner";
 
 type APITestStatus = 'pending' | 'success' | 'error';
