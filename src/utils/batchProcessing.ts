@@ -1,6 +1,6 @@
 
 import { toast } from "sonner";
-import { DeepgramOptions } from "@/types/deepgram";
+import { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
 import { processChunkWithRetry } from "./audioProcessing";
 
 export interface BatchProcessingResult {
@@ -18,7 +18,7 @@ export const processBatch = async (
   options: DeepgramOptions,
   startIndex: number,
   totalChunks: number
-): Promise<string[]> => {
+): Promise<TranscriptionResult[]> => {
   console.debug(`📦 Processing batch ${Math.floor(startIndex/batch.length) + 1}/${Math.ceil(totalChunks/batch.length)}:`, {
     batchSize: batch.length,
     startIndex
@@ -54,12 +54,16 @@ export const processInBatches = async (
     const batch = chunks.slice(i, i + batchSize);
     const results = await processBatch(batch, mimeType, options, i, chunks.length);
     
-    // Count failed chunks (empty strings)
-    const batchFailures = results.filter(r => !r).length;
+    // Count failed chunks (empty transcripts)
+    const batchFailures = results.filter(r => !r.transcript).length;
     failedChunks += batchFailures;
     
-    // Only add non-empty results to transcript
-    allTranscripts += results.filter(Boolean).join(' ');
+    // Only add non-empty transcripts
+    allTranscripts += results
+      .filter(r => r.transcript)
+      .map(r => r.transcript)
+      .join(' ');
+
     completedChunks += batch.length;
 
     if (onProgress) {
