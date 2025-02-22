@@ -27,7 +27,7 @@ export const createTranscriptRecord = async (
 };
 
 export const updateTranscriptStatus = async (
-  id: number,
+  id: string,
   status: 'processing' | 'corrected'
 ) => {
   const { error } = await supabase
@@ -41,7 +41,7 @@ export const updateTranscriptStatus = async (
 };
 
 export const updateTranscriptText = async (
-  id: number,
+  id: string,
   text: string
 ) => {
   const { error } = await supabase
