@@ -6,6 +6,13 @@ export const createTranscriptRecord = async (
   file: File,
   userId: string
 ) => {
+  console.debug('Creating transcript record:', {
+    fileName: file.name,
+    fileType: file.type,
+    fileSize: file.size,
+    userId
+  });
+
   const { data, error } = await supabase
     .from('transcripts')
     .insert({
@@ -20,9 +27,11 @@ export const createTranscriptRecord = async (
     .single();
 
   if (error) {
+    console.error('Failed to create transcript record:', error);
     throw new Error(`Failed to create transcript record: ${error.message}`);
   }
 
+  console.debug('Transcript record created successfully:', data);
   return data;
 };
 
@@ -30,6 +39,8 @@ export const updateTranscriptStatus = async (
   id: string,
   status: 'processing' | 'corrected'
 ) => {
+  console.debug('Updating transcript status:', { id, status });
+
   const { error } = await supabase
     .from('transcripts')
     .update({ status })
@@ -37,6 +48,8 @@ export const updateTranscriptStatus = async (
 
   if (error) {
     console.error(`Failed to update transcript status to ${status}:`, error);
+  } else {
+    console.debug('Transcript status updated successfully');
   }
 };
 
@@ -44,6 +57,8 @@ export const updateTranscriptText = async (
   id: string,
   text: string
 ) => {
+  console.debug('Updating transcript text:', { id, textLength: text.length });
+
   const { error } = await supabase
     .from('transcripts')
     .update({
@@ -54,6 +69,8 @@ export const updateTranscriptText = async (
 
   if (error) {
     console.error('Failed to update transcript text:', error);
+  } else {
+    console.debug('Transcript text updated successfully');
   }
 };
 
@@ -61,6 +78,12 @@ export const processAudioFile = async (
   file: File,
   options: DeepgramOptions
 ): Promise<string> => {
+  console.debug('Processing audio file:', {
+    fileName: file.name,
+    fileSize: `${(file.size / (1024 * 1024)).toFixed(2)}MB`,
+    options
+  });
+
   // Convert file to base64
   const base64Content = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -73,6 +96,8 @@ export const processAudioFile = async (
     reader.readAsDataURL(file);
   });
 
+  console.debug('File converted to base64, calling transcribe function');
+
   // Call Supabase Edge Function
   const { data, error } = await supabase.functions.invoke('transcribe', {
     body: {
@@ -83,12 +108,15 @@ export const processAudioFile = async (
   });
 
   if (error) {
+    console.error('Transcription failed:', error);
     throw new Error(`Transcription failed: ${error.message}`);
   }
 
   if (!data?.transcript) {
+    console.error('No transcript received:', data);
     throw new Error("No transcript received from processing");
   }
 
+  console.debug('Audio processing completed successfully');
   return data.transcript;
 };
