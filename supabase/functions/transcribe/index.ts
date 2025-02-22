@@ -13,18 +13,23 @@ serve(async (req) => {
   }
 
   try {
-    console.log('📥 Received transcription request');
+    console.log('📥 Starting transcription request processing');
+
+    // Verify content type
+    console.log('Content-Type:', req.headers.get('content-type'));
 
     // Get file from request
     const formData = await req.formData();
+    console.log('Form data keys:', [...formData.keys()]);
+
     const audioFile = formData.get('audio');
     const optionsJson = formData.get('options');
     
-    console.log('📊 Request details:', {
+    console.log('Request validation:', {
       hasAudioFile: !!audioFile,
       audioFileType: audioFile instanceof Blob ? audioFile.type : typeof audioFile,
+      audioFileSize: audioFile instanceof Blob ? `${audioFile.size / 1024 / 1024}MB` : 'N/A',
       optionsPresent: !!optionsJson,
-      formDataKeys: [...formData.keys()]
     });
     
     if (!audioFile || !(audioFile instanceof Blob)) {
@@ -32,27 +37,35 @@ serve(async (req) => {
     }
 
     const options = optionsJson ? JSON.parse(optionsJson as string) : {};
-    console.log('🎛️ Transcription options:', options);
+    console.log('Transcription options:', options);
 
     const deepgramApiKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!deepgramApiKey) {
       throw new Error('Deepgram API key not configured');
     }
-    console.log('✅ Deepgram API key found');
+    console.log('Deepgram API key verified');
 
     // Convert Blob to ArrayBuffer
     const buffer = await audioFile.arrayBuffer();
-    console.log('📦 Audio file size:', `${(buffer.byteLength / 1024 / 1024).toFixed(2)}MB`);
+    console.log('Audio buffer size:', `${buffer.byteLength / 1024 / 1024}MB`);
 
-    // Send to Deepgram
-    console.log('🚀 Sending request to Deepgram API');
-    const response = await fetch('https://api.deepgram.com/v1/listen?' + new URLSearchParams({
+    // Prepare URL parameters
+    const params = new URLSearchParams({
       model: options.model || 'nova-2',
       language: options.language || 'en',
       smart_format: 'true',
-      diarize: options.diarize ? 'true' : 'false',
+      diarize: 'false',
       punctuate: 'true'
-    }), {
+    });
+
+    console.log('Deepgram request configuration:', {
+      url: 'https://api.deepgram.com/v1/listen?' + params.toString(),
+      contentType: audioFile.type || 'audio/wav',
+      bufferSize: `${buffer.byteLength / 1024 / 1024}MB`
+    });
+
+    // Send to Deepgram
+    const response = await fetch('https://api.deepgram.com/v1/listen?' + params.toString(), {
       method: 'POST',
       headers: {
         'Authorization': `Token ${deepgramApiKey}`,
@@ -61,11 +74,14 @@ serve(async (req) => {
       body: buffer
     });
 
-    console.log('📊 Deepgram response status:', response.status);
+    console.log('Deepgram response:', {
+      status: response.status,
+      statusText: response.statusText
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Deepgram API error:', {
+      console.error('Deepgram API error:', {
         status: response.status,
         statusText: response.statusText,
         error: errorText
@@ -74,19 +90,21 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('✅ Successfully received Deepgram response');
+    console.log('Deepgram response received');
 
     if (!data.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
-      console.error('❌ Invalid Deepgram response format:', data);
+      console.error('Invalid response format:', data);
       throw new Error('Invalid response format from Deepgram');
     }
+
+    console.log('Transcription successful');
 
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('❌ Error in transcribe function:', {
+    console.error('Transcription error:', {
       message: error.message,
       stack: error.stack
     });
