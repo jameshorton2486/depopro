@@ -66,11 +66,11 @@ export const useTranscription = () => {
       return;
     }
 
-    // Get current user
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !session?.user) {
-      console.error('❌ User not authenticated:', sessionError);
-      toast.error("Please sign in to transcribe files");
+    // Create a guest user session if there's no authenticated user
+    const { data: { session } } = await supabase.auth.signInAnonymously();
+    if (!session?.user) {
+      console.error('❌ Failed to create guest session');
+      toast.error("Failed to create guest session. Please try again.");
       return;
     }
 
