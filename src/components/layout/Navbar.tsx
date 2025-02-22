@@ -1,6 +1,6 @@
 
 import { Link } from "react-router-dom";
-import { Home, FileText, Edit2, Settings, BookOpen } from "lucide-react";
+import { Home, FileText, Edit2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const Navbar = () => {
@@ -48,16 +48,6 @@ const Navbar = () => {
           >
             <Settings className="mr-2 h-4 w-4" />
             <span className="whitespace-nowrap">Train Model</span>
-          </Button>
-        </Link>
-        <Link to="/ebook">
-          <Button
-            variant="outline"
-            size="lg"
-            className="bg-white/90 hover:bg-white/70 text-primary shadow-md hover:shadow-lg transition-all min-w-[140px]"
-          >
-            <BookOpen className="mr-2 h-4 w-4" />
-            <span className="whitespace-nowrap">eBook</span>
           </Button>
         </Link>
       </div>
