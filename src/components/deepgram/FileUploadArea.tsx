@@ -2,6 +2,7 @@
 import { useDropzone } from "react-dropzone";
 import { Upload, FileAudio, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
 
 interface FileUploadAreaProps {
   uploadedFile: File | null;
@@ -32,6 +33,27 @@ export const FileUploadArea = ({
     },
     maxFiles: 1,
     multiple: false,
+    onDropRejected: (fileRejections) => {
+      fileRejections.forEach((rejection) => {
+        rejection.errors.forEach((error) => {
+          let errorMessage = '';
+          switch (error.code) {
+            case 'file-too-large':
+              errorMessage = 'File is too large. Maximum size is 2GB';
+              break;
+            case 'file-invalid-type':
+              errorMessage = 'Invalid file type. Please upload an audio or video file';
+              break;
+            case 'too-many-files':
+              errorMessage = 'Please upload only one file at a time';
+              break;
+            default:
+              errorMessage = error.message;
+          }
+          toast.error(errorMessage);
+        });
+      });
+    },
     validator: (file) => {
       if (file.size > 2000 * 1024 * 1024) {
         return {
@@ -75,7 +97,7 @@ export const FileUploadArea = ({
             }
           </p>
           <p className="text-sm text-muted-foreground">
-            Supports MP3, WAV, M4A, AAC, MP4, MOV, AVI, and WEBM files
+            Supports MP3, WAV, M4A, AAC, MP4, MOV, AVI, and WEBM files (max 2GB)
           </p>
         </>
       )}
