@@ -4,6 +4,7 @@ import { DeepgramOptions } from "@/types/deepgram";
 import { ModelSelect } from "./ModelSelect";
 import { LanguageSelect } from "./LanguageSelect";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface TranscriptionControlsProps {
   model: string;
@@ -26,14 +27,29 @@ export const TranscriptionControls = ({
   handleTranscribe,
   isProcessing
 }: TranscriptionControlsProps) => {
+  const handleModelChange = (value: string) => {
+    onModelChange(value);
+    toast.success(`Model changed to ${value}`);
+  };
+
+  const handleLanguageChange = (value: string) => {
+    onLanguageChange(value);
+    toast.success(`Language changed to ${value}`);
+  };
+
+  const handleTranscribeClick = () => {
+    toast.info('Starting transcription process...');
+    handleTranscribe();
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex gap-4">
-        <ModelSelect model={model} onModelChange={onModelChange} />
-        <LanguageSelect language={language} onLanguageChange={onLanguageChange} />
+        <ModelSelect model={model} onModelChange={handleModelChange} />
+        <LanguageSelect language={language} onLanguageChange={handleLanguageChange} />
       </div>
       <Button 
-        onClick={handleTranscribe} 
+        onClick={handleTranscribeClick} 
         disabled={isProcessing}
         className="w-full"
       >
