@@ -10,7 +10,7 @@ export class AudioPreprocessor {
     this.context = new AudioContext({ sampleRate: AudioPreprocessor.TARGET_SAMPLE_RATE });
   }
 
-  async preprocessAudio(file: File): Promise<ArrayBuffer> {
+  async preprocessAudio(file: File): Promise<{ buffer: ArrayBuffer; mimeType: string }> {
     console.debug('🎵 Starting audio preprocessing:', {
       originalSize: `${(file.size / (1024 * 1024)).toFixed(2)}MB`,
       type: file.type,
@@ -18,11 +18,15 @@ export class AudioPreprocessor {
     });
 
     try {
+      if (file.size === 0) {
+        throw new Error("The uploaded file appears to be empty.");
+      }
+
       // Check cache first
       const cachedResult = await this.checkCache(file);
       if (cachedResult) {
         console.debug('✨ Found cached preprocessed audio');
-        return cachedResult;
+        return { buffer: cachedResult, mimeType: 'audio/wav' };
       }
 
       const arrayBuffer = await file.arrayBuffer();
@@ -62,7 +66,7 @@ export class AudioPreprocessor {
         channels: 1
       });
 
-      return wavBuffer;
+      return { buffer: wavBuffer, mimeType: 'audio/wav' };
     } catch (error) {
       console.error('❌ Error preprocessing audio:', error);
       throw error;

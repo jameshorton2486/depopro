@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { processAudioInChunks } from "@/hooks/useDeepgramAPI";
 import { DeepgramOptions } from "@/types/deepgram";
@@ -12,8 +11,6 @@ export const useTranscription = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState("");
   const [progress, setProgress] = useState(0);
-  const [model, setModel] = useState("nova-2");
-  const [language, setLanguage] = useState("en");
   const [options, setOptions] = useState<DeepgramOptions>({
     model: "nova-2",
     language: "en",
@@ -136,12 +133,8 @@ export const useTranscription = () => {
     isProcessing,
     processingStatus,
     progress,
-    model,
-    language,
     options,
     onDrop,
-    setModel,
-    setLanguage,
     handleOptionsChange,
     handleTranscribe,
     handleDownload,

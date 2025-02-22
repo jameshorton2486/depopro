@@ -1,6 +1,6 @@
-
 import type { DeepgramOptions, TranscriptionResult, DeepgramResponse } from "@/types/deepgram";
 import { supabase } from "@/integrations/supabase/client";
+import { AudioPreprocessor } from "./audioPreprocessing";
 import { 
   MAX_RETRIES, 
   BASE_RETRY_DELAY,
@@ -9,6 +9,8 @@ import {
   SUPPORTED_AUDIO_TYPES,
   ERROR_MESSAGES
 } from "./audioConstants";
+
+const audioPreprocessor = new AudioPreprocessor();
 
 const exponentialBackoff = async <T>(
   fn: () => Promise<T>, 
@@ -76,19 +78,20 @@ export const processChunkWithRetry = async (
       throw new Error(ERROR_MESSAGES.CHUNK_TOO_LARGE);
     }
 
-    const audioData = new Uint8Array(chunkBuffer);
-    
-    if (audioData.length === 0) {
+    if (chunkBuffer.byteLength === 0) {
       console.error('❌ Empty audio data');
       throw new Error(ERROR_MESSAGES.EMPTY_FILE);
     }
+
+    const tempFile = new File([chunkBuffer], 'chunk.wav', { type: mimeType });
+    const { buffer: processedBuffer, mimeType: processedMimeType } = await audioPreprocessor.preprocessAudio(tempFile);
 
     return await exponentialBackoff(async () => {
       const processingStartTime = Date.now();
       console.debug('📦 Preparing form data for chunk', chunkIndex + 1);
       
       const formData = new FormData();
-      const audioBlob = new Blob([audioData], { type: mimeType });
+      const audioBlob = new Blob([processedBuffer], { type: processedMimeType });
       formData.append('audio', audioBlob);
       formData.append('options', JSON.stringify({
         ...options,
