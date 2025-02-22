@@ -56,7 +56,8 @@ export const processChunkWithRetry = async (
   try {
     console.debug(`🔄 Processing chunk ${chunkIndex + 1}/${totalChunks}`, {
       chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-      mimeType
+      mimeType,
+      options: JSON.stringify(options)
     });
 
     // File validation
@@ -85,14 +86,20 @@ export const processChunkWithRetry = async (
 
     return await exponentialBackoff(async () => {
       const processingStartTime = Date.now();
-      console.debug('📦 Preparing form data');
+      console.debug('📦 Preparing form data for chunk', chunkIndex + 1);
       
       const formData = new FormData();
       const audioBlob = new Blob([audioData], { type: mimeType });
       formData.append('audio', audioBlob);
-      formData.append('options', JSON.stringify(options));
+      formData.append('options', JSON.stringify({
+        ...options,
+        chunk_info: {
+          index: chunkIndex,
+          total: totalChunks
+        }
+      }));
 
-      console.debug('🚀 Invoking transcribe function');
+      console.debug('🚀 Invoking transcribe function for chunk', chunkIndex + 1);
       const { data, error } = await supabase.functions.invoke('transcribe', {
         body: formData
       });

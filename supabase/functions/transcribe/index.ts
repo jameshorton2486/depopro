@@ -21,12 +21,6 @@ serve(async (req) => {
     const audioFile = formData.get('audio');
     const optionsJson = formData.get('options');
     
-    console.debug('📊 Request details:', {
-      hasAudioFile: !!audioFile,
-      audioFileType: audioFile instanceof Blob ? audioFile.type : typeof audioFile,
-      optionsPresent: !!optionsJson
-    });
-    
     if (!audioFile || !(audioFile instanceof Blob)) {
       console.error('❌ Invalid or missing audio file');
       throw new Error('No audio file provided');
@@ -40,13 +34,12 @@ serve(async (req) => {
       console.error('❌ Deepgram API key not configured');
       throw new Error('Deepgram API key not configured');
     }
-    console.debug('✅ Deepgram API key found');
 
-    // Prepare the form data for Deepgram
-    const deepgramFormData = new FormData();
-    deepgramFormData.append('audio', audioFile);
+    // Convert Blob to ArrayBuffer
+    const arrayBuffer = await audioFile.arrayBuffer();
+    const audioBytes = new Uint8Array(arrayBuffer);
 
-    // Forward the request to Deepgram
+    // Send to Deepgram
     console.debug('🚀 Sending request to Deepgram API');
     const response = await fetch('https://api.deepgram.com/v1/listen?' + new URLSearchParams({
       model: options.model || 'nova-2',
@@ -58,20 +51,27 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Authorization': `Token ${deepgramApiKey}`,
+        'Content-Type': audioFile.type
       },
-      body: deepgramFormData
+      body: audioBytes
     });
 
-    console.debug('📊 Deepgram response status:', response.status);
-
     if (!response.ok) {
-      const error = await response.text();
-      console.error('❌ Deepgram API error:', error);
-      throw new Error(`Failed to process audio: ${error}`);
+      const errorText = await response.text();
+      console.error('❌ Deepgram API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`Deepgram API error: ${errorText}`);
     }
 
     const data = await response.json();
     console.debug('✅ Successfully received Deepgram response');
+
+    if (!data.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
+      throw new Error('Invalid response format from Deepgram');
+    }
 
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -79,7 +79,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Error in transcribe function:', {
-      error: error.message,
+      message: error.message,
       stack: error.stack,
       type: error.name
     });
