@@ -89,13 +89,24 @@ export const useTranscription = () => {
           name: uploadedFile.name,
           file_type: uploadedFile.type,
           file_size: uploadedFile.size,
-          status: 'processing'
+          status: 'pending',
+          original_text: '' // Initialize with empty string since it's required
         })
         .select()
         .single();
 
       if (createError) {
         throw new Error(`Failed to create transcript record: ${createError.message}`);
+      }
+
+      // Update status to processing
+      const { error: processingError } = await supabase
+        .from('transcripts')
+        .update({ status: 'processing' })
+        .eq('id', transcriptRecord.id);
+
+      if (processingError) {
+        console.error('Failed to update processing status:', processingError);
       }
 
       setProcessingStatus("Processing audio...");
@@ -137,7 +148,7 @@ export const useTranscription = () => {
         .from('transcripts')
         .update({
           original_text: data.transcript,
-          status: 'completed'
+          status: 'corrected' // Using 'corrected' instead of 'completed' to match the enum
         })
         .eq('id', transcriptRecord.id);
 
