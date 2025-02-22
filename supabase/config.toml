@@ -12,4 +12,3 @@ verify_jwt = false
 
 [functions.test-transcription]
 verify_jwt = false
-

@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,19 +19,21 @@ serve(async (req) => {
     console.debug('🔄 Parsing form data');
     const formData = await req.formData();
     const audioFile = formData.get('audio');
-    const options = formData.get('options');
+    const optionsJson = formData.get('options');
     
     console.debug('📊 Request details:', {
       hasAudioFile: !!audioFile,
       audioFileType: audioFile instanceof Blob ? audioFile.type : typeof audioFile,
-      optionsPresent: !!options,
-      optionsType: typeof options
+      optionsPresent: !!optionsJson
     });
     
     if (!audioFile || !(audioFile instanceof Blob)) {
       console.error('❌ Invalid or missing audio file');
       throw new Error('No audio file provided');
     }
+
+    const options = optionsJson ? JSON.parse(optionsJson as string) : {};
+    console.debug('🎛️ Transcription options:', options);
 
     const deepgramApiKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!deepgramApiKey) {
@@ -41,22 +42,32 @@ serve(async (req) => {
     }
     console.debug('✅ Deepgram API key found');
 
+    // Prepare the form data for Deepgram
+    const deepgramFormData = new FormData();
+    deepgramFormData.append('audio', audioFile);
+
     // Forward the request to Deepgram
     console.debug('🚀 Sending request to Deepgram API');
-    const response = await fetch('https://api.deepgram.com/v1/listen', {
+    const response = await fetch('https://api.deepgram.com/v1/listen?' + new URLSearchParams({
+      model: options.model || 'nova-2',
+      language: options.language || 'en',
+      smart_format: options.smart_format ? 'true' : 'false',
+      diarize: options.diarize ? 'true' : 'false',
+      punctuate: options.punctuate ? 'true' : 'false'
+    }), {
       method: 'POST',
       headers: {
         'Authorization': `Token ${deepgramApiKey}`,
       },
-      body: formData
+      body: deepgramFormData
     });
 
     console.debug('📊 Deepgram response status:', response.status);
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.text();
       console.error('❌ Deepgram API error:', error);
-      throw new Error(error.message || 'Failed to process audio');
+      throw new Error(`Failed to process audio: ${error}`);
     }
 
     const data = await response.json();
@@ -74,7 +85,10 @@ serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: 'Failed to process audio file'
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
