@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
-import { AudioPreprocessor } from "@/utils/audioPreprocessing";
 import { toast } from "sonner";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 
@@ -120,21 +119,6 @@ export const useTranscription = () => {
       setTranscript(data.transcript);
       console.debug('✅ Transcription completed successfully');
       toast.success("Transcription completed!");
-      
-      // Save transcript to database with correct status enum value
-      const { error: dbError } = await supabase
-        .from('transcripts')
-        .insert({
-          name: uploadedFile.name,
-          original_text: data.transcript,
-          file_type: uploadedFile.type,
-          file_size: uploadedFile.size,
-          status: 'processing' // Using valid status from enum
-        });
-
-      if (dbError) {
-        console.error('Failed to save transcript to database:', dbError);
-      }
 
     } catch (error: any) {
       console.error("❌ Transcription error:", {

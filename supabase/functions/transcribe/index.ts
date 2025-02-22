@@ -1,11 +1,13 @@
 
+// @deno-types="https://raw.githubusercontent.com/deepgram/deepgram-node-sdk/main/dist/index.d.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+console.log('Transcribe function initialized');
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -14,11 +16,19 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Received transcription request');
     const { audioData, fileName, options } = await req.json();
 
     if (!audioData) {
       throw new Error('No audio data provided');
     }
+
+    // Initialize Supabase client for storage
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    console.log('Processing audio data for:', fileName);
 
     // Decode base64 to binary
     const binaryData = Uint8Array.from(atob(audioData), c => c.charCodeAt(0));
@@ -46,8 +56,26 @@ serve(async (req) => {
       throw new Error('No transcript received from Deepgram');
     }
 
+    console.log('Transcription completed successfully');
+
+    // Store the result in Supabase
+    const { error: dbError } = await supabase
+      .from('transcripts')
+      .insert({
+        name: fileName,
+        original_text: transcript,
+        status: 'completed'
+      });
+
+    if (dbError) {
+      console.error('Error saving to database:', dbError);
+    }
+
     return new Response(
-      JSON.stringify({ transcript }),
+      JSON.stringify({ 
+        transcript,
+        status: 'success'
+      }),
       {
         headers: {
           ...corsHeaders,
