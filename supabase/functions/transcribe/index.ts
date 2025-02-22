@@ -1,5 +1,6 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,107 +14,58 @@ serve(async (req) => {
   }
 
   try {
-    console.log("✅ Processing transcription request");
+    const { audioData, fileName, options } = await req.json();
 
-    const formData = await req.formData();
-    const audioFile = formData.get("audio");
-    const optionsStr = formData.get("options");
-
-    if (!audioFile) {
-      console.error("❌ No audio file provided");
-      return new Response(
-        JSON.stringify({ error: "No audio file provided" }), 
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!audioData) {
+      throw new Error('No audio data provided');
     }
 
-    let options;
-    try {
-      options = optionsStr ? JSON.parse(optionsStr as string) : {};
-      console.log("✅ Parsed options:", options);
-    } catch (error) {
-      console.error("❌ Error parsing options:", error);
-      return new Response(
-        JSON.stringify({ error: "Invalid options format" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Decode base64 to binary
+    const binaryData = Uint8Array.from(atob(audioData), c => c.charCodeAt(0));
 
-    const deepgramApiKey = Deno.env.get("DEEPGRAM_API_KEY");
-    if (!deepgramApiKey) {
-      console.error("❌ Deepgram API Key not found");
-      return new Response(
-        JSON.stringify({ error: "Deepgram API key missing" }), 
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Create a new FormData for Deepgram with the file
-    const deepgramForm = new FormData();
-    deepgramForm.append("audio", audioFile);
-
-    // Construct Deepgram API URL with query parameters
-    const queryParams = new URLSearchParams({
-      model: options.model || "nova-2",
-      language: options.language || "en",
-      smart_format: (options.smart_format ?? true).toString(),
-      diarize: (options.diarize ?? true).toString(),
-      punctuate: (options.punctuate ?? true).toString(),
-      filler_words: (options.filler_words ?? true).toString(),
-      paragraphs: (options.paragraphs ?? true).toString(),
-    });
-
-    console.log("✅ Sending request to Deepgram with options:", Object.fromEntries(queryParams));
-
-    const response = await fetch(`https://api.deepgram.com/v1/listen?${queryParams}`, {
-      method: "POST",
+    // Call Deepgram API
+    const response = await fetch('https://api.deepgram.com/v1/listen', {
+      method: 'POST',
       headers: {
-        Authorization: `Token ${deepgramApiKey}`,
+        'Authorization': `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
+        'Content-Type': 'application/octet-stream',
       },
-      body: deepgramForm,
+      body: binaryData,
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      let errorMessage;
-      try {
-        const errorJson = JSON.parse(errorText);
-        errorMessage = errorJson.error || errorJson.message || 'Unknown Deepgram error';
-      } catch {
-        errorMessage = errorText || `Deepgram API error (${response.status})`;
-      }
-      
-      console.error("❌ Deepgram API error:", {
-        status: response.status,
-        error: errorMessage
-      });
-      
-      return new Response(
-        JSON.stringify({ error: errorMessage }), 
-        { 
-          status: response.status, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      const error = await response.text();
+      console.error('Deepgram API error:', error);
+      throw new Error(`Deepgram API error: ${error}`);
     }
 
-    const data = await response.json();
-    console.log("✅ Transcription successful");
+    const result = await response.json();
+    const transcript = result.results?.channels[0]?.alternatives[0]?.transcript;
+
+    if (!transcript) {
+      throw new Error('No transcript received from Deepgram');
+    }
 
     return new Response(
-      JSON.stringify(data), 
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ transcript }),
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+      }
     );
+
   } catch (error) {
-    console.error("❌ Unexpected error:", error);
+    console.error('Transcription error:', error);
     return new Response(
-      JSON.stringify({ 
-        error: "Internal server error", 
-        details: error instanceof Error ? error.message : String(error)
-      }), 
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
       }
     );
   }

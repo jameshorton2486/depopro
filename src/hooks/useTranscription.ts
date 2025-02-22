@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { processAudioInChunks } from "@/hooks/useDeepgramAPI";
+import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
 import { AudioPreprocessor } from "@/utils/audioPreprocessing";
 import { toast } from "sonner";
@@ -85,28 +85,57 @@ export const useTranscription = () => {
     try {
       setProcessingStatus("Processing audio...");
       toast.info("Starting transcription process...");
-      console.debug('🎙 Starting audio processing');
       
-      const result = await processAudioInChunks(uploadedFile, options, (progress) => {
-        setProgress(progress);
-        if (progress % 20 === 0) { // Show progress every 20%
-          toast.info(`Transcription progress: ${progress}%`);
+      // Convert file to base64
+      const reader = new FileReader();
+      const fileBase64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const base64String = reader.result as string;
+          const base64Content = base64String.split(',')[1];
+          resolve(base64Content);
+        };
+        reader.onerror = reject;
+      });
+
+      reader.readAsDataURL(uploadedFile);
+      const base64Content = await fileBase64Promise;
+
+      // Call Supabase Edge Function for transcription
+      const { data, error } = await supabase.functions.invoke('transcribe', {
+        body: {
+          audioData: base64Content,
+          fileName: uploadedFile.name,
+          options
         }
       });
 
-      console.debug('📝 Received processing result:', {
-        success: !!result?.transcript,
-        transcriptLength: result?.transcript?.length || 0
-      });
-      
-      if (!result?.transcript) {
+      if (error) {
+        throw new Error(`Transcription failed: ${error.message}`);
+      }
+
+      if (!data?.transcript) {
         throw new Error("No transcript received from processing");
       }
 
-      setTranscript(result.transcript);
+      setTranscript(data.transcript);
       console.debug('✅ Transcription completed successfully');
-      toast.success("Transcription completed! Your file will download automatically.");
+      toast.success("Transcription completed!");
       
+      // Save transcript to database
+      const { error: dbError } = await supabase
+        .from('transcripts')
+        .insert({
+          name: uploadedFile.name,
+          original_text: data.transcript,
+          file_type: uploadedFile.type,
+          file_size: uploadedFile.size,
+          status: 'completed'
+        });
+
+      if (dbError) {
+        console.error('Failed to save transcript to database:', dbError);
+      }
+
     } catch (error: any) {
       console.error("❌ Transcription error:", {
         error: error.message,
