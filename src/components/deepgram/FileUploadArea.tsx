@@ -1,6 +1,6 @@
 
 import { useDropzone } from "react-dropzone";
-import { Upload, FileAudio, Loader2 } from "lucide-react";
+import { Upload, FileAudio } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 
@@ -24,14 +24,9 @@ export const FileUploadArea = ({
     accept: {
       'audio/mpeg': ['.mp3'],
       'audio/wav': ['.wav'],
-      'audio/x-m4a': ['.m4a'],
-      'audio/aac': ['.aac'],
-      'video/mp4': ['.mp4'],
-      'video/quicktime': ['.mov'],
-      'video/x-msvideo': ['.avi'],
-      'video/webm': ['.webm'],
       'audio/flac': ['.flac'],
-      'audio/x-flac': ['.flac']
+      'audio/x-flac': ['.flac'],
+      'video/mp4': ['.mp4']
     },
     maxFiles: 1,
     multiple: false,
@@ -44,7 +39,7 @@ export const FileUploadArea = ({
               errorMessage = 'File is too large. Maximum size is 2GB';
               break;
             case 'file-invalid-type':
-              errorMessage = 'Invalid file type. Please upload an audio or video file';
+              errorMessage = 'Invalid file type. Please upload an MP3, WAV, FLAC, or MP4 file';
               break;
             case 'too-many-files':
               errorMessage = 'Please upload only one file at a time';
@@ -99,7 +94,7 @@ export const FileUploadArea = ({
             }
           </p>
           <p className="text-sm text-muted-foreground">
-            Supports MP3, WAV, FLAC, M4A, AAC, MP4, MOV, AVI, and WEBM files (max 2GB)
+            Supports MP3, WAV, FLAC, and MP4 files (max 2GB)
           </p>
         </>
       )}

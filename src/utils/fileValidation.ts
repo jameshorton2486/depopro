@@ -1,7 +1,7 @@
 
 export const SUPPORTED_TYPES = [
-  'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/aac',
-  'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'
+  'audio/mpeg', 'audio/wav', 'audio/flac', 'audio/x-flac',
+  'video/mp4'
 ] as const;
 
 export const validateFile = (file: File) => {
@@ -16,7 +16,7 @@ export const validateFile = (file: File) => {
       providedType: file.type,
       supportedTypes: SUPPORTED_TYPES
     });
-    throw new Error("Unsupported file type. Please upload an audio or video file.");
+    throw new Error("Unsupported file type. Please upload an MP3, WAV, FLAC, or MP4 file.");
   }
 
   if (file.size > 2000 * 1024 * 1024) { // 2GB limit
