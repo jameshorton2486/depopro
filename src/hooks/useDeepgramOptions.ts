@@ -7,7 +7,9 @@ const defaultOptions: DeepgramOptions = {
   language: "en",
   smart_format: true,
   punctuate: true,
-  diarize: false
+  diarize: true,
+  filler_words: true,
+  paragraphs: true
 };
 
 export const useDeepgramOptions = () => {
