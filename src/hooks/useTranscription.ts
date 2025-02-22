@@ -4,6 +4,7 @@ import { processAudioInChunks } from "@/hooks/useDeepgramAPI";
 import { DeepgramOptions } from "@/types/deepgram";
 import { AudioPreprocessor } from "@/utils/audioPreprocessing";
 import { toast } from "sonner";
+import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 
 export const useTranscription = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -116,6 +117,11 @@ export const useTranscription = () => {
     }
   };
 
+  const handleDownload = (transcript: string) => {
+    if (!transcript) return;
+    createAndDownloadWordDoc(transcript);
+  };
+
   return {
     uploadedFile,
     transcript,
@@ -130,5 +136,6 @@ export const useTranscription = () => {
     setLanguage,
     handleOptionsChange,
     handleTranscribe,
+    handleDownload,
   };
 };

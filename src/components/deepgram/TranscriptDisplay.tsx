@@ -7,7 +7,7 @@ import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 
 interface TranscriptDisplayProps {
   transcript: string;
-  onDownload: (format: 'txt' | 'docx') => void;
+  onDownload: (transcript: string) => void;
 }
 
 export const TranscriptDisplay = ({ transcript, onDownload }: TranscriptDisplayProps) => {
@@ -15,7 +15,7 @@ export const TranscriptDisplay = ({ transcript, onDownload }: TranscriptDisplayP
 
   const handleTranscriptComplete = () => {
     // Automatically trigger Word document download when transcript is ready
-    createAndDownloadWordDoc(transcript);
+    onDownload(transcript);
   };
 
   // Call handleTranscriptComplete when component mounts with a transcript
@@ -35,15 +35,7 @@ export const TranscriptDisplay = ({ transcript, onDownload }: TranscriptDisplayP
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onDownload('txt')}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Download as TXT
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onDownload('docx')}
+            onClick={() => onDownload(transcript)}
           >
             <Download className="w-4 h-4 mr-2" />
             Download as DOCX
