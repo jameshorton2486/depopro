@@ -128,6 +128,7 @@ export default function Deepgram() {
           onOptionsChange={handleOptionsChange}
           handleTranscribe={handleTranscribe}
           isProcessing={isProcessing}
+          progress={progress}
         />
         {isProcessing && (
           <ProcessingOverlay

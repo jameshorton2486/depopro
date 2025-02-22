@@ -5,6 +5,7 @@ import { ModelSelect } from "./ModelSelect";
 import { LanguageSelect } from "./LanguageSelect";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 
 interface TranscriptionControlsProps {
   model: string;
@@ -15,6 +16,7 @@ interface TranscriptionControlsProps {
   onOptionsChange: (options: Partial<DeepgramOptions>) => void;
   handleTranscribe: () => void;
   isProcessing: boolean;
+  progress: number;
 }
 
 export const TranscriptionControls = ({
@@ -25,7 +27,8 @@ export const TranscriptionControls = ({
   onLanguageChange,
   onOptionsChange,
   handleTranscribe,
-  isProcessing
+  isProcessing,
+  progress
 }: TranscriptionControlsProps) => {
   const handleModelChange = (value: string) => {
     onModelChange(value);
@@ -48,6 +51,16 @@ export const TranscriptionControls = ({
         <ModelSelect model={model} onModelChange={handleModelChange} />
         <LanguageSelect language={language} onLanguageChange={handleLanguageChange} />
       </div>
+      
+      {isProcessing && (
+        <div className="w-full space-y-2">
+          <Progress value={progress} className="w-full h-2" />
+          <p className="text-sm text-center text-muted-foreground">
+            Processing: {progress}%
+          </p>
+        </div>
+      )}
+      
       <Button 
         onClick={handleTranscribeClick} 
         disabled={isProcessing}

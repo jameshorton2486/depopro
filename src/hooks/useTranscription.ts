@@ -45,6 +45,20 @@ export const useTranscription = () => {
     }
   };
 
+  const simulateProgress = () => {
+    setProgress(0);
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(interval);
+          return prev;
+        }
+        return prev + 10;
+      });
+    }, 1000);
+    return interval;
+  };
+
   const handleTranscribe = async () => {
     if (!uploadedFile) {
       console.error('❌ No file uploaded');
@@ -71,6 +85,8 @@ export const useTranscription = () => {
     setTranscript("");
     setProgress(0);
 
+    const progressInterval = simulateProgress();
+
     try {
       // Create record and start processing
       const transcriptRecord = await createTranscriptRecord(uploadedFile, session.user.id);
@@ -89,6 +105,9 @@ export const useTranscription = () => {
       console.debug('✅ Transcription completed successfully');
       toast.success("Transcription completed!");
 
+      // Set progress to 100% when done
+      setProgress(100);
+
     } catch (error: any) {
       console.error("❌ Transcription error:", {
         error: error.message,
@@ -97,9 +116,9 @@ export const useTranscription = () => {
       });
       toast.error(`Transcription failed: ${error.message}`);
     } finally {
+      clearInterval(progressInterval);
       setIsProcessing(false);
       setProcessingStatus("");
-      setProgress(0);
       console.debug('🏁 Transcription process finished');
     }
   };
