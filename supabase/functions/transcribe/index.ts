@@ -1,6 +1,7 @@
 
 // @deno-types="https://raw.githubusercontent.com/deepgram/deepgram-node-sdk/main/dist/index.d.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -57,19 +58,6 @@ serve(async (req) => {
     }
 
     console.log('Transcription completed successfully');
-
-    // Store the result in Supabase
-    const { error: dbError } = await supabase
-      .from('transcripts')
-      .insert({
-        name: fileName,
-        original_text: transcript,
-        status: 'completed'
-      });
-
-    if (dbError) {
-      console.error('Error saving to database:', dbError);
-    }
 
     return new Response(
       JSON.stringify({ 

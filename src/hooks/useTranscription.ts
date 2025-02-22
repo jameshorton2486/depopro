@@ -82,6 +82,22 @@ export const useTranscription = () => {
     setProgress(0);
 
     try {
+      // Create initial transcript record
+      const { data: transcriptRecord, error: createError } = await supabase
+        .from('transcripts')
+        .insert({
+          name: uploadedFile.name,
+          file_type: uploadedFile.type,
+          file_size: uploadedFile.size,
+          status: 'processing'
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        throw new Error(`Failed to create transcript record: ${createError.message}`);
+      }
+
       setProcessingStatus("Processing audio...");
       toast.info("Starting transcription process...");
       
@@ -114,6 +130,19 @@ export const useTranscription = () => {
 
       if (!data?.transcript) {
         throw new Error("No transcript received from processing");
+      }
+
+      // Update transcript record with the result
+      const { error: updateError } = await supabase
+        .from('transcripts')
+        .update({
+          original_text: data.transcript,
+          status: 'completed'
+        })
+        .eq('id', transcriptRecord.id);
+
+      if (updateError) {
+        console.error('Failed to update transcript record:', updateError);
       }
 
       setTranscript(data.transcript);

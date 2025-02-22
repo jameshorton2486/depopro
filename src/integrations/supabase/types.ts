@@ -158,6 +158,7 @@ export type Database = {
         | "punctuation"
         | "formatting"
         | "custom"
+      transcript_status: "pending" | "processing" | "completed" | "error"
     }
     CompositeTypes: {
       [_ in never]: never
