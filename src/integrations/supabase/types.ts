@@ -106,6 +106,7 @@ export type Database = {
           original_text: string
           processing_duration: number | null
           status: Database["public"]["Enums"]["file_status"] | null
+          user_id: string
           words: Json | null
         }
         Insert: {
@@ -120,6 +121,7 @@ export type Database = {
           original_text: string
           processing_duration?: number | null
           status?: Database["public"]["Enums"]["file_status"] | null
+          user_id: string
           words?: Json | null
         }
         Update: {
@@ -134,6 +136,7 @@ export type Database = {
           original_text?: string
           processing_duration?: number | null
           status?: Database["public"]["Enums"]["file_status"] | null
+          user_id?: string
           words?: Json | null
         }
         Relationships: []

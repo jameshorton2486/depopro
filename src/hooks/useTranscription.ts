@@ -70,6 +70,14 @@ export const useTranscription = () => {
       return;
     }
 
+    // Get current user
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.user) {
+      console.error('❌ User not authenticated:', sessionError);
+      toast.error("Please sign in to transcribe files");
+      return;
+    }
+
     console.debug('🎬 Starting transcription process:', {
       fileName: uploadedFile.name,
       fileType: uploadedFile.type,
@@ -82,7 +90,7 @@ export const useTranscription = () => {
     setProgress(0);
 
     try {
-      // Create initial transcript record
+      // Create initial transcript record with user_id
       const { data: transcriptRecord, error: createError } = await supabase
         .from('transcripts')
         .insert({
@@ -90,7 +98,8 @@ export const useTranscription = () => {
           file_type: uploadedFile.type,
           file_size: uploadedFile.size,
           status: 'pending',
-          original_text: '' // Initialize with empty string since it's required
+          original_text: '', // Initialize with empty string since it's required
+          user_id: session.user.id // Add user_id field
         })
         .select()
         .single();
