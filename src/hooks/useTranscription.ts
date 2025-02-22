@@ -66,14 +66,6 @@ export const useTranscription = () => {
       return;
     }
 
-    // Create a guest user session if there's no authenticated user
-    const { data: { session } } = await supabase.auth.signInAnonymously();
-    if (!session?.user) {
-      console.error('❌ Failed to create guest session');
-      toast.error("Failed to create guest session. Please try again.");
-      return;
-    }
-
     console.debug('🎬 Starting transcription process:', {
       fileName: uploadedFile.name,
       fileType: uploadedFile.type,
@@ -88,19 +80,14 @@ export const useTranscription = () => {
     const progressInterval = simulateProgress();
 
     try {
-      // Create record and start processing
-      const transcriptRecord = await createTranscriptRecord(uploadedFile, session.user.id);
-      await updateTranscriptStatus(transcriptRecord.id, 'processing');
-
+      // Create a temporary ID for the transcript
+      const tempId = crypto.randomUUID();
+      
       setProcessingStatus("Processing audio...");
       toast.info("Starting transcription process...");
       
       // Process the audio file
       const transcriptText = await processAudioFile(uploadedFile, options);
-      
-      // Update the transcript
-      await updateTranscriptText(transcriptRecord.id, transcriptText);
-      
       setTranscript(transcriptText);
       console.debug('✅ Transcription completed successfully');
       toast.success("Transcription completed!");
