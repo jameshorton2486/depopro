@@ -31,14 +31,12 @@ export const testAPIs = async (): Promise<APITestResults> => {
         status: 'error',
         details: `Failed to connect to Supabase: ${error.message}`
       };
-      toast.error("Supabase connection failed");
     } else {
       console.debug('✅ Supabase connection successful:', data);
       results.supabase = {
         status: 'success',
         details: 'Successfully connected to Supabase'
       };
-      toast.success("Supabase connection successful");
     }
   } catch (error: any) {
     console.error('❌ Unexpected Supabase error:', error);
@@ -46,28 +44,27 @@ export const testAPIs = async (): Promise<APITestResults> => {
       status: 'error',
       details: `Unexpected Supabase error: ${error.message}`
     };
-    toast.error("Supabase test failed");
   }
 
   // Test Deepgram Connection
   try {
     console.debug('🔍 Testing Deepgram connection...');
-    const { data, error } = await supabase.functions.invoke('test-deepgram-key');
+    const response = await supabase.functions.invoke('test-deepgram-key', {
+      body: { test: true }
+    });
     
-    if (error) {
-      console.error('❌ Deepgram API test error:', error);
+    if (response.error) {
+      console.error('❌ Deepgram API test error:', response.error);
       results.deepgram = {
         status: 'error',
-        details: `Failed to test Deepgram API: ${error.message}`
+        details: `Failed to test Deepgram API: ${response.error.message}`
       };
-      toast.error("Deepgram API test failed");
     } else {
-      console.debug('✅ Deepgram API test successful:', data);
+      console.debug('✅ Deepgram API test successful:', response.data);
       results.deepgram = {
         status: 'success',
-        details: data.message || 'Successfully tested Deepgram API'
+        details: response.data?.message || 'Successfully tested Deepgram API'
       };
-      toast.success("Deepgram API test successful");
     }
   } catch (error: any) {
     console.error('❌ Unexpected Deepgram error:', error);
@@ -75,7 +72,6 @@ export const testAPIs = async (): Promise<APITestResults> => {
       status: 'error',
       details: `Unexpected Deepgram error: ${error.message}`
     };
-    toast.error("Deepgram test failed");
   }
 
   return results;
