@@ -1,18 +1,20 @@
 
 export class AudioPreprocessor {
   private context: AudioContext;
-  private static readonly TARGET_SAMPLE_RATE = 8000;
+  private static readonly TARGET_SAMPLE_RATE = 16000;
+  private static readonly TARGET_BIT_DEPTH = 16;
   private static readonly CACHE_PREFIX = 'transcript_';
   private static readonly MAX_CACHE_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
   constructor() {
-    this.context = new AudioContext();
+    this.context = new AudioContext({ sampleRate: AudioPreprocessor.TARGET_SAMPLE_RATE });
   }
 
   async preprocessAudio(file: File): Promise<ArrayBuffer> {
     console.debug('🎵 Starting audio preprocessing:', {
       originalSize: `${(file.size / (1024 * 1024)).toFixed(2)}MB`,
-      type: file.type
+      type: file.type,
+      name: file.name
     });
 
     try {
@@ -24,67 +26,141 @@ export class AudioPreprocessor {
       }
 
       const arrayBuffer = await file.arrayBuffer();
-      const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
-      
-      // Downsample
-      const downsampledBuffer = await this.downsample(audioBuffer);
-      
-      // Normalize
-      const normalizedBuffer = this.normalize(downsampledBuffer);
-      
-      // Cache the result
-      await this.cacheAudio(file, normalizedBuffer);
-
-      console.debug('✅ Audio preprocessing complete:', {
-        originalSize: `${(file.size / (1024 * 1024)).toFixed(2)}MB`,
-        processedSize: `${(normalizedBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-        reductionPercentage: `${((1 - normalizedBuffer.byteLength / file.size) * 100).toFixed(1)}%`
+      console.debug('📊 Original audio details:', {
+        size: `${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+        type: file.type
       });
 
-      return normalizedBuffer;
+      // Decode the audio data
+      const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+      console.debug('🔍 Audio properties:', {
+        duration: audioBuffer.duration,
+        numberOfChannels: audioBuffer.numberOfChannels,
+        sampleRate: audioBuffer.sampleRate
+      });
+
+      // Convert to mono if needed
+      const monoBuffer = this.convertToMono(audioBuffer);
+      
+      // Resample to 16kHz if needed
+      const resampledBuffer = await this.resample(monoBuffer);
+      
+      // Convert to 16-bit PCM
+      const pcmBuffer = this.convertToPCM16(resampledBuffer);
+      
+      // Create WAV header
+      const wavBuffer = this.createWAVFile(pcmBuffer);
+
+      // Cache the result
+      await this.cacheAudio(file, wavBuffer);
+
+      console.debug('✅ Audio preprocessing complete:', {
+        originalSize: `${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+        processedSize: `${(wavBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
+        sampleRate: AudioPreprocessor.TARGET_SAMPLE_RATE,
+        bitDepth: AudioPreprocessor.TARGET_BIT_DEPTH,
+        channels: 1
+      });
+
+      return wavBuffer;
     } catch (error) {
       console.error('❌ Error preprocessing audio:', error);
       throw error;
     }
   }
 
-  private async downsample(audioBuffer: AudioBuffer): Promise<ArrayBuffer> {
+  private convertToMono(audioBuffer: AudioBuffer): Float32Array {
+    const channels = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length;
+    const monoData = new Float32Array(length);
+
+    // If already mono, just return the data
+    if (channels === 1) {
+      audioBuffer.copyFromChannel(monoData, 0);
+      return monoData;
+    }
+
+    // Mix down to mono
+    for (let i = 0; i < length; i++) {
+      let sum = 0;
+      for (let channel = 0; channel < channels; channel++) {
+        sum += audioBuffer.getChannelData(channel)[i];
+      }
+      monoData[i] = sum / channels;
+    }
+
+    return monoData;
+  }
+
+  private async resample(audioData: Float32Array): Promise<Float32Array> {
     const offlineContext = new OfflineAudioContext(
       1,
-      Math.ceil(audioBuffer.duration * AudioPreprocessor.TARGET_SAMPLE_RATE),
+      Math.ceil(audioData.length * (AudioPreprocessor.TARGET_SAMPLE_RATE / this.context.sampleRate)),
       AudioPreprocessor.TARGET_SAMPLE_RATE
     );
 
     const source = offlineContext.createBufferSource();
-    source.buffer = audioBuffer;
+    const buffer = this.context.createBuffer(1, audioData.length, this.context.sampleRate);
+    buffer.copyToChannel(audioData, 0);
+    source.buffer = buffer;
     source.connect(offlineContext.destination);
     source.start();
 
     const renderedBuffer = await offlineContext.startRendering();
-    const downsampledArray = new Float32Array(renderedBuffer.length);
-    renderedBuffer.copyFromChannel(downsampledArray, 0);
+    const resampledData = new Float32Array(renderedBuffer.length);
+    renderedBuffer.copyFromChannel(resampledData, 0);
 
-    return downsampledArray.buffer;
+    return resampledData;
   }
 
-  private normalize(buffer: ArrayBuffer): ArrayBuffer {
-    const array = new Float32Array(buffer);
-    let maxVal = 0;
-
-    // Find maximum absolute value
-    for (let i = 0; i < array.length; i++) {
-      maxVal = Math.max(maxVal, Math.abs(array[i]));
+  private convertToPCM16(float32Audio: Float32Array): Int16Array {
+    const pcm16 = new Int16Array(float32Audio.length);
+    for (let i = 0; i < float32Audio.length; i++) {
+      const s = Math.max(-1, Math.min(1, float32Audio[i]));
+      pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }
+    return pcm16;
+  }
 
-    if (maxVal === 0) return buffer;
+  private createWAVFile(pcmData: Int16Array): ArrayBuffer {
+    const wavHeader = new ArrayBuffer(44);
+    const view = new DataView(wavHeader);
 
-    // Normalize
-    const scale = 0.99 / maxVal;
-    for (let i = 0; i < array.length; i++) {
-      array[i] *= scale;
-    }
+    // WAV header creation
+    const writeString = (view: DataView, offset: number, string: string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
 
-    return array.buffer;
+    const channels = 1;
+    const sampleRate = AudioPreprocessor.TARGET_SAMPLE_RATE;
+    const bytesPerSample = 2; // 16-bit = 2 bytes
+    const blockAlign = channels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = pcmData.length * bytesPerSample;
+    const fileSize = 36 + dataSize;
+
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, fileSize, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM format
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, AudioPreprocessor.TARGET_BIT_DEPTH, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    // Combine header and PCM data
+    const wavFile = new ArrayBuffer(wavHeader.byteLength + pcmData.byteLength);
+    new Uint8Array(wavFile).set(new Uint8Array(wavHeader), 0);
+    new Uint8Array(wavFile).set(new Uint8Array(pcmData.buffer), wavHeader.byteLength);
+
+    return wavFile;
   }
 
   private async generateHash(file: File): Promise<string> {
@@ -104,13 +180,11 @@ export class AudioPreprocessor {
 
       const { data, timestamp } = JSON.parse(cached);
       
-      // Check cache age
       if (Date.now() - timestamp > AudioPreprocessor.MAX_CACHE_AGE) {
         localStorage.removeItem(key);
         return null;
       }
 
-      // Convert base64 to ArrayBuffer
       const binaryString = atob(data);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
@@ -128,7 +202,6 @@ export class AudioPreprocessor {
       const hash = await this.generateHash(file);
       const key = AudioPreprocessor.CACHE_PREFIX + hash;
 
-      // Convert ArrayBuffer to base64
       const bytes = new Uint8Array(processedBuffer);
       let binary = '';
       for (let i = 0; i < bytes.byteLength; i++) {
@@ -141,7 +214,10 @@ export class AudioPreprocessor {
         timestamp: Date.now()
       }));
 
-      console.debug('✅ Cached preprocessed audio:', { hash, size: processedBuffer.byteLength });
+      console.debug('✅ Cached preprocessed audio:', {
+        hash,
+        size: processedBuffer.byteLength
+      });
     } catch (error) {
       console.warn('⚠️ Failed to cache audio:', error);
     }
