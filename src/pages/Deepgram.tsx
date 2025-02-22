@@ -104,11 +104,7 @@ export default function Deepgram() {
           onDrop={transcription.onDrop}
         />
         <TranscriptionControls
-          model={transcription.model}
-          language={transcription.language}
           options={transcription.options}
-          onModelChange={transcription.setModel}
-          onLanguageChange={transcription.setLanguage}
           onOptionsChange={transcription.handleOptionsChange}
           handleTranscribe={transcription.handleTranscribe}
           isProcessing={transcription.isProcessing}
