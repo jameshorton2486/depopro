@@ -29,7 +29,9 @@ export const FileUploadArea = ({
       'video/mp4': ['.mp4'],
       'video/quicktime': ['.mov'],
       'video/x-msvideo': ['.avi'],
-      'video/webm': ['.webm']
+      'video/webm': ['.webm'],
+      'audio/flac': ['.flac'],
+      'audio/x-flac': ['.flac']
     },
     maxFiles: 1,
     multiple: false,
@@ -97,7 +99,7 @@ export const FileUploadArea = ({
             }
           </p>
           <p className="text-sm text-muted-foreground">
-            Supports MP3, WAV, M4A, AAC, MP4, MOV, AVI, and WEBM files (max 2GB)
+            Supports MP3, WAV, FLAC, M4A, AAC, MP4, MOV, AVI, and WEBM files (max 2GB)
           </p>
         </>
       )}
