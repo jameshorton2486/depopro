@@ -19,12 +19,25 @@ serve(async (req) => {
       throw new Error('Deepgram API key not configured')
     }
 
-    // Test basic connectivity
-    console.log('✅ Edge Function is accessible and Deepgram API key is configured')
+    // Test Deepgram API connectivity
+    const response = await fetch('https://api.deepgram.com/v1/listen', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Token ${apiKey}`,
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Deepgram API test failed:', error);
+      throw new Error(`Deepgram API returned error: ${error}`);
+    }
+
+    console.log('✅ Deepgram API key is valid and working');
     
     return new Response(
       JSON.stringify({ 
-        message: 'Edge Function is accessible and Deepgram API key is configured',
+        message: 'Deepgram API key is valid and working',
         timestamp: new Date().toISOString()
       }),
       { 
@@ -36,7 +49,7 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('❌ Error testing connectivity:', error)
+    console.error('❌ Error testing Deepgram API:', error);
     
     return new Response(
       JSON.stringify({ 

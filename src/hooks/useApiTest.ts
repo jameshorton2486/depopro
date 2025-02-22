@@ -21,24 +21,17 @@ export const useApiTest = () => {
 
   const testApiKeys = async () => {
     setIsTestingApi(true);
-    toast.loading('Testing API connections...');
+    toast.loading('Starting API tests...');
     
     try {
       const results = await testAPIs();
       setTestResults(results);
       
-      // Check Supabase connection
-      if (results.supabase.status === 'success') {
-        toast.success('Supabase connection successful');
-      } else {
-        toast.error(`Supabase connection failed: ${results.supabase.details}`);
-      }
+      const allSuccess = Object.values(results)
+        .every((r: APITestResult) => r.status === 'success');
 
-      // Check Deepgram connection
-      if (results.deepgram.status === 'success') {
-        toast.success('Deepgram API key is valid');
-      } else {
-        toast.error(`Deepgram API key test failed: ${results.deepgram.details}`);
+      if (allSuccess) {
+        toast.success('All API connections are working!');
       }
       
       console.debug('API test results:', results);
