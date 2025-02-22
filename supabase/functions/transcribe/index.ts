@@ -1,10 +1,10 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -13,143 +13,84 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🔍 Request details:', {
-      method: req.method,
-      contentType: req.headers.get('content-type'),
-      url: req.url
-    });
+    console.log("✅ Processing transcription request");
 
-    // Get file from request
-    console.log('📥 Parsing form data...');
     const formData = await req.formData();
-    console.log('📦 Form data keys:', [...formData.keys()]);
+    const audioFile = formData.get("audio");
+    const optionsStr = formData.get("options");
 
-    const audioFile = formData.get('audio');
-    const optionsJson = formData.get('options');
-    
     if (!audioFile) {
-      console.error('❌ No audio file provided');
+      console.error("❌ No audio file provided");
       return new Response(
-        JSON.stringify({ error: 'No audio file provided' }), 
-        { status: 400, headers: corsHeaders }
+        JSON.stringify({ error: "No audio file provided" }), 
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!(audioFile instanceof Blob)) {
-      console.error('❌ Invalid audio file format');
-      return new Response(
-        JSON.stringify({ error: 'Invalid audio file format' }), 
-        { status: 400, headers: corsHeaders }
-      );
+    let options;
+    try {
+      options = optionsStr ? JSON.parse(optionsStr as string) : {};
+      console.log("✅ Parsed options:", options);
+    } catch (error) {
+      console.error("❌ Error parsing options:", error);
+      options = {};
     }
 
-    console.log('📊 Audio file details:', {
-      type: audioFile.type,
-      size: `${audioFile.size / 1024 / 1024}MB`
-    });
-
-    const deepgramApiKey = Deno.env.get('DEEPGRAM_API_KEY');
+    const deepgramApiKey = Deno.env.get("DEEPGRAM_API_KEY");
     if (!deepgramApiKey) {
-      console.error('❌ Deepgram API key not configured');
+      console.error("❌ Deepgram API Key not found");
       return new Response(
-        JSON.stringify({ error: 'Deepgram API key not configured' }), 
-        { status: 500, headers: corsHeaders }
+        JSON.stringify({ error: "Deepgram API key missing" }), 
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Parse options with defaults
-    const options = optionsJson ? JSON.parse(optionsJson as string) : {};
-    console.log('🔧 Processing options:', {
-      ...options,
-      apiKeyPresent: !!deepgramApiKey
+    // Create a new FormData for Deepgram with the file
+    const deepgramForm = new FormData();
+    deepgramForm.append("audio", audioFile);
+
+    // Construct Deepgram API URL with query parameters
+    const queryParams = new URLSearchParams({
+      model: options.model || "nova-2",
+      language: options.language || "en",
+      smart_format: (options.smart_format ?? true).toString(),
+      diarize: (options.diarize ?? true).toString(),
+      punctuate: (options.punctuate ?? true).toString(),
+      filler_words: (options.filler_words ?? true).toString(),
+      paragraphs: (options.paragraphs ?? true).toString(),
     });
 
-    // Convert Blob to ArrayBuffer
-    console.log('🔄 Converting audio to buffer...');
-    const buffer = await audioFile.arrayBuffer();
-    console.log('✅ Buffer created:', `${buffer.byteLength / 1024 / 1024}MB`);
+    console.log("✅ Sending request to Deepgram with options:", Object.fromEntries(queryParams));
 
-    // Prepare Deepgram request
-    const params = new URLSearchParams({
-      model: options.model || 'nova-2',
-      language: options.language || 'en',
-      smart_format: 'true',
-      diarize: 'false',
-      punctuate: 'true'
-    });
-
-    console.log('🚀 Sending request to Deepgram:', {
-      url: 'https://api.deepgram.com/v1/listen?' + params.toString(),
-      contentType: audioFile.type || 'audio/wav',
-      bufferSize: `${buffer.byteLength / 1024 / 1024}MB`
-    });
-
-    const response = await fetch('https://api.deepgram.com/v1/listen?' + params.toString(), {
-      method: 'POST',
+    const response = await fetch(`https://api.deepgram.com/v1/listen?${queryParams}`, {
+      method: "POST",
       headers: {
-        'Authorization': `Token ${deepgramApiKey}`,
-        'Content-Type': audioFile.type || 'audio/wav'
+        Authorization: `Token ${deepgramApiKey}`,
       },
-      body: buffer
-    });
-
-    console.log('📨 Deepgram response status:', {
-      status: response.status,
-      statusText: response.statusText
+      body: deepgramForm,
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Deepgram API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText
-      });
-
+      const error = await response.text();
+      console.error("❌ Deepgram API error:", error);
       return new Response(
-        JSON.stringify({ 
-          error: 'Deepgram API error', 
-          details: errorText,
-          status: response.status 
-        }),
-        { status: response.status, headers: corsHeaders }
+        JSON.stringify({ error: "Deepgram API error", details: error }), 
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
-    
-    if (!data.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
-      console.error('❌ Invalid Deepgram response format:', data);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid response format from Deepgram',
-          details: data 
-        }),
-        { status: 500, headers: corsHeaders }
-      );
-    }
+    console.log("✅ Transcription successful");
 
-    console.log('✅ Transcription successful');
-    
     return new Response(
-      JSON.stringify(data),
+      JSON.stringify(data), 
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
-    console.error('❌ Unexpected error:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
-
+    console.error("❌ Unexpected error:", error);
     return new Response(
-      JSON.stringify({ 
-        error: 'Internal Server Error', 
-        details: error.message,
-        type: error.name
-      }),
-      { status: 500, headers: corsHeaders }
+      JSON.stringify({ error: "Internal server error", details: error.message }), 
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
