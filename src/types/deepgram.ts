@@ -5,6 +5,8 @@ export interface DeepgramOptions {
   smart_format: boolean;
   diarize: boolean;
   punctuate: boolean;
+  filler_words: boolean;
+  paragraphs: boolean;
 }
 
 export interface TranscriptionResult {

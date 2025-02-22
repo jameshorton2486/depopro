@@ -18,8 +18,10 @@ export const useTranscription = () => {
     model: "nova-2",
     language: "en",
     smart_format: true,
-    diarize: false,
-    punctuate: true
+    diarize: true,
+    punctuate: true,
+    filler_words: true,
+    paragraphs: true
   });
 
   const handleOptionsChange = (newOptions: Partial<DeepgramOptions>) => {
