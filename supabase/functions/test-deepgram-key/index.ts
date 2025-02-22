@@ -13,17 +13,17 @@ serve(async (req) => {
   }
 
   try {
-    // Verify Deepgram API key is configured
-    const apiKey = Deno.env.get('DEEPGRAM_API_KEY')
-    if (!apiKey) {
+    const DEEPGRAM_API_KEY = Deno.env.get('DEEPGRAM_API_KEY')
+    if (!DEEPGRAM_API_KEY) {
       throw new Error('Deepgram API key not configured')
     }
 
-    // Test Deepgram API connectivity
-    const response = await fetch('https://api.deepgram.com/v1/listen', {
+    // Test Deepgram API by making a simple request to the projects endpoint
+    const response = await fetch('https://api.deepgram.com/v1/projects', {
       method: 'GET',
       headers: {
-        'Authorization': `Token ${apiKey}`,
+        'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+        'Content-Type': 'application/json'
       }
     });
 
@@ -33,8 +33,9 @@ serve(async (req) => {
       throw new Error(`Deepgram API returned error: ${error}`);
     }
 
-    console.log('✅ Deepgram API key is valid and working');
-    
+    const data = await response.json();
+    console.log('✅ Deepgram API key is valid:', data);
+
     return new Response(
       JSON.stringify({ 
         message: 'Deepgram API key is valid and working',
@@ -53,8 +54,7 @@ serve(async (req) => {
     
     return new Response(
       JSON.stringify({ 
-        error: error.message,
-        timestamp: new Date().toISOString()
+        error: error.message 
       }),
       { 
         status: 400,
