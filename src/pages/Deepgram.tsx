@@ -15,7 +15,23 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function Deepgram() {
   const [includeTranscriptionTest, setIncludeTranscriptionTest] = useState(false);
-  const transcription = useTranscription();
+  const {
+    uploadedFile,
+    transcript,
+    isProcessing,
+    processingStatus,
+    progress,
+    options,
+    model,
+    language,
+    onDrop,
+    handleOptionsChange,
+    onModelChange,
+    onLanguageChange,
+    handleTranscribe,
+    handleDownload,
+  } = useTranscription();
+  
   const { isTestingApi, testResults, testApiKeys } = useApiTest();
 
   const handleTestClick = () => {
@@ -97,27 +113,31 @@ export default function Deepgram() {
 
       <div className="space-y-8">
         <FileUploadArea
-          uploadedFile={transcription.uploadedFile}
-          isProcessing={transcription.isProcessing}
-          processingStatus={transcription.processingStatus}
-          progress={transcription.progress}
-          onDrop={transcription.onDrop}
+          uploadedFile={uploadedFile}
+          isProcessing={isProcessing}
+          processingStatus={processingStatus}
+          progress={progress}
+          onDrop={onDrop}
         />
         <TranscriptionControls
-          options={transcription.options}
-          onOptionsChange={transcription.handleOptionsChange}
-          handleTranscribe={transcription.handleTranscribe}
-          isProcessing={transcription.isProcessing}
+          model={model}
+          language={language}
+          options={options}
+          onModelChange={onModelChange}
+          onLanguageChange={onLanguageChange}
+          onOptionsChange={handleOptionsChange}
+          handleTranscribe={handleTranscribe}
+          isProcessing={isProcessing}
         />
-        {transcription.isProcessing && (
+        {isProcessing && (
           <ProcessingOverlay
-            processingStatus={transcription.processingStatus}
+            processingStatus={processingStatus}
           />
         )}
-        {transcription.transcript && (
+        {transcript && (
           <TranscriptDisplay
-            transcript={transcription.transcript}
-            onDownload={() => transcription.handleDownload(transcription.transcript)}
+            transcript={transcript}
+            onDownload={() => handleDownload(transcript)}
           />
         )}
       </div>
