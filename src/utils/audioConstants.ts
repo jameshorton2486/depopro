@@ -10,7 +10,8 @@ export const DEBUG = true; // Enable/disable debug logging
 
 export const SUPPORTED_AUDIO_TYPES = [
   'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/aac',
-  'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'
+  'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+  'audio/flac', 'audio/x-flac' // Added FLAC support
 ] as const;
 
 export type SupportedAudioType = typeof SUPPORTED_AUDIO_TYPES[number];
@@ -18,7 +19,7 @@ export type SupportedAudioType = typeof SUPPORTED_AUDIO_TYPES[number];
 // Enhanced error messages with resolution suggestions
 export const ERROR_MESSAGES = {
   FILE_TOO_LARGE: 'File size exceeds maximum limit of 100MB. Please reduce the file size or split into smaller segments.',
-  UNSUPPORTED_TYPE: 'Unsupported file type. Please upload an audio or video file in MP3, WAV, M4A, AAC, MP4, MOV, AVI, or WEBM format.',
+  UNSUPPORTED_TYPE: 'Unsupported file type. Please upload an audio or video file in MP3, WAV, FLAC, M4A, AAC, MP4, MOV, AVI, or WEBM format.',
   EMPTY_FILE: 'The uploaded file appears to be empty. Please check the file and try again.',
   PROCESSING_ERROR: 'Error processing audio file. Please ensure the file is not corrupted and try again.',
   TIMEOUT_ERROR: 'The processing request timed out. This may happen with large files - try splitting into smaller segments.',
