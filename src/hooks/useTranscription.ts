@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { processAudioInChunks } from "@/hooks/useDeepgramAPI";
 import { DeepgramOptions } from "@/types/deepgram";
@@ -134,8 +135,12 @@ export const useTranscription = () => {
     processingStatus,
     progress,
     options,
+    model: options.model,
+    language: options.language,
     onDrop,
     handleOptionsChange,
+    onModelChange: (model: string) => handleOptionsChange({ model }),
+    onLanguageChange: (language: string) => handleOptionsChange({ language }),
     handleTranscribe,
     handleDownload,
   };
