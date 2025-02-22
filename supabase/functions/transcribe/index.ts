@@ -33,7 +33,10 @@ serve(async (req) => {
       console.log("✅ Parsed options:", options);
     } catch (error) {
       console.error("❌ Error parsing options:", error);
-      options = {};
+      return new Response(
+        JSON.stringify({ error: "Invalid options format" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const deepgramApiKey = Deno.env.get("DEEPGRAM_API_KEY");
@@ -71,11 +74,26 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("❌ Deepgram API error:", error);
+      const errorText = await response.text();
+      let errorMessage;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || errorJson.message || 'Unknown Deepgram error';
+      } catch {
+        errorMessage = errorText || `Deepgram API error (${response.status})`;
+      }
+      
+      console.error("❌ Deepgram API error:", {
+        status: response.status,
+        error: errorMessage
+      });
+      
       return new Response(
-        JSON.stringify({ error: "Deepgram API error", details: error }), 
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: errorMessage }), 
+        { 
+          status: response.status, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       );
     }
 
@@ -89,8 +107,14 @@ serve(async (req) => {
   } catch (error) {
     console.error("❌ Unexpected error:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error.message }), 
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        error: "Internal server error", 
+        details: error instanceof Error ? error.message : String(error)
+      }), 
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });
