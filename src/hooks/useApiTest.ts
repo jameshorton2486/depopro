@@ -13,18 +13,19 @@ interface APITestResult {
 interface APITestResults {
   supabase: APITestResult;
   deepgram: APITestResult;
+  transcription?: APITestResult;
 }
 
 export const useApiTest = () => {
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [testResults, setTestResults] = useState<APITestResults | null>(null);
 
-  const testApiKeys = async () => {
+  const testApiKeys = async (includeTranscriptionTest: boolean = false) => {
     setIsTestingApi(true);
     toast.loading('Starting API tests...');
     
     try {
-      const results = await testAPIs();
+      const results = await testAPIs(includeTranscriptionTest);
       setTestResults(results);
       
       const allSuccess = Object.values(results)

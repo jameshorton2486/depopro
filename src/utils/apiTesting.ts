@@ -12,9 +12,10 @@ export interface APITestResult {
 export interface APITestResults {
   supabase: APITestResult;
   deepgram: APITestResult;
+  transcription?: APITestResult;
 }
 
-export const testAPIs = async (): Promise<APITestResults> => {
+export const testAPIs = async (includeTranscriptionTest: boolean = false): Promise<APITestResults> => {
   const results: APITestResults = {
     supabase: { status: 'pending', details: '' },
     deepgram: { status: 'pending', details: '' }
@@ -82,6 +83,39 @@ export const testAPIs = async (): Promise<APITestResults> => {
       details: `Unexpected Deepgram error: ${error.message}`
     };
     toast.error(`Deepgram test failed: ${error.message}`);
+  }
+
+  // Optional Transcription Test
+  if (includeTranscriptionTest) {
+    try {
+      console.debug('🔍 Testing transcription process...');
+      toast.loading('Testing transcription process...');
+      
+      const response = await supabase.functions.invoke('test-transcription');
+      
+      if (response.error) {
+        console.error('❌ Transcription test error:', response.error);
+        results.transcription = {
+          status: 'error',
+          details: `Failed to test transcription: ${response.error.message}`
+        };
+        toast.error(`Transcription test failed: ${response.error.message}`);
+      } else {
+        console.debug('✅ Transcription test successful:', response.data);
+        results.transcription = {
+          status: 'success',
+          details: `Successfully tested transcription. Sample transcript: "${response.data?.transcript?.slice(0, 100)}..."`
+        };
+        toast.success('Transcription test successful');
+      }
+    } catch (error: any) {
+      console.error('❌ Unexpected transcription error:', error);
+      results.transcription = {
+        status: 'error',
+        details: `Unexpected transcription error: ${error.message}`
+      };
+      toast.error(`Transcription test failed: ${error.message}`);
+    }
   }
 
   return results;

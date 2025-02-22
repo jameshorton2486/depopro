@@ -9,11 +9,17 @@ import { ProcessingOverlay } from "@/components/deepgram/ProcessingOverlay";
 import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 export default function Deepgram() {
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [includeTranscriptionTest, setIncludeTranscriptionTest] = useState(false);
   const transcription = useTranscription();
   const { isTestingApi, testApiKeys } = useApiTest();
+
+  const handleTestClick = () => {
+    testApiKeys(includeTranscriptionTest);
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
@@ -21,10 +27,18 @@ export default function Deepgram() {
         <DeepgramHeader />
       </div>
       
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-4 space-x-4 items-center">
+        <div className="flex items-center space-x-2">
+          <Switch 
+            id="test-transcription"
+            checked={includeTranscriptionTest}
+            onCheckedChange={setIncludeTranscriptionTest}
+          />
+          <Label htmlFor="test-transcription">Include transcription test</Label>
+        </div>
         <Button 
           variant="outline"
-          onClick={testApiKeys}
+          onClick={handleTestClick}
           disabled={isTestingApi}
         >
           {isTestingApi ? (
