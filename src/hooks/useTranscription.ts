@@ -60,6 +60,7 @@ export const useTranscription = () => {
     }
 
     setUploadedFile(file);
+    toast.success(`File "${file.name}" uploaded successfully`);
     console.debug('✅ File accepted');
   };
 
@@ -83,10 +84,14 @@ export const useTranscription = () => {
 
     try {
       setProcessingStatus("Processing audio...");
+      toast.info("Starting transcription process...");
       console.debug('🎙 Starting audio processing');
       
       const result = await processAudioInChunks(uploadedFile, options, (progress) => {
         setProgress(progress);
+        if (progress % 20 === 0) { // Show progress every 20%
+          toast.info(`Transcription progress: ${progress}%`);
+        }
       });
 
       console.debug('📝 Received processing result:', {
@@ -100,7 +105,7 @@ export const useTranscription = () => {
 
       setTranscript(result.transcript);
       console.debug('✅ Transcription completed successfully');
-      toast.success("Transcription completed successfully!");
+      toast.success("Transcription completed! Your file will download automatically.");
       
     } catch (error: any) {
       console.error("❌ Transcription error:", {
@@ -120,6 +125,7 @@ export const useTranscription = () => {
   const handleDownload = (transcript: string) => {
     if (!transcript) return;
     createAndDownloadWordDoc(transcript);
+    toast.success("Transcript downloaded as Word document");
   };
 
   return {
