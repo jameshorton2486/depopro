@@ -121,7 +121,7 @@ export const useTranscription = () => {
       console.debug('✅ Transcription completed successfully');
       toast.success("Transcription completed!");
       
-      // Save transcript to database
+      // Save transcript to database with correct status enum value
       const { error: dbError } = await supabase
         .from('transcripts')
         .insert({
@@ -129,7 +129,7 @@ export const useTranscription = () => {
           original_text: data.transcript,
           file_type: uploadedFile.type,
           file_size: uploadedFile.size,
-          status: 'completed'
+          status: 'processing' // Using valid status from enum
         });
 
       if (dbError) {
