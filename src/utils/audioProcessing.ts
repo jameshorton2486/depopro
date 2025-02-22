@@ -1,5 +1,5 @@
 
-import type { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
+import type { DeepgramOptions, TranscriptionResult, DeepgramResponse } from "@/types/deepgram";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   MAX_RETRIES, 
@@ -52,7 +52,7 @@ export const processChunkWithRetry = async (
   options: DeepgramOptions,
   chunkIndex: number,
   totalChunks: number
-): Promise<string> => {
+): Promise<TranscriptionResult> => {
   try {
     console.debug(`🔄 Processing chunk ${chunkIndex + 1}/${totalChunks}`, {
       chunkSize: `${(chunkBuffer.byteLength / (1024 * 1024)).toFixed(2)}MB`,
@@ -60,7 +60,6 @@ export const processChunkWithRetry = async (
       options: JSON.stringify(options)
     });
 
-    // File validation
     if (!SUPPORTED_AUDIO_TYPES.includes(mimeType as any)) {
       console.error('❌ Unsupported audio format:', {
         providedType: mimeType,
@@ -109,18 +108,30 @@ export const processChunkWithRetry = async (
         throw error;
       }
 
-      if (!data?.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
+      const response = data as DeepgramResponse;
+      if (!response?.results?.channels?.[0]?.alternatives?.[0]) {
         console.error('❌ Invalid response from transcribe function:', data);
         throw new Error(ERROR_MESSAGES.INVALID_RESPONSE);
       }
 
-      const transcript = data.results.channels[0].alternatives[0].transcript;
+      const alternative = response.results.channels[0].alternatives[0];
+      const processingTime = Date.now() - processingStartTime;
+
       console.debug(`✅ Chunk ${chunkIndex + 1}/${totalChunks} processed`, {
-        transcriptLength: transcript.length,
-        processingTime: `${(Date.now() - processingStartTime) / 1000}s`
+        transcriptLength: alternative.transcript.length,
+        processingTime: `${processingTime / 1000}s`,
+        hasParagraphs: !!alternative.paragraphs
       });
 
-      return transcript;
+      return {
+        transcript: alternative.transcript,
+        paragraphs: alternative.paragraphs?.paragraphs,
+        metadata: {
+          processingTime,
+          audioLength: alternative.words?.[alternative.words.length - 1]?.end || 0,
+          speakers: new Set(alternative.words?.map(w => w.speaker).filter(Boolean)).size
+        }
+      };
     });
   } catch (error) {
     console.error(`❌ Error processing chunk ${chunkIndex + 1}/${totalChunks}:`, error);
