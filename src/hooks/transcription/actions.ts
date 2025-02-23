@@ -23,27 +23,38 @@ export async function transcribeAudio(
   progressInterval: NodeJS.Timeout,
   setProgress: (progress: number) => void
 ) {
-  const fileData = new FormData();
-  fileData.append('file', file);
-  fileData.append('options', JSON.stringify(options));
+  try {
+    // First upload the file to Supabase Storage
+    const fileName = `${crypto.randomUUID()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from('transcriptions')
+      .upload(fileName, file);
 
-  const { data, error } = await supabase.functions.invoke('transcribe', {
-    body: {
-      options,
-      fileName: file.name,
-      audioType: file.type,
-      mimeType: file.type
+    if (uploadError) {
+      throw new Error(`File upload failed: ${uploadError.message}`);
     }
-  });
 
-  if (error) throw error;
-  if (data.error) throw new Error(data.error);
+    console.log('File uploaded successfully, starting transcription...');
 
-  clearInterval(progressInterval);
-  setProgress(100);
-  await new Promise(resolve => setTimeout(resolve, 500));
+    // Now call the transcribe function with the file path
+    const { data, error } = await supabase.functions.invoke('transcribe', {
+      body: {
+        fileName,
+        options
+      }
+    });
 
-  return data;
+    if (error) throw error;
+    if (data.error) throw new Error(data.error);
+
+    clearInterval(progressInterval);
+    setProgress(100);
+    
+    return data;
+  } catch (error) {
+    console.error('Transcription error:', error);
+    throw error;
+  }
 }
 
 export function handleDownload(transcript: string): void {

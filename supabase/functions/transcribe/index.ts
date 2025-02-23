@@ -8,68 +8,80 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { options, fileName, audioType } = await req.json();
+    const { options, fileName } = await req.json()
 
-    // Get the audio data from Storage using the file path
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const apiKey = Deno.env.get('DEEPGRAM_API_KEY');
-
+    const apiKey = Deno.env.get('DEEPGRAM_API_KEY')
     if (!apiKey) {
-      throw new Error('Deepgram API key not configured');
+      throw new Error('Deepgram API key not configured')
     }
 
-    console.log('Transcribing audio with options:', { fileName, audioType, options });
+    // Get the file URL from Supabase Storage
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const fileUrl = `${supabaseUrl}/storage/v1/object/public/transcriptions/${fileName}`
+
+    console.log('Starting transcription:', {
+      fileUrl,
+      options
+    })
 
     // Call Deepgram API
-    const response = await fetch('https://api.deepgram.com/v1/listen', {
+    const response = await fetch('https://api.deepgram.com/v1/listen?model=nova&smart_format=true', {
       method: 'POST',
       headers: {
         'Authorization': `Token ${apiKey}`,
-        'Content-Type': audioType,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        url: `${supabaseUrl}/storage/v1/object/public/transcriptions/${fileName}`,
-        options: {
-          ...options,
-          model: options.model || 'nova-meeting',
-          language: options.language || 'en-US',
-          smart_format: true,
-          utterances: false,
-          punctuate: true,
-        }
+        url: fileUrl,
+        model: options.model || 'nova-meeting',
+        language: options.language || 'en-US',
+        smart_format: true,
+        diarize: true,
+        utterances: false,
+        punctuate: true
       })
-    });
+    })
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('Deepgram API error:', error);
-      throw new Error(`Deepgram API error: ${error}`);
+      const errorText = await response.text()
+      console.error('Deepgram API error:', errorText)
+      throw new Error(`Deepgram API error: ${errorText}`)
     }
 
-    const data = await response.json();
+    const data = await response.json()
     
+    console.log('Transcription completed successfully')
+
     return new Response(
       JSON.stringify({ data }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
+    )
 
   } catch (error) {
-    console.error('Transcription error:', error);
+    console.error('Error in transcribe function:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        details: error.stack
+        details: error.stack 
       }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        }
       }
-    );
+    )
   }
 })
