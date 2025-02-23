@@ -36,6 +36,33 @@ export type Database = {
         }
         Relationships: []
       }
+      keyterms: {
+        Row: {
+          boost: number | null
+          category: Database["public"]["Enums"]["term_category"] | null
+          created_at: string | null
+          id: string
+          term: string
+          user_id: string | null
+        }
+        Insert: {
+          boost?: number | null
+          category?: Database["public"]["Enums"]["term_category"] | null
+          created_at?: string | null
+          id?: string
+          term: string
+          user_id?: string | null
+        }
+        Update: {
+          boost?: number | null
+          category?: Database["public"]["Enums"]["term_category"] | null
+          created_at?: string | null
+          id?: string
+          term?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       training_rules: {
         Row: {
           correction: string
@@ -161,6 +188,7 @@ export type Database = {
         | "punctuation"
         | "formatting"
         | "custom"
+      term_category: "legal" | "medical" | "other"
       transcript_status: "pending" | "processing" | "completed" | "error"
     }
     CompositeTypes: {

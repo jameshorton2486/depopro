@@ -1,4 +1,9 @@
 
+export interface DeepgramKeyterm {
+  term: string;
+  boost: number;
+}
+
 export interface DeepgramOptions {
   model: string;
   language: string;
@@ -7,7 +12,7 @@ export interface DeepgramOptions {
   punctuate: boolean;
   filler_words: boolean;
   paragraphs: boolean;
-  keyterm?: string;
+  keyterms?: DeepgramKeyterm[];
   utterances?: boolean;
   utteranceThreshold?: number;
   keywords?: string[];

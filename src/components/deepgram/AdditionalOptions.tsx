@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -6,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { DeepgramOptions } from "@/types/deepgram";
+import { KeytermManagement } from "./KeytermManagement";
 
 interface AdditionalOptionsProps {
   options: DeepgramOptions;
@@ -29,15 +29,16 @@ export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOption
     onOptionsChange({ keywords: updatedKeywords });
   };
 
-  const handleUtteranceAdd = () => {
-    if (newUtterance.trim()) {
-      onOptionsChange({ utterances: true, utteranceThreshold: parseFloat(newUtterance) || 0.5 });
-      setNewUtterance("");
-    }
+  const handleKeytermsChange = (keyterms: any[]) => {
+    const keywordsList = keyterms.map(kt => ({
+      term: kt.term,
+      boost: kt.boost
+    }));
+    onOptionsChange({ keyterms: keywordsList });
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-2">
           <Switch
@@ -87,17 +88,12 @@ export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOption
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="keyterm">Key Term or Phrase</Label>
-        <Input
-          id="keyterm"
-          value={options.keyterm || ""}
-          onChange={(e) => onOptionsChange({ keyterm: e.target.value })}
-          placeholder="Enter a key term or phrase to search for"
-        />
+        <Label>Keyterms</Label>
+        <KeytermManagement onKeytermsChange={handleKeytermsChange} />
       </div>
 
       <div className="space-y-2">
-        <Label>Keywords</Label>
+        <Label>Additional Keywords</Label>
         <div className="flex gap-2">
           <Input
             value={newKeyword}
