@@ -3,7 +3,7 @@ import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
-import { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
+import { DeepgramOptions, TranscriptionResult, DeepgramParagraph } from "@/types/deepgram";
 import { cleanupOldFiles, generateFileHash } from "./transcription/storage";
 import { simulateProgress } from "./transcription/progress";
 import { handleFileUpload, transcribeAudio, handleDownload } from "./transcription/actions";
@@ -30,6 +30,17 @@ export const useTranscription = (): TranscriptionHookReturn => {
     keyterms: []
   });
 
+  const convertParagraphToJson = (paragraph: DeepgramParagraph): Json => ({
+    speaker: paragraph.speaker,
+    start: paragraph.start,
+    end: paragraph.end,
+    sentences: paragraph.sentences.map(sentence => ({
+      text: sentence.text,
+      start: sentence.start,
+      end: sentence.end
+    }))
+  });
+
   const saveTranscriptionData = async (
     file: File,
     result: TranscriptionResult,
@@ -39,8 +50,13 @@ export const useTranscription = (): TranscriptionHookReturn => {
       // Convert the result to a JSON-compatible format
       const jsonResult: Json = {
         transcript: result.transcript,
-        paragraphs: result.paragraphs || [],
-        metadata: result.metadata || {}
+        paragraphs: result.paragraphs?.map(convertParagraphToJson) || [],
+        metadata: {
+          processingTime: result.metadata?.processingTime,
+          audioLength: result.metadata?.audioLength,
+          speakers: result.metadata?.speakers,
+          fillerWords: result.metadata?.fillerWords
+        }
       };
 
       const { error } = await supabase
