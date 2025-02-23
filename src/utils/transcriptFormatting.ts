@@ -9,10 +9,22 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
 
   // Only process diarization if enabled
   if (options?.enableDiarization) {
-    // Clean up and standardize speaker labels
-    formattedText = formattedText.replace(/\n?Speaker \d+(?=:)?/g, (match) => {
-      const number = match.match(/\d+/)[0];
-      return `\nSpeaker ${number}:`;
+    // Fix NaN speaker labels and ensure proper numbering
+    let speakerCount = 0;
+    const speakerMap = new Map<string, number>();
+
+    // First pass: clean up and standardize speaker labels
+    formattedText = formattedText.replace(/\n?Speaker(?:\s+(?:NaN|\d+))(?=:)?/g, (match) => {
+      // Extract the entire speaker label
+      const speakerLabel = match.trim();
+      
+      // If we haven't seen this speaker before, assign them a number
+      if (!speakerMap.has(speakerLabel)) {
+        speakerMap.set(speakerLabel, speakerCount++);
+      }
+      
+      const speakerNumber = speakerMap.get(speakerLabel);
+      return `\nSpeaker ${speakerNumber}`;
     });
 
     // Remove extra newlines after speaker labels
@@ -28,6 +40,9 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
 
     // Ensure proper spacing around speaker labels
     formattedText = formattedText.replace(/\n\s*(Speaker \d+:)\s*/g, '\n$1 ');
+
+    // Log speaker mapping for debugging
+    console.log('Speaker mapping:', Object.fromEntries(speakerMap));
   }
 
   // Handle paragraph formatting if enabled
