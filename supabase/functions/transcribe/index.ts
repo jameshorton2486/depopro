@@ -1,5 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { Deepgram } from "https://esm.sh/@deepgram/sdk";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,6 +34,8 @@ serve(async (req: Request) => {
       throw new Error('Deepgram API key not configured');
     }
 
+    const deepgram = new Deepgram(apiKey);
+
     let requestData: TranscribeRequest;
     try {
       requestData = await req.json();
@@ -59,45 +62,27 @@ serve(async (req: Request) => {
       throw new Error('Invalid audio data format');
     }
 
-    const deepgramUrl = 'https://api.deepgram.com/v1/listen';
-    const deepgramOptions = {
+    console.log('Calling Deepgram API with options:', requestData.options);
+
+    const source = {
+      buffer: binaryData,
+      mimetype: 'audio/wav' // Adjust based on your input format
+    };
+
+    const result = await deepgram.transcription.preRecorded(source, {
       ...requestData.options,
-      model: requestData.options.model || 'nova-2',
+      model: requestData.options.model || 'nova-meeting',
       language: requestData.options.language || 'en-US',
       smart_format: true,
       diarize: requestData.options.diarize ?? true,
       paragraphs: true
-    };
-
-    console.log('Calling Deepgram API with options:', deepgramOptions);
-
-    const response = await fetch(deepgramUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${apiKey}`,
-        'Content-Type': 'application/octet-stream',
-      },
-      body: binaryData,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Deepgram API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText
-      });
-      throw new Error(`Deepgram API error: ${response.status} - ${errorText}`);
-    }
-
-    const result = await response.json();
-    
-    if (!result.results?.channels?.[0]?.alternatives?.[0]) {
+    if (!result?.results?.channels?.[0]?.alternatives?.[0]) {
       console.error('Invalid response format from Deepgram:', result);
       throw new Error('Invalid response format from Deepgram');
     }
 
-    // Return the full result instead of just the transcript
     return new Response(
       JSON.stringify({ 
         data: result,
