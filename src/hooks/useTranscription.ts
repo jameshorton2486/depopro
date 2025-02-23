@@ -25,7 +25,10 @@ export const useTranscription = () => {
     diarize: true,
     punctuate: true,
     filler_words: true,
-    paragraphs: true
+    paragraphs: true,
+    utterances: false,
+    keywords: [],
+    keyterm: ""
   });
 
   const handleOptionsChange = (newOptions: Partial<DeepgramOptions>) => {

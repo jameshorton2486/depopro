@@ -7,6 +7,9 @@ export interface DeepgramOptions {
   punctuate: boolean;
   filler_words: boolean;
   paragraphs: boolean;
+  keyterm?: string;
+  utterances?: boolean;
+  keywords?: string[];
 }
 
 export interface DeepgramSentence {
@@ -55,7 +58,6 @@ export interface TranscriptionResult {
   };
 }
 
-// Function type for processing audio chunks
 export type ProcessAudioChunkFn = (
   buffer: ArrayBuffer,
   mimeType: string,

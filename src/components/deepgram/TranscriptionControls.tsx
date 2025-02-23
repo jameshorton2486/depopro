@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { DeepgramOptions } from "@/types/deepgram";
 import { ModelSelect } from "./ModelSelect";
 import { LanguageSelect } from "./LanguageSelect";
+import { AdditionalOptions } from "./AdditionalOptions";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -46,11 +47,13 @@ export const TranscriptionControls = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex gap-4">
         <ModelSelect model={model} onModelChange={handleModelChange} />
         <LanguageSelect language={language} onLanguageChange={handleLanguageChange} />
       </div>
+      
+      <AdditionalOptions options={options} onOptionsChange={onOptionsChange} />
       
       {isProcessing && (
         <div className="w-full space-y-2">
