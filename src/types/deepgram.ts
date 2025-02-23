@@ -10,6 +10,8 @@ export interface TranscriptFormatting {
   highlightFillerWords?: boolean; // apply a highlight style to filler words
   removeExtraSpaces?: boolean;    // clean up extra whitespace
   standardizePunctuation?: boolean; // ensure consistent punctuation spacing
+  enableDiarization?: boolean;    // enable speaker diarization
+  enableParagraphs?: boolean;     // enable paragraph formatting
 }
 
 export interface DeepgramOptions {
