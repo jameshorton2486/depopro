@@ -22,20 +22,17 @@ interface TranscribeRequest {
 }
 
 serve(async (req: Request) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Validate Deepgram API key
     const apiKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!apiKey) {
       console.error('Missing Deepgram API key');
       throw new Error('Deepgram API key not configured');
     }
 
-    // Parse and validate request body
     let requestData: TranscribeRequest;
     try {
       requestData = await req.json();
@@ -44,25 +41,15 @@ serve(async (req: Request) => {
       throw new Error('Invalid request format');
     }
 
-    // Validate required fields
-    if (!requestData.audioData) {
-      throw new Error('Missing audio data');
-    }
-
-    if (!requestData.options) {
-      throw new Error('Missing transcription options');
+    if (!requestData.audioData || !requestData.options) {
+      throw new Error('Missing required data');
     }
 
     console.log('Processing audio file:', {
       fileName: requestData.fileName,
-      options: {
-        ...requestData.options,
-        // Don't log the actual audio data
-        audioData: '[REDACTED]'
-      }
+      options: { ...requestData.options, audioData: '[REDACTED]' }
     });
 
-    // Decode base64 audio data
     let binaryData: Uint8Array;
     try {
       binaryData = Uint8Array.from(atob(requestData.audioData), c => c.charCodeAt(0));
@@ -72,19 +59,18 @@ serve(async (req: Request) => {
       throw new Error('Invalid audio data format');
     }
 
-    // Prepare Deepgram request
     const deepgramUrl = 'https://api.deepgram.com/v1/listen';
     const deepgramOptions = {
       ...requestData.options,
       model: requestData.options.model || 'nova-2',
       language: requestData.options.language || 'en-US',
       smart_format: true,
-      diarize: requestData.options.diarize ?? true
+      diarize: requestData.options.diarize ?? true,
+      paragraphs: true
     };
 
     console.log('Calling Deepgram API with options:', deepgramOptions);
 
-    // Call Deepgram API
     const response = await fetch(deepgramUrl, {
       method: 'POST',
       headers: {
@@ -111,21 +97,10 @@ serve(async (req: Request) => {
       throw new Error('Invalid response format from Deepgram');
     }
 
-    const transcript = result.results.channels[0].alternatives[0].transcript;
-
-    if (!transcript) {
-      console.error('No transcript in Deepgram response:', result);
-      throw new Error('No transcript received from Deepgram');
-    }
-
-    console.log('Successfully generated transcript:', {
-      length: transcript.length,
-      preview: transcript.substring(0, 100) + '...'
-    });
-
+    // Return the full result instead of just the transcript
     return new Response(
       JSON.stringify({ 
-        transcript,
+        data: result,
         status: 'success'
       }),
       { 
@@ -138,8 +113,6 @@ serve(async (req: Request) => {
 
   } catch (error) {
     console.error('Transcription error:', error);
-    
-    // Return a more detailed error response
     return new Response(
       JSON.stringify({ 
         error: error.message,
@@ -147,7 +120,7 @@ serve(async (req: Request) => {
         timestamp: new Date().toISOString()
       }),
       { 
-        status: 400, // Use standard HTTP status code instead of custom code
+        status: 400,
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',

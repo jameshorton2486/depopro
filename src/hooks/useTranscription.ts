@@ -1,14 +1,14 @@
 
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { DeepgramOptions } from "@/types/deepgram";
+import { DeepgramOptions, DeepgramResponse, TranscriptionResult } from "@/types/deepgram";
 import { toast } from "sonner";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 import { validateFile } from "@/utils/fileValidation";
 
 export const useTranscription = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [transcript, setTranscript] = useState<string>("");
+  const [transcriptionResult, setTranscriptionResult] = useState<TranscriptionResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState("");
   const [progress, setProgress] = useState(0);
@@ -64,6 +64,22 @@ export const useTranscription = () => {
     }, 1000);
   };
 
+  const processDeepgramResponse = (response: DeepgramResponse): TranscriptionResult => {
+    const alternative = response.results.channels[0].alternatives[0];
+    const paragraphs = alternative.paragraphs?.paragraphs || [];
+    const words = alternative.words || [];
+
+    return {
+      transcript: alternative.transcript,
+      paragraphs,
+      metadata: {
+        processingTime: response.metadata?.processing_time || 0,
+        audioLength: response.metadata?.duration || 0,
+        speakers: paragraphs.reduce((acc, p) => Math.max(acc, p.speaker), 0) + 1
+      }
+    };
+  };
+
   const handleTranscribe = async () => {
     if (!uploadedFile) {
       toast.error("Please upload a file first");
@@ -71,20 +87,13 @@ export const useTranscription = () => {
     }
 
     setIsProcessing(true);
-    setTranscript("");
+    setTranscriptionResult(null);
     setProgress(0);
     setProcessingStatus("Processing audio...");
 
     const progressInterval = simulateProgress(10);
 
     try {
-      console.debug('Starting transcription for file:', {
-        name: uploadedFile.name,
-        size: `${(uploadedFile.size / (1024 * 1024)).toFixed(2)}MB`,
-        type: uploadedFile.type
-      });
-
-      // Convert file to base64
       const base64Content = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -126,11 +135,13 @@ export const useTranscription = () => {
       setProgress(100);
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      setTranscript(data.transcript);
+      const result = processDeepgramResponse(data.data);
+      setTranscriptionResult(result);
       toast.success("Transcription completed!");
       console.debug('Transcription completed successfully:', {
-        transcriptLength: data.transcript.length,
-        preview: data.transcript.substring(0, 100) + '...'
+        result,
+        speakers: result.metadata.speakers,
+        paragraphs: result.paragraphs.length
       });
 
     } catch (error: any) {
@@ -153,7 +164,8 @@ export const useTranscription = () => {
 
   return {
     uploadedFile,
-    transcript,
+    transcript: transcriptionResult?.transcript || "",
+    transcriptionResult,
     isProcessing,
     processingStatus,
     progress,
