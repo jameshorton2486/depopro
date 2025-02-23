@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { validateFile } from "@/utils/fileValidation";
@@ -25,9 +24,17 @@ export const useTranscription = (): TranscriptionHookReturn => {
     punctuate: true,
     filler_words: true,
     paragraphs: true,
-    utterances: false,
+    utterances: true,
+    utteranceThreshold: 0.2,
     keywords: [],
-    keyterms: []
+    keyterms: [],
+    formatting: {
+      timestampFormat: "HH:mm:ss",
+      boldSpeakerNames: true,
+      highlightFillerWords: true,
+      removeExtraSpaces: true,
+      standardizePunctuation: true
+    }
   });
 
   const convertParagraphToJson = (paragraph: DeepgramParagraph): Json => ({
@@ -47,7 +54,6 @@ export const useTranscription = (): TranscriptionHookReturn => {
     audioPath: string
   ) => {
     try {
-      // Convert the result to a JSON-compatible format
       const jsonResult: Json = {
         transcript: result.transcript,
         paragraphs: result.paragraphs?.map(convertParagraphToJson) || [],
@@ -127,7 +133,6 @@ export const useTranscription = (): TranscriptionHookReturn => {
     const progressInterval = simulateProgress(setProgress, 10);
 
     try {
-      // Upload audio file to Supabase Storage
       const fileExt = uploadedFile.name.split('.').pop();
       const filePath = `${crypto.randomUUID()}.${fileExt}`;
       
@@ -137,15 +142,25 @@ export const useTranscription = (): TranscriptionHookReturn => {
 
       if (uploadError) throw uploadError;
 
+      console.log('Starting transcription with options:', options);
+      
       const data = await transcribeAudio(uploadedFile, options, progressInterval, setProgress);
       const result = transcriptProcessor.processFullResponse(data.data);
+      
+      console.log('Transcription result:', result);
+      
       const fileHash = await generateFileHash(uploadedFile);
       
       await transcriptProcessor.cacheTranscript(fileHash, result);
       await saveTranscriptionData(uploadedFile, result, filePath);
       
       setTranscriptionResult(result);
-      toast.success("Transcription completed and saved!");
+      
+      if (result.metadata?.speakers && result.metadata.speakers < 2) {
+        toast.warning("Only detected one speaker. Try adjusting the audio quality or checking if multiple speakers are present.");
+      } else {
+        toast.success(`Detected ${result.metadata?.speakers || 'multiple'} speakers!`);
+      }
 
     } catch (error: any) {
       console.error("❌ Transcription error:", error);
