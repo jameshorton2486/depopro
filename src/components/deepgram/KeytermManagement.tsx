@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, X, Loader2 } from "lucide-react";
+import { useDropzone } from "react-dropzone";
+import { Plus, X, Loader2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -31,6 +31,56 @@ export const KeytermManagement = ({ onKeytermsChange }: KeytermManagementProps) 
   const [newBoost, setNewBoost] = useState("1.5");
   const [category, setCategory] = useState<'legal' | 'medical' | 'other'>('legal');
   const [isLoading, setIsLoading] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+
+    const file = acceptedFiles[0];
+    setIsAnalyzing(true);
+    
+    try {
+      const text = await file.text();
+      
+      const { data, error } = await supabase.functions.invoke('analyze-document', {
+        body: { text }
+      });
+
+      if (error) throw error;
+
+      const { terms } = data;
+      
+      const { data: insertedTerms, error: insertError } = await supabase
+        .from('keyterms')
+        .insert(terms.map((t: any) => ({
+          term: t.term,
+          boost: t.boost,
+          category: t.category
+        })))
+        .select();
+
+      if (insertError) throw insertError;
+
+      setKeyterms(prev => [...prev, ...insertedTerms]);
+      onKeytermsChange([...keyterms, ...insertedTerms]);
+      toast.success(`Added ${terms.length} terms from document`);
+    } catch (error: any) {
+      console.error('Error analyzing document:', error);
+      toast.error(error.message);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [keyterms, onKeytermsChange]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'text/plain': ['.txt'],
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+    },
+    maxFiles: 1
+  });
 
   useEffect(() => {
     loadKeyterms();
@@ -134,6 +184,30 @@ export const KeytermManagement = ({ onKeytermsChange }: KeytermManagementProps) 
           <Button onClick={handleAddKeyterm} size="icon">
             <Plus className="h-4 w-4" />
           </Button>
+        </div>
+      </div>
+
+      <div
+        {...getRootProps()}
+        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors
+          ${isDragActive ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}
+          ${isAnalyzing ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        <input {...getInputProps()} />
+        <div className="flex flex-col items-center gap-2">
+          <Upload className="h-8 w-8 text-muted-foreground" />
+          {isAnalyzing ? (
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Analyzing document...</span>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {isDragActive
+                ? "Drop the document here..."
+                : "Upload a document to extract terms (.txt, .pdf, .docx)"}
+            </p>
+          )}
         </div>
       </div>
 
