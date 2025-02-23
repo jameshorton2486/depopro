@@ -5,11 +5,11 @@ export function simulateProgress(
 ): NodeJS.Timeout {
   setProgress(startAt);
   return setInterval(() => {
-    setProgress((prev) => {
-      if (prev >= 90) {
-        return prev;
+    setProgress((prevProgress: number) => {
+      if (prevProgress >= 90) {
+        return prevProgress;
       }
-      return prev + 2;
+      return prevProgress + 2;
     });
   }, 1000);
 }

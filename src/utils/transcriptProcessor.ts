@@ -15,6 +15,19 @@ export class TranscriptProcessor {
     return this.formatter.format(data);
   }
 
+  formatTime(seconds: number): string {
+    const date = new Date(0);
+    date.setSeconds(seconds);
+    return date.toISOString().substr(11, 12);
+  }
+
+  private countFillerWords(words: Array<{ word: string }>): number {
+    const fillerWords = ['um', 'uh', 'ah'];
+    return words.filter(word => 
+      fillerWords.includes(word.word.toLowerCase())
+    ).length;
+  }
+
   async cacheTranscript(fileHash: string, processedData: TranscriptionResult) {
     const storageKey = this.STORAGE_PREFIX + fileHash;
     const dataToStore = {
