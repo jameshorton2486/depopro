@@ -1,9 +1,16 @@
 
 import { formatTranscriptText } from './transcriptFormatting';
+import { TranscriptFormatting } from '@/types/deepgram';
 
-export const createAndDownloadWordDoc = (content: string) => {
+export const createAndDownloadWordDoc = (content: string, formatting?: TranscriptFormatting) => {
   // Format the content before creating the document
-  const formattedContent = formatTranscriptText(content);
+  const formattedContent = formatTranscriptText(content, {
+    removeExtraSpaces: true,
+    standardizePunctuation: true,
+    boldSpeakerNames: true,
+    highlightFillerWords: true,
+    ...formatting
+  });
   
   // Create a Blob with the formatted content
   const blob = new Blob([formattedContent], { type: 'application/msword' });
@@ -22,4 +29,3 @@ export const createAndDownloadWordDoc = (content: string) => {
   document.body.removeChild(element);
   URL.revokeObjectURL(element.href);
 };
-

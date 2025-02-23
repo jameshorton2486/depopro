@@ -1,8 +1,15 @@
-
 export interface DeepgramKeyterm {
   term: string;
   boost: number;
   category: 'legal' | 'medical' | 'other';
+}
+
+export interface TranscriptFormatting {
+  timestampFormat?: string;       // e.g., "HH:mm:ss"
+  boldSpeakerNames?: boolean;     // whether speaker names should be bold
+  highlightFillerWords?: boolean; // apply a highlight style to filler words
+  removeExtraSpaces?: boolean;    // clean up extra whitespace
+  standardizePunctuation?: boolean; // ensure consistent punctuation spacing
 }
 
 export interface DeepgramOptions {
@@ -17,6 +24,7 @@ export interface DeepgramOptions {
   utterances?: boolean;
   utteranceThreshold?: number;
   keywords?: string[];
+  formatting?: TranscriptFormatting;
 }
 
 export interface DeepgramSentence {
