@@ -13,6 +13,7 @@ export const createAndDownloadWordDoc = (content: string, formatting?: Transcrip
   });
   
   // Create a Blob with the formatted content
+  // Use .doc extension for better compatibility with word processors
   const blob = new Blob([formattedContent], { type: 'application/msword' });
   
   // Create download link

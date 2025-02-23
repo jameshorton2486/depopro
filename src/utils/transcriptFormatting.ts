@@ -24,13 +24,18 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
     formattedText = formattedText.replace(/([.?!])(?=[A-Z])/g, '$1 ');
   }
 
-  // Clean up speaker labels formatting
-  formattedText = formattedText.replace(/Speaker \d+:\s*\n\n/g, (match) => {
-    return match.replace(/\n\n/, '\n');
+  // Clean up and standardize speaker labels
+  formattedText = formattedText.replace(/\n?Speaker \d+(?=:)?/g, (match) => {
+    // Extract the speaker number
+    const number = match.match(/\d+/)[0];
+    return `\nSpeaker ${number}:`;
   });
 
+  // Remove extra newlines after speaker labels
+  formattedText = formattedText.replace(/Speaker \d+:\s*\n\n/g, 'Speaker $1:\n');
+
   if (options?.boldSpeakerNames) {
-    // Add bold formatting to speaker labels
+    // Add bold formatting to speaker labels (including the colon)
     formattedText = formattedText.replace(
       /\n?(Speaker \d+:)/g, 
       '\n**$1**'
@@ -44,7 +49,7 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
     formattedText = formattedText.replace(fillerRegex, '_$1_');
   }
 
-  // Clean up spacing around speaker labels (do this last)
+  // Ensure proper spacing around speaker labels (do this last)
   formattedText = formattedText.replace(/\n\s*(Speaker \d+:)\s*/g, '\n$1 ');
 
   return formattedText;
