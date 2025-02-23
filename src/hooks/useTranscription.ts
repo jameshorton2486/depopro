@@ -9,6 +9,7 @@ import { simulateProgress } from "./transcription/progress";
 import { handleFileUpload, transcribeAudio, handleDownload } from "./transcription/actions";
 import type { TranscriptionHookReturn } from "./transcription/types";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 export const useTranscription = (): TranscriptionHookReturn => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -35,6 +36,13 @@ export const useTranscription = (): TranscriptionHookReturn => {
     audioPath: string
   ) => {
     try {
+      // Convert the result to a JSON-compatible format
+      const jsonResult: Json = {
+        transcript: result.transcript,
+        paragraphs: result.paragraphs || [],
+        metadata: result.metadata || {}
+      };
+
       const { error } = await supabase
         .from('transcription_data')
         .insert({
@@ -45,8 +53,8 @@ export const useTranscription = (): TranscriptionHookReturn => {
             speakers: result.metadata?.speakers,
             model: options.model,
             language: options.language
-          },
-          raw_response: result
+          } as Json,
+          raw_response: jsonResult
         });
 
       if (error) throw error;
