@@ -50,10 +50,7 @@ const TransCorrection = () => {
           </UploadSection>
 
           {uploadedFile && !isProcessing && (
-            <FormattingButtons
-              onInitialFormat={handleInitialFormatting}
-              onRulesFormat={handleRulesFormatting}
-            />
+            <FormattingButtons transcript={correctedText || ""} />
           )}
 
           {correctedText && !isProcessing && (
