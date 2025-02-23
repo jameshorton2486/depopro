@@ -14,6 +14,7 @@ interface AdditionalOptionsProps {
 
 export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOptionsProps) => {
   const [newKeyword, setNewKeyword] = useState("");
+  const [newUtterance, setNewUtterance] = useState("");
 
   const handleKeywordAdd = () => {
     if (newKeyword.trim()) {
@@ -26,6 +27,13 @@ export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOption
   const handleKeywordRemove = (index: number) => {
     const updatedKeywords = options.keywords?.filter((_, i) => i !== index) || [];
     onOptionsChange({ keywords: updatedKeywords });
+  };
+
+  const handleUtteranceAdd = () => {
+    if (newUtterance.trim()) {
+      onOptionsChange({ utterances: true, utteranceThreshold: parseFloat(newUtterance) || 0.5 });
+      setNewUtterance("");
+    }
   };
 
   return (
@@ -48,15 +56,34 @@ export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOption
           />
           <Label htmlFor="filler-words">Include Filler Words</Label>
         </div>
+      </div>
 
-        <div className="flex items-center space-x-2">
+      <div className="space-y-2">
+        <Label htmlFor="utterance">Utterance Detection</Label>
+        <div className="flex items-center gap-2">
           <Switch
             id="utterances"
             checked={options.utterances}
             onCheckedChange={(checked) => onOptionsChange({ utterances: checked })}
           />
-          <Label htmlFor="utterances">Utterances</Label>
+          <Input
+            id="utterance"
+            type="number"
+            min="0"
+            max="1"
+            step="0.1"
+            placeholder="Threshold (0-1)"
+            value={options.utteranceThreshold || ""}
+            onChange={(e) => onOptionsChange({ 
+              utterances: true,
+              utteranceThreshold: parseFloat(e.target.value) || 0.5 
+            })}
+            className="w-32"
+          />
         </div>
+        <p className="text-xs text-muted-foreground">
+          Set a threshold between 0 and 1 for utterance detection
+        </p>
       </div>
 
       <div className="space-y-2">

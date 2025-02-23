@@ -9,6 +9,7 @@ export interface DeepgramOptions {
   paragraphs: boolean;
   keyterm?: string;
   utterances?: boolean;
+  utteranceThreshold?: number;
   keywords?: string[];
 }
 
