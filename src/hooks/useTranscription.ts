@@ -41,8 +41,13 @@ export const useTranscription = () => {
       validateFile(files[0]);
       setUploadedFile(files[0]);
       toast.success(`File "${files[0].name}" uploaded successfully`);
-      console.debug('✅ File accepted');
+      console.debug('✅ File accepted:', {
+        name: files[0].name,
+        size: `${(files[0].size / (1024 * 1024)).toFixed(2)}MB`,
+        type: files[0].type
+      });
     } catch (error: any) {
+      console.error('❌ File validation error:', error);
       toast.error(error.message);
     }
   };
@@ -73,6 +78,12 @@ export const useTranscription = () => {
     const progressInterval = simulateProgress(10);
 
     try {
+      console.debug('Starting transcription for file:', {
+        name: uploadedFile.name,
+        size: `${(uploadedFile.size / (1024 * 1024)).toFixed(2)}MB`,
+        type: uploadedFile.type
+      });
+
       // Convert file to base64
       const base64Content = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -81,8 +92,16 @@ export const useTranscription = () => {
           const base64Content = base64String.split(',')[1];
           resolve(base64Content);
         };
-        reader.onerror = reject;
+        reader.onerror = (error) => {
+          console.error('Failed to read file:', error);
+          reject(new Error('Failed to read audio file'));
+        };
         reader.readAsDataURL(uploadedFile);
+      });
+
+      console.debug('Calling transcribe function with options:', {
+        ...options,
+        fileName: uploadedFile.name
       });
 
       const { data, error } = await supabase.functions.invoke('transcribe', {
@@ -93,8 +112,15 @@ export const useTranscription = () => {
         }
       });
 
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
+      if (error) {
+        console.error('Transcription function error:', error);
+        throw error;
+      }
+
+      if (data.error) {
+        console.error('Transcription processing error:', data.error);
+        throw new Error(data.error);
+      }
 
       clearInterval(progressInterval);
       setProgress(100);
@@ -102,6 +128,10 @@ export const useTranscription = () => {
       
       setTranscript(data.transcript);
       toast.success("Transcription completed!");
+      console.debug('Transcription completed successfully:', {
+        transcriptLength: data.transcript.length,
+        preview: data.transcript.substring(0, 100) + '...'
+      });
 
     } catch (error: any) {
       console.error("❌ Transcription error:", error);
