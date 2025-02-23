@@ -4,7 +4,9 @@ import { TranscriptDisplay } from "@/components/deepgram/TranscriptDisplay";
 import { TranscriptionControls } from "@/components/deepgram/TranscriptionControls";
 import { ProcessingOverlay } from "@/components/deepgram/ProcessingOverlay";
 import { DeepgramHeader } from "@/components/deepgram/DeepgramHeader";
+import { ExtractedTerms } from "@/components/deepgram/ExtractedTerms";
 import { useTranscription } from "@/hooks/useTranscription";
+import { KeytermManagement } from "./KeytermManagement";
 
 export default function Deepgram() {
   const {
@@ -45,6 +47,10 @@ export default function Deepgram() {
             isProcessing={isProcessing}
             progress={progress}
           />
+          
+          {options.keyterms && options.keyterms.length > 0 && (
+            <ExtractedTerms terms={options.keyterms} />
+          )}
         </div>
 
         <div className="relative min-h-[400px] border rounded-lg p-4">

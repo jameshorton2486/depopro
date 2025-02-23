@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { useDropzone } from "react-dropzone";
 import { Plus, X, Loader2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 
 interface Keyterm {
   id: string;
@@ -32,43 +34,59 @@ export const KeytermManagement = ({ onKeytermsChange }: KeytermManagementProps) 
   const [category, setCategory] = useState<'legal' | 'medical' | 'other'>('legal');
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzingProgress, setAnalyzingProgress] = useState(0);
+  const [filesProcessed, setFilesProcessed] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
-    const file = acceptedFiles[0];
     setIsAnalyzing(true);
+    setTotalFiles(acceptedFiles.length);
+    setFilesProcessed(0);
     
     try {
-      const text = await file.text();
-      
-      const { data, error } = await supabase.functions.invoke('analyze-document', {
-        body: { text }
-      });
+      const processedTerms: Keyterm[] = [];
 
-      if (error) throw error;
+      for (let i = 0; i < acceptedFiles.length; i++) {
+        const file = acceptedFiles[i];
+        const text = await file.text();
+        
+        const { data, error } = await supabase.functions.invoke('analyze-document', {
+          body: { text }
+        });
 
-      const { terms } = data;
-      
-      const { data: insertedTerms, error: insertError } = await supabase
-        .from('keyterms')
-        .insert(terms.map((t: any) => ({
-          term: t.term,
-          boost: t.boost,
-          category: t.category
-        })))
-        .select();
+        if (error) throw error;
 
-      if (insertError) throw insertError;
+        const { terms } = data;
+        
+        const { data: insertedTerms, error: insertError } = await supabase
+          .from('keyterms')
+          .insert(terms.map((t: any) => ({
+            term: t.term,
+            boost: t.boost,
+            category: t.category
+          })))
+          .select();
 
-      setKeyterms(prev => [...prev, ...insertedTerms]);
-      onKeytermsChange([...keyterms, ...insertedTerms]);
-      toast.success(`Added ${terms.length} terms from document`);
+        if (insertError) throw insertError;
+        
+        processedTerms.push(...insertedTerms);
+        setFilesProcessed(i + 1);
+        setAnalyzingProgress(((i + 1) / acceptedFiles.length) * 100);
+      }
+
+      setKeyterms(prev => [...prev, ...processedTerms]);
+      onKeytermsChange([...keyterms, ...processedTerms]);
+      toast.success(`Added terms from ${acceptedFiles.length} document${acceptedFiles.length > 1 ? 's' : ''}`);
     } catch (error: any) {
-      console.error('Error analyzing document:', error);
+      console.error('Error analyzing documents:', error);
       toast.error(error.message);
     } finally {
       setIsAnalyzing(false);
+      setAnalyzingProgress(0);
+      setFilesProcessed(0);
+      setTotalFiles(0);
     }
   }, [keyterms, onKeytermsChange]);
 
@@ -78,8 +96,7 @@ export const KeytermManagement = ({ onKeytermsChange }: KeytermManagementProps) 
       'text/plain': ['.txt'],
       'application/pdf': ['.pdf'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
-    },
-    maxFiles: 1
+    }
   });
 
   useEffect(() => {
@@ -197,15 +214,18 @@ export const KeytermManagement = ({ onKeytermsChange }: KeytermManagementProps) 
         <div className="flex flex-col items-center gap-2">
           <Upload className="h-8 w-8 text-muted-foreground" />
           {isAnalyzing ? (
-            <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Analyzing document...</span>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Analyzing documents... ({filesProcessed}/{totalFiles})</span>
+              </div>
+              <Progress value={analyzingProgress} className="w-64 mx-auto" />
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
               {isDragActive
-                ? "Drop the document here..."
-                : "Upload a document to extract terms (.txt, .pdf, .docx)"}
+                ? "Drop the documents here..."
+                : "Upload documents to extract terms (.txt, .pdf, .docx)"}
             </p>
           )}
         </div>
