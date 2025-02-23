@@ -6,7 +6,7 @@ import { ProcessingOverlay } from "@/components/deepgram/ProcessingOverlay";
 import { DeepgramHeader } from "@/components/deepgram/DeepgramHeader";
 import { ExtractedTerms } from "@/components/deepgram/ExtractedTerms";
 import { useTranscription } from "@/hooks/useTranscription";
-import { KeytermManagement } from "./KeytermManagement";
+import { KeytermManagement } from "@/components/deepgram/KeytermManagement";
 
 export default function Deepgram() {
   const {
@@ -49,7 +49,9 @@ export default function Deepgram() {
           />
           
           {options.keyterms && options.keyterms.length > 0 && (
-            <ExtractedTerms terms={options.keyterms} />
+            <ExtractedTerms 
+              terms={options.keyterms as { term: string; boost: number; category: 'legal' | 'medical' | 'other'; }[]}
+            />
           )}
         </div>
 

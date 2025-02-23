@@ -1,7 +1,7 @@
-
 export interface DeepgramKeyterm {
   term: string;
   boost: number;
+  category: 'legal' | 'medical' | 'other';
 }
 
 export interface DeepgramOptions {

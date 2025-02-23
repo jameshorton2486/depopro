@@ -5,12 +5,6 @@ import { DeepgramOptions } from "@/types/deepgram";
 import { toast } from "sonner";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 import { validateFile } from "@/utils/fileValidation";
-import { 
-  createTranscriptRecord, 
-  updateTranscriptStatus, 
-  updateTranscriptText,
-  processAudioFile 
-} from "@/services/transcriptService";
 
 export const useTranscription = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -67,70 +61,57 @@ export const useTranscription = () => {
 
   const handleTranscribe = async () => {
     if (!uploadedFile) {
-      console.error('❌ No file uploaded');
       toast.error("Please upload a file first");
       return;
     }
 
-    console.debug('🎬 Starting transcription process:', {
-      fileName: uploadedFile.name,
-      fileType: uploadedFile.type,
-      fileSize: `${(uploadedFile.size / (1024 * 1024)).toFixed(2)}MB`,
-      options: JSON.stringify(options, null, 2)
-    });
-
     setIsProcessing(true);
     setTranscript("");
     setProgress(0);
+    setProcessingStatus("Processing audio...");
 
     const progressInterval = simulateProgress(10);
 
     try {
-      const processOptions: DeepgramOptions = {
-        ...options,
-        smart_format: true,
-        punctuate: true,
-        paragraphs: true,
-        diarize: options.diarize,
-        filler_words: options.filler_words,
-        utterances: options.utterances ?? false,
-        keywords: options.keywords || [],
-        keyterms: options.keyterms || [],
-        model: options.model,
-        language: "en-US"
-      };
+      // Convert file to base64
+      const base64Content = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64String = reader.result as string;
+          const base64Content = base64String.split(',')[1];
+          resolve(base64Content);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(uploadedFile);
+      });
 
-      console.debug('🔍 Processing with options:', processOptions);
-      
-      setProcessingStatus("Processing audio...");
-      toast.info("Starting transcription process...");
-      
-      const transcriptText = await processAudioFile(uploadedFile, processOptions);
-      
+      const { data, error } = await supabase.functions.invoke('transcribe', {
+        body: {
+          audioData: base64Content,
+          fileName: uploadedFile.name,
+          options
+        }
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
       clearInterval(progressInterval);
       setProgress(100);
-      
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      setTranscript(transcriptText);
-      console.debug('✅ Transcription completed successfully');
+      setTranscript(data.transcript);
       toast.success("Transcription completed!");
 
     } catch (error: any) {
-      console.error("❌ Transcription error:", {
-        error: error.message,
-        stack: error.stack,
-        type: error.name
-      });
+      console.error("❌ Transcription error:", error);
       toast.error(`Transcription failed: ${error.message}`);
-      
       clearInterval(progressInterval);
       setProgress(0);
     } finally {
       await new Promise(resolve => setTimeout(resolve, 1000));
       setIsProcessing(false);
       setProcessingStatus("");
-      console.debug('🏁 Transcription process finished');
     }
   };
 
