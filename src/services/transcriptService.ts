@@ -89,7 +89,9 @@ export const processAudioFile = async (
     ...options,
     smart_format: true,
     punctuate: true,
-    paragraphs: true
+    paragraphs: true,
+    diarize: true,
+    filler_words: true
   };
 
   // Convert file to base64
