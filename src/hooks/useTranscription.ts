@@ -48,18 +48,17 @@ export const useTranscription = () => {
     }
   };
 
-  const simulateProgress = () => {
-    setProgress(0);
-    const interval = setInterval(() => {
+  const simulateProgress = (startAt: number = 0) => {
+    setProgress(startAt);
+    return setInterval(() => {
       setProgress((prev) => {
+        // Only increment up to 90% during processing
         if (prev >= 90) {
-          clearInterval(interval);
           return prev;
         }
-        return prev + 10;
+        return prev + 2;
       });
     }, 1000);
-    return interval;
   };
 
   const handleTranscribe = async () => {
@@ -80,7 +79,7 @@ export const useTranscription = () => {
     setTranscript("");
     setProgress(0);
 
-    const progressInterval = simulateProgress();
+    const progressInterval = simulateProgress(10); // Start at 10%
 
     try {
       // Create a temporary ID for the transcript
@@ -91,12 +90,19 @@ export const useTranscription = () => {
       
       // Process the audio file
       const transcriptText = await processAudioFile(uploadedFile, options);
+      
+      // Clear the progress interval before setting the final state
+      clearInterval(progressInterval);
+      
+      // Set progress to 100% when actually complete
+      setProgress(100);
+      
+      // Small delay before setting the transcript to ensure UI updates
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       setTranscript(transcriptText);
       console.debug('✅ Transcription completed successfully');
       toast.success("Transcription completed!");
-
-      // Set progress to 100% when done
-      setProgress(100);
 
     } catch (error: any) {
       console.error("❌ Transcription error:", {
@@ -105,8 +111,13 @@ export const useTranscription = () => {
         type: error.name
       });
       toast.error(`Transcription failed: ${error.message}`);
-    } finally {
+      
+      // Clear interval and reset progress on error
       clearInterval(progressInterval);
+      setProgress(0);
+    } finally {
+      // Small delay before resetting processing state
+      await new Promise(resolve => setTimeout(resolve, 1000));
       setIsProcessing(false);
       setProcessingStatus("");
       console.debug('🏁 Transcription process finished');
