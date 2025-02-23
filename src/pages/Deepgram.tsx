@@ -49,9 +49,7 @@ export default function Deepgram() {
           />
           
           {options.keyterms && options.keyterms.length > 0 && (
-            <ExtractedTerms 
-              terms={options.keyterms as { term: string; boost: number; category: 'legal' | 'medical' | 'other'; }[]}
-            />
+            <ExtractedTerms terms={options.keyterms} />
           )}
         </div>
 

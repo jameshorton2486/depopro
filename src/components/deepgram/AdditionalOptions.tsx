@@ -1,10 +1,11 @@
+
 import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
-import { DeepgramOptions } from "@/types/deepgram";
+import { DeepgramOptions, DeepgramKeyterm } from "@/types/deepgram";
 import { KeytermManagement } from "./KeytermManagement";
 
 interface AdditionalOptionsProps {
@@ -29,12 +30,8 @@ export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOption
     onOptionsChange({ keywords: updatedKeywords });
   };
 
-  const handleKeytermsChange = (keyterms: any[]) => {
-    const keywordsList = keyterms.map(kt => ({
-      term: kt.term,
-      boost: kt.boost
-    }));
-    onOptionsChange({ keyterms: keywordsList });
+  const handleKeytermsChange = (keyterms: DeepgramKeyterm[]) => {
+    onOptionsChange({ keyterms });
   };
 
   return (
