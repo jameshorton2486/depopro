@@ -19,7 +19,7 @@ export const useTranscription = () => {
   const [progress, setProgress] = useState(0);
   const [options, setOptions] = useState<DeepgramOptions>({
     model: "nova-2",
-    language: "en",
+    language: "en-US",
     smart_format: true,
     diarize: true,
     punctuate: true,
@@ -96,7 +96,7 @@ export const useTranscription = () => {
         keywords: options.keywords || [],
         keyterm: options.keyterm || "",
         model: options.model,
-        language: options.language
+        language: "en-US"
       };
 
       console.debug('🔍 Processing with options:', processOptions);
@@ -147,11 +147,9 @@ export const useTranscription = () => {
     progress,
     options,
     model: options.model,
-    language: options.language,
     onDrop,
     handleOptionsChange,
     onModelChange: (model: string) => handleOptionsChange({ model }),
-    onLanguageChange: (language: string) => handleOptionsChange({ language }),
     handleTranscribe,
     handleDownload,
   };
