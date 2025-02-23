@@ -84,6 +84,12 @@ export const processAudioFile = async (
     options
   });
 
+  // Ensure smart_format is enabled
+  const processOptions = {
+    ...options,
+    smart_format: true
+  };
+
   // Convert file to base64
   const base64Content = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -96,14 +102,14 @@ export const processAudioFile = async (
     reader.readAsDataURL(file);
   });
 
-  console.debug('File converted to base64, calling transcribe function');
+  console.debug('File converted to base64, calling transcribe function with options:', processOptions);
 
   // Call Supabase Edge Function
   const { data, error } = await supabase.functions.invoke('transcribe', {
     body: {
       audioData: base64Content,
       fileName: file.name,
-      options
+      options: processOptions
     }
   });
 
