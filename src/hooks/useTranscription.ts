@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions, DeepgramResponse, TranscriptionResult } from "@/types/deepgram";
 import { toast } from "sonner";
@@ -25,6 +25,37 @@ export const useTranscription = () => {
     keyterms: []
   });
 
+  const cleanupOldFiles = useCallback(async () => {
+    try {
+      // Get all previous transcription files
+      const { data: files, error: fetchError } = await supabase
+        .from('transcription_files')
+        .select('*');
+
+      if (fetchError) throw fetchError;
+
+      // Delete storage objects
+      for (const file of files || []) {
+        await supabase.storage
+          .from('transcriptions')
+          .remove([file.audio_file_path, file.json_file_path]);
+      }
+
+      // Delete database records
+      if (files?.length) {
+        const { error: deleteError } = await supabase
+          .from('transcription_files')
+          .delete()
+          .in('id', files.map(f => f.id));
+
+        if (deleteError) throw deleteError;
+      }
+    } catch (error) {
+      console.error('Failed to cleanup old files:', error);
+      // Don't throw error as this is not critical
+    }
+  }, []);
+
   const handleOptionsChange = (newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({ ...prev, ...newOptions }));
     console.debug('🔄 Options updated:', { 
@@ -39,6 +70,7 @@ export const useTranscription = () => {
     
     try {
       validateFile(files[0]);
+      await cleanupOldFiles(); // Clean up old files before setting new one
       setUploadedFile(files[0]);
       toast.success(`File "${files[0].name}" uploaded successfully`);
       console.debug('✅ File accepted:', {
@@ -140,7 +172,8 @@ export const useTranscription = () => {
       console.debug('Transcription completed successfully:', {
         result,
         speakers: result.metadata?.speakers,
-        paragraphs: result.paragraphs?.length
+        paragraphs: result.paragraphs?.length,
+        storedFiles: data.files
       });
 
     } catch (error: any) {

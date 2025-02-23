@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { Deepgram } from "https://esm.sh/@deepgram/sdk";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,10 +31,16 @@ serve(async (req: Request) => {
   try {
     const apiKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (!apiKey) {
-      console.error('Missing Deepgram API key');
       throw new Error('Deepgram API key not configured');
     }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Supabase configuration missing');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const deepgram = new Deepgram(apiKey);
 
     let requestData: TranscribeRequest;
@@ -62,11 +69,23 @@ serve(async (req: Request) => {
       throw new Error('Invalid audio data format');
     }
 
-    console.log('Calling Deepgram API with options:', requestData.options);
+    // Store audio file
+    const audioFileName = `${Date.now()}_${requestData.fileName}`;
+    const { error: audioUploadError } = await supabase.storage
+      .from('transcriptions')
+      .upload(audioFileName, binaryData.buffer, {
+        contentType: 'audio/wav',
+        upsert: false
+      });
 
+    if (audioUploadError) {
+      throw new Error(`Failed to store audio file: ${audioUploadError.message}`);
+    }
+
+    // Process with Deepgram
     const source = {
       buffer: binaryData,
-      mimetype: 'audio/wav' // Adjust based on your input format
+      mimetype: 'audio/wav'
     };
 
     const result = await deepgram.transcription.preRecorded(source, {
@@ -79,14 +98,48 @@ serve(async (req: Request) => {
     });
 
     if (!result?.results?.channels?.[0]?.alternatives?.[0]) {
-      console.error('Invalid response format from Deepgram:', result);
       throw new Error('Invalid response format from Deepgram');
+    }
+
+    // Store JSON result
+    const jsonFileName = `${Date.now()}_${requestData.fileName}.json`;
+    const { error: jsonUploadError } = await supabase.storage
+      .from('transcriptions')
+      .upload(jsonFileName, JSON.stringify(result), {
+        contentType: 'application/json',
+        upsert: false
+      });
+
+    if (jsonUploadError) {
+      throw new Error(`Failed to store JSON result: ${jsonUploadError.message}`);
+    }
+
+    // Store file references in database
+    const { error: dbError } = await supabase
+      .from('transcription_files')
+      .insert({
+        audio_file_path: audioFileName,
+        json_file_path: jsonFileName,
+        file_name: requestData.fileName,
+        metadata: {
+          model: requestData.options.model,
+          language: requestData.options.language,
+          duration: result.metadata?.duration
+        }
+      });
+
+    if (dbError) {
+      throw new Error(`Failed to store file references: ${dbError.message}`);
     }
 
     return new Response(
       JSON.stringify({ 
         data: result,
-        status: 'success'
+        status: 'success',
+        files: {
+          audio: audioFileName,
+          json: jsonFileName
+        }
       }),
       { 
         headers: {
