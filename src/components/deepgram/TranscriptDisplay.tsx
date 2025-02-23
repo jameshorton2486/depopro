@@ -33,7 +33,7 @@ export const TranscriptDisplay = ({
   const renderParagraph = (paragraph: DeepgramParagraph, index: number) => (
     <div key={index} className="mb-4">
       <div className="text-sm text-muted-foreground mb-1">
-        Speaker {paragraph.speaker + 1}
+        Speaker {paragraph.speaker + 1}:
       </div>
       <p className="text-sm">
         {paragraph.sentences.map((sentence, i) => (

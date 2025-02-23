@@ -8,8 +8,8 @@ export class ScreenplayFormatter extends BaseFormatter {
     let formattedTranscript = "";
 
     paragraphs.forEach((para, index) => {
-      const speaker = `CHARACTER ${para.speaker + 1}`;
-      formattedTranscript += `\n${speaker.toUpperCase()}\n`;
+      const speaker = `Speaker ${para.speaker + 1}:`;
+      formattedTranscript += `\n${speaker}\n`;
       
       para.sentences.forEach(sentence => {
         formattedTranscript += `    ${sentence.text}\n`;
