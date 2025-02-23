@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 import { TranscriptionResult, DeepgramParagraph } from "@/types/deepgram";
+import FormattingButtons from "@/components/transcript/FormattingButtons";
 
 interface TranscriptDisplayProps {
   transcript: string;
@@ -60,13 +61,15 @@ export const TranscriptDisplay = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onDownload(transcript)}
+            onClick={() => createAndDownloadWordDoc(transcript)}
           >
             <Download className="w-4 h-4 mr-2" />
-            Download as DOCX
+            Download Raw
           </Button>
         </div>
       </div>
+
+      <FormattingButtons transcript={transcript} />
 
       <ScrollArea className="h-[500px] w-full rounded-md border p-4">
         {transcriptionResult?.paragraphs ? (
