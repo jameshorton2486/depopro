@@ -3,7 +3,6 @@ import { useDropzone, DropzoneInputProps } from "react-dropzone";
 import TranscriptHeader from "@/components/transcript/TranscriptHeader";
 import UploadSection from "@/components/transcript/UploadSection";
 import UploadArea from "@/components/transcript/UploadArea";
-import FormattingButtons from "@/components/transcript/FormattingButtons";
 import CorrectedTextDisplay from "@/components/transcript/CorrectedTextDisplay";
 import { useTranscriptUpload } from "@/hooks/useTranscriptUpload";
 
@@ -48,10 +47,6 @@ const TransCorrection = () => {
               progress={progress}
             />
           </UploadSection>
-
-          {uploadedFile && !isProcessing && (
-            <FormattingButtons transcript={correctedText || ""} />
-          )}
 
           {correctedText && !isProcessing && (
             <CorrectedTextDisplay text={correctedText} />

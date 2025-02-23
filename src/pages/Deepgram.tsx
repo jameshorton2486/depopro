@@ -12,6 +12,7 @@ export default function Deepgram() {
   const {
     uploadedFile,
     transcript,
+    transcriptionResult,
     isProcessing,
     processingStatus,
     progress,
@@ -62,6 +63,7 @@ export default function Deepgram() {
           ) : (
             <TranscriptDisplay
               transcript={transcript}
+              transcriptionResult={transcriptionResult}
               onDownload={handleDownload}
             />
           )}
