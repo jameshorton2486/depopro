@@ -73,6 +73,7 @@ export interface TranscriptionResult {
     processingTime: number;
     audioLength: number;
     speakers?: number;
+    fillerWords?: number;
   };
 }
 

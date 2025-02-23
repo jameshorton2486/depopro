@@ -2,11 +2,18 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions, DeepgramResponse, TranscriptionResult } from "@/types/deepgram";
-import { TranscriptionFile } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
+
+interface StoredFile {
+  id: string;
+  audio_file_path: string;
+  json_file_path: string;
+  file_name: string;
+  created_at: string;
+}
 
 export const useTranscription = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -29,22 +36,21 @@ export const useTranscription = () => {
 
   const cleanupOldFiles = useCallback(async () => {
     try {
-      // Get all previous transcription files
       const { data: files, error: fetchError } = await supabase
         .from('transcription_files')
-        .select('*');
+        .select('*') as { data: StoredFile[] | null; error: any };
 
       if (fetchError) throw fetchError;
 
-      // Delete storage objects
-      for (const file of files || []) {
-        await supabase.storage
-          .from('transcriptions')
-          .remove([file.audio_file_path, file.json_file_path]);
-      }
-
-      // Delete database records
       if (files?.length) {
+        // Delete storage objects
+        for (const file of files) {
+          await supabase.storage
+            .from('transcriptions')
+            .remove([file.audio_file_path, file.json_file_path]);
+        }
+
+        // Delete database records
         const { error: deleteError } = await supabase
           .from('transcription_files')
           .delete()
@@ -54,7 +60,6 @@ export const useTranscription = () => {
       }
     } catch (error) {
       console.error('Failed to cleanup old files:', error);
-      // Don't throw error as this is not critical
     }
   }, []);
 
