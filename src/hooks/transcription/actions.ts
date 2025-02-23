@@ -23,25 +23,16 @@ export async function transcribeAudio(
   progressInterval: NodeJS.Timeout,
   setProgress: (progress: number) => void
 ) {
-  const base64Content = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64String = reader.result as string;
-      const base64Content = base64String.split(',')[1];
-      resolve(base64Content);
-    };
-    reader.onerror = (error) => {
-      console.error('Failed to read file:', error);
-      reject(new Error('Failed to read audio file'));
-    };
-    reader.readAsDataURL(file);
-  });
+  const fileData = new FormData();
+  fileData.append('file', file);
+  fileData.append('options', JSON.stringify(options));
 
   const { data, error } = await supabase.functions.invoke('transcribe', {
     body: {
-      audioData: base64Content,
+      options,
       fileName: file.name,
-      options
+      audioType: file.type,
+      mimeType: file.type
     }
   });
 
