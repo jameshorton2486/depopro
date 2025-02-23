@@ -20,7 +20,7 @@ export async function handleFileUpload(
 export async function transcribeAudio(
   file: File,
   options: DeepgramOptions,
-  progressInterval: NodeJS.Timer,
+  progressInterval: NodeJS.Timeout,
   setProgress: (progress: number) => void
 ) {
   const base64Content = await new Promise<string>((resolve, reject) => {

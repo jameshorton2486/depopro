@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
 import { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
-import { cleanupOldFiles } from "./transcription/storage";
+import { cleanupOldFiles, generateFileHash } from "./transcription/storage";
 import { simulateProgress } from "./transcription/progress";
 import { handleFileUpload, transcribeAudio, handleDownload } from "./transcription/actions";
 import type { TranscriptionHookReturn } from "./transcription/types";

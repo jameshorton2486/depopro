@@ -2,7 +2,7 @@
 export function simulateProgress(
   setProgress: (progress: number) => void,
   startAt: number = 0
-): NodeJS.Timer {
+): NodeJS.Timeout {
   setProgress(startAt);
   return setInterval(() => {
     setProgress((prev) => {
