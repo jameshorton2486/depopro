@@ -7,12 +7,13 @@ import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
 
-interface TranscriptionFile {
+interface StoredTranscription {
   id: string;
-  audio_file_path: string;
-  json_file_path: string;
+  file_path: string;
   file_name: string;
+  metadata: any;
   created_at: string;
+  raw_response: any;
 }
 
 export const useTranscription = () => {
@@ -38,16 +39,18 @@ export const useTranscription = () => {
     try {
       const { data: files, error: fetchError } = await supabase
         .from('transcription_data')
-        .select('*') as { data: TranscriptionFile[] | null; error: any };
+        .select('*') as { data: StoredTranscription[] | null; error: any };
 
       if (fetchError) throw fetchError;
 
       if (files?.length) {
         // Delete storage objects
         for (const file of files) {
-          await supabase.storage
-            .from('transcriptions')
-            .remove([file.audio_file_path, file.json_file_path]);
+          if (file.file_path) {
+            await supabase.storage
+              .from('transcriptions')
+              .remove([file.file_path]);
+          }
         }
 
         // Delete database records
