@@ -8,6 +8,7 @@ import { cleanupOldFiles, generateFileHash } from "./transcription/storage";
 import { simulateProgress } from "./transcription/progress";
 import { handleFileUpload, transcribeAudio, handleDownload } from "./transcription/actions";
 import type { TranscriptionHookReturn } from "./transcription/types";
+import { supabase } from "@/integrations/supabase/client";
 
 export const useTranscription = (): TranscriptionHookReturn => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -27,6 +28,34 @@ export const useTranscription = (): TranscriptionHookReturn => {
     keywords: [],
     keyterms: []
   });
+
+  const saveTranscriptionData = async (
+    file: File,
+    result: TranscriptionResult,
+    audioPath: string
+  ) => {
+    try {
+      const { error } = await supabase
+        .from('transcription_data')
+        .insert({
+          file_name: file.name,
+          file_path: audioPath,
+          metadata: {
+            duration: result.metadata?.audioLength,
+            speakers: result.metadata?.speakers,
+            model: options.model,
+            language: options.language
+          },
+          raw_response: result
+        });
+
+      if (error) throw error;
+      toast.success('Transcription saved successfully');
+    } catch (error) {
+      console.error('Error saving transcription:', error);
+      toast.error('Failed to save transcription data');
+    }
+  };
 
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({ ...prev, ...newOptions }));
@@ -74,13 +103,25 @@ export const useTranscription = (): TranscriptionHookReturn => {
     const progressInterval = simulateProgress(setProgress, 10);
 
     try {
+      // Upload audio file to Supabase Storage
+      const fileExt = uploadedFile.name.split('.').pop();
+      const filePath = `${crypto.randomUUID()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('transcriptions')
+        .upload(filePath, uploadedFile);
+
+      if (uploadError) throw uploadError;
+
       const data = await transcribeAudio(uploadedFile, options, progressInterval, setProgress);
       const result = transcriptProcessor.processFullResponse(data.data);
       const fileHash = await generateFileHash(uploadedFile);
+      
       await transcriptProcessor.cacheTranscript(fileHash, result);
+      await saveTranscriptionData(uploadedFile, result, filePath);
       
       setTranscriptionResult(result);
-      toast.success("Transcription completed!");
+      toast.success("Transcription completed and saved!");
 
     } catch (error: any) {
       console.error("❌ Transcription error:", error);
