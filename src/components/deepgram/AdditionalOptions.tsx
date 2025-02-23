@@ -15,7 +15,6 @@ interface AdditionalOptionsProps {
 
 export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOptionsProps) => {
   const [newKeyword, setNewKeyword] = useState("");
-  const [newUtterance, setNewUtterance] = useState("");
 
   const handleKeywordAdd = () => {
     if (newKeyword.trim()) {
