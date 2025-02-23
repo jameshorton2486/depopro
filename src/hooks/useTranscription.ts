@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
@@ -27,7 +28,7 @@ export const useTranscription = () => {
     paragraphs: true,
     utterances: false,
     keywords: [],
-    keyterm: ""
+    keyterms: []
   });
 
   const handleOptionsChange = (newOptions: Partial<DeepgramOptions>) => {
@@ -94,7 +95,7 @@ export const useTranscription = () => {
         filler_words: options.filler_words,
         utterances: options.utterances ?? false,
         keywords: options.keywords || [],
-        keyterm: options.keyterm || "",
+        keyterms: options.keyterms || [],
         model: options.model,
         language: "en-US"
       };

@@ -32,6 +32,8 @@ export default function Deepgram() {
             onDrop={onDrop}
             uploadedFile={uploadedFile}
             isProcessing={isProcessing}
+            processingStatus={processingStatus}
+            progress={progress}
           />
           
           <TranscriptionControls
@@ -47,7 +49,7 @@ export default function Deepgram() {
 
         <div className="relative min-h-[400px] border rounded-lg p-4">
           {isProcessing ? (
-            <ProcessingOverlay status={processingStatus} progress={progress} />
+            <ProcessingOverlay processingStatus={processingStatus} progress={progress} />
           ) : (
             <TranscriptDisplay
               transcript={transcript}
