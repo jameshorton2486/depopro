@@ -7,7 +7,7 @@ import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
 
-interface StoredFile {
+interface TranscriptionFile {
   id: string;
   audio_file_path: string;
   json_file_path: string;
@@ -37,8 +37,8 @@ export const useTranscription = () => {
   const cleanupOldFiles = useCallback(async () => {
     try {
       const { data: files, error: fetchError } = await supabase
-        .from('transcription_files')
-        .select('*') as { data: StoredFile[] | null; error: any };
+        .from('transcription_data')
+        .select('*') as { data: TranscriptionFile[] | null; error: any };
 
       if (fetchError) throw fetchError;
 
@@ -52,7 +52,7 @@ export const useTranscription = () => {
 
         // Delete database records
         const { error: deleteError } = await supabase
-          .from('transcription_files')
+          .from('transcription_data')
           .delete()
           .in('id', files.map(f => f.id));
 
