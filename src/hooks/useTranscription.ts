@@ -2,9 +2,11 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions, DeepgramResponse, TranscriptionResult } from "@/types/deepgram";
+import { TranscriptionFile } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 import { validateFile } from "@/utils/fileValidation";
+import { transcriptProcessor } from "@/utils/transcriptProcessor";
 
 export const useTranscription = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -73,15 +75,32 @@ export const useTranscription = () => {
       await cleanupOldFiles(); // Clean up old files before setting new one
       setUploadedFile(files[0]);
       toast.success(`File "${files[0].name}" uploaded successfully`);
+      
+      // Try to get cached transcript
+      const fileHash = await generateFileHash(files[0]);
+      const cached = await transcriptProcessor.getCachedTranscript(fileHash);
+      if (cached) {
+        setTranscriptionResult(cached);
+        toast.info("Retrieved cached transcription");
+      }
+
       console.debug('✅ File accepted:', {
         name: files[0].name,
         size: `${(files[0].size / (1024 * 1024)).toFixed(2)}MB`,
-        type: files[0].type
+        type: files[0].type,
+        cached: !!cached
       });
     } catch (error: any) {
       console.error('❌ File validation error:', error);
       toast.error(error.message);
     }
+  };
+
+  const generateFileHash = async (file: File): Promise<string> => {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   };
 
   const simulateProgress = (startAt: number = 0) => {
@@ -94,21 +113,6 @@ export const useTranscription = () => {
         return prev + 2;
       });
     }, 1000);
-  };
-
-  const processDeepgramResponse = (response: DeepgramResponse): TranscriptionResult => {
-    const alternative = response.results.channels[0].alternatives[0];
-    const paragraphs = alternative.paragraphs?.paragraphs || [];
-
-    return {
-      transcript: alternative.transcript,
-      paragraphs,
-      metadata: {
-        processingTime: response.metadata.processing_time,
-        audioLength: response.metadata.duration,
-        speakers: paragraphs.reduce((acc, p) => Math.max(acc, p.speaker), 0) + 1
-      }
-    };
   };
 
   const handleTranscribe = async () => {
@@ -125,6 +129,15 @@ export const useTranscription = () => {
     const progressInterval = simulateProgress(10);
 
     try {
+      const fileHash = await generateFileHash(uploadedFile);
+      const cached = await transcriptProcessor.getCachedTranscript(fileHash);
+      
+      if (cached) {
+        setTranscriptionResult(cached);
+        toast.success("Retrieved from cache");
+        return;
+      }
+
       const base64Content = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -166,7 +179,9 @@ export const useTranscription = () => {
       setProgress(100);
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      const result = processDeepgramResponse(data.data);
+      const result = transcriptProcessor.processFullResponse(data.data);
+      await transcriptProcessor.cacheTranscript(fileHash, result);
+      
       setTranscriptionResult(result);
       toast.success("Transcription completed!");
       console.debug('Transcription completed successfully:', {
