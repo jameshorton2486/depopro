@@ -1,15 +1,17 @@
 
+import { Dispatch, SetStateAction } from 'react';
+
 export function simulateProgress(
-  setProgress: (progress: number) => void,
+  setProgress: Dispatch<SetStateAction<number>>,
   startAt: number = 0
 ): NodeJS.Timeout {
   setProgress(startAt);
   return setInterval(() => {
-    setProgress((prevProgress: number) => {
-      if (prevProgress >= 90) {
-        return prevProgress;
+    setProgress((prev) => {
+      if (prev >= 90) {
+        return prev;
       }
-      return prevProgress + 2;
+      return prev + 2;
     });
   }, 1000);
 }
