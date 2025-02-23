@@ -84,10 +84,12 @@ export const processAudioFile = async (
     options
   });
 
-  // Ensure smart_format is enabled
+  // Ensure required formatting options are enabled
   const processOptions = {
     ...options,
-    smart_format: true
+    smart_format: true,
+    punctuate: true,
+    paragraphs: true
   };
 
   // Convert file to base64
