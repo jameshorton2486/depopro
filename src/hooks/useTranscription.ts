@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions, DeepgramResponse, TranscriptionResult } from "@/types/deepgram";
@@ -67,14 +66,13 @@ export const useTranscription = () => {
   const processDeepgramResponse = (response: DeepgramResponse): TranscriptionResult => {
     const alternative = response.results.channels[0].alternatives[0];
     const paragraphs = alternative.paragraphs?.paragraphs || [];
-    const words = alternative.words || [];
 
     return {
       transcript: alternative.transcript,
       paragraphs,
       metadata: {
-        processingTime: response.metadata?.processing_time || 0,
-        audioLength: response.metadata?.duration || 0,
+        processingTime: response.metadata.processing_time,
+        audioLength: response.metadata.duration,
         speakers: paragraphs.reduce((acc, p) => Math.max(acc, p.speaker), 0) + 1
       }
     };
@@ -140,8 +138,8 @@ export const useTranscription = () => {
       toast.success("Transcription completed!");
       console.debug('Transcription completed successfully:', {
         result,
-        speakers: result.metadata.speakers,
-        paragraphs: result.paragraphs.length
+        speakers: result.metadata?.speakers,
+        paragraphs: result.paragraphs?.length
       });
 
     } catch (error: any) {

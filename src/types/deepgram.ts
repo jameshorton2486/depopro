@@ -1,3 +1,4 @@
+
 export interface DeepgramKeyterm {
   term: string;
   boost: number;
@@ -31,7 +32,18 @@ export interface DeepgramParagraph {
   sentences: DeepgramSentence[];
 }
 
+export interface DeepgramMetadata {
+  request_id: string;
+  transaction_key: string;
+  sha256: string;
+  created: string;
+  duration: number;
+  channels: number;
+  processing_time: number;
+}
+
 export interface DeepgramResponse {
+  metadata: DeepgramMetadata;
   results: {
     channels: Array<{
       alternatives: Array<{
