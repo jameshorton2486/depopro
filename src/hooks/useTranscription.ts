@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions, DeepgramResponse, TranscriptionResult } from "@/types/deepgram";
@@ -12,7 +13,7 @@ export const useTranscription = () => {
   const [processingStatus, setProcessingStatus] = useState("");
   const [progress, setProgress] = useState(0);
   const [options, setOptions] = useState<DeepgramOptions>({
-    model: "nova-2",
+    model: "nova-meeting",
     language: "en-US",
     smart_format: true,
     diarize: true,
