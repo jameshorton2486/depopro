@@ -84,7 +84,7 @@ export const processAudioFile = async (
     options
   });
 
-  // Ensure required formatting options are enabled
+  // Ensure required formatting options
   const processOptions = {
     ...options,
     smart_format: true,

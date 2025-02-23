@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions } from "@/types/deepgram";
@@ -33,6 +32,11 @@ export const useTranscription = () => {
 
   const handleOptionsChange = (newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({ ...prev, ...newOptions }));
+    console.debug('🔄 Options updated:', { 
+      previousOptions: options, 
+      newOptions,
+      mergedOptions: { ...options, ...newOptions }
+    });
   };
 
   const onDrop = async (files: File[]) => {
@@ -52,7 +56,6 @@ export const useTranscription = () => {
     setProgress(startAt);
     return setInterval(() => {
       setProgress((prev) => {
-        // Only increment up to 90% during processing
         if (prev >= 90) {
           return prev;
         }
@@ -79,25 +82,33 @@ export const useTranscription = () => {
     setTranscript("");
     setProgress(0);
 
-    const progressInterval = simulateProgress(10); // Start at 10%
+    const progressInterval = simulateProgress(10);
 
     try {
-      // Create a temporary ID for the transcript
-      const tempId = crypto.randomUUID();
+      const processOptions: DeepgramOptions = {
+        ...options,
+        smart_format: true,
+        punctuate: true,
+        paragraphs: true,
+        diarize: options.diarize,
+        filler_words: options.filler_words,
+        utterances: options.utterances ?? false,
+        keywords: options.keywords || [],
+        keyterm: options.keyterm || "",
+        model: options.model,
+        language: options.language
+      };
+
+      console.debug('🔍 Processing with options:', processOptions);
       
       setProcessingStatus("Processing audio...");
       toast.info("Starting transcription process...");
       
-      // Process the audio file
-      const transcriptText = await processAudioFile(uploadedFile, options);
+      const transcriptText = await processAudioFile(uploadedFile, processOptions);
       
-      // Clear the progress interval before setting the final state
       clearInterval(progressInterval);
-      
-      // Set progress to 100% when actually complete
       setProgress(100);
       
-      // Small delay before setting the transcript to ensure UI updates
       await new Promise(resolve => setTimeout(resolve, 500));
       
       setTranscript(transcriptText);
@@ -112,11 +123,9 @@ export const useTranscription = () => {
       });
       toast.error(`Transcription failed: ${error.message}`);
       
-      // Clear interval and reset progress on error
       clearInterval(progressInterval);
       setProgress(0);
     } finally {
-      // Small delay before resetting processing state
       await new Promise(resolve => setTimeout(resolve, 1000));
       setIsProcessing(false);
       setProcessingStatus("");
