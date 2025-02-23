@@ -3,14 +3,27 @@ import { formatTranscriptText } from './transcriptFormatting';
 import { TranscriptFormatting } from '@/types/deepgram';
 
 export const createAndDownloadWordDoc = (content: string, formatting?: TranscriptFormatting) => {
-  // Format the content before creating the document
-  const formattedContent = formatTranscriptText(content, {
+  // Create default formatting options
+  const defaultFormatting: TranscriptFormatting = {
     removeExtraSpaces: true,
     standardizePunctuation: true,
     boldSpeakerNames: true,
     highlightFillerWords: true,
+    enableDiarization: true,
+    enableParagraphs: true,
+    timestampFormat: "HH:mm:ss"
+  };
+
+  // Merge default options with provided options
+  const formattingOptions = {
+    ...defaultFormatting,
     ...formatting
-  });
+  };
+
+  console.log('Applying formatting options:', formattingOptions);
+  
+  // Format the content before creating the document
+  const formattedContent = formatTranscriptText(content, formattingOptions);
   
   // Create a Blob with the formatted content
   // Use .doc extension for better compatibility with word processors
