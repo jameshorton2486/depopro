@@ -1,7 +1,12 @@
 
+import { formatTranscriptText } from './transcriptFormatting';
+
 export const createAndDownloadWordDoc = (content: string) => {
-  // Create a Blob with the content
-  const blob = new Blob([content], { type: 'application/msword' });
+  // Format the content before creating the document
+  const formattedContent = formatTranscriptText(content);
+  
+  // Create a Blob with the formatted content
+  const blob = new Blob([formattedContent], { type: 'application/msword' });
   
   // Create download link
   const element = document.createElement('a');
@@ -17,3 +22,4 @@ export const createAndDownloadWordDoc = (content: string) => {
   document.body.removeChild(element);
   URL.revokeObjectURL(element.href);
 };
+
