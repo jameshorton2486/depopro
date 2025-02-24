@@ -67,7 +67,7 @@ export const useTranscription = (): TranscriptionHookReturn => {
       };
 
       const { error: jsonError } = await supabase.storage
-        .from('json file')
+        .from('json_file')
         .upload(jsonPath, JSON.stringify(jsonResult, null, 2), {
           contentType: 'application/json',
           upsert: false
@@ -151,7 +151,7 @@ export const useTranscription = (): TranscriptionHookReturn => {
       const jsonPath = `${uniqueId}.json`;
       
       const { error: uploadError } = await supabase.storage
-        .from('audio file')
+        .from('audio_file')
         .upload(audioPath, uploadedFile);
 
       if (uploadError) throw uploadError;
