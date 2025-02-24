@@ -11,28 +11,36 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
   if (options?.enableDiarization) {
     let speakerCount = 0;
     const speakerMap = new Map<string, number>();
+    const nanSpeakerContextMap = new Map<string, number>();
 
-    // First pass: clean up and standardize speaker labels.
-    // Add two spaces after colon and ensure consistent numbering
-    formattedText = formattedText.replace(/\n?Speaker(?:\s+(?:NaN|\d+))(?=:)?/gi, (match) => {
-      const trimmedLabel = match.trim();
+    // First pass: clean up and standardize speaker labels
+    formattedText = formattedText.replace(/\n?Speaker(?:\s+(?:NaN|\d+))(?:\s*:)(?:\s*[^]*?)(?=\n?Speaker|\n?$)/gi, (match) => {
+      const labelMatch = match.match(/Speaker\s+(?:NaN|\d+)/i);
+      const label = labelMatch ? labelMatch[0].trim() : '';
+      const content = match.slice(label.length).trim();
       
-      // Check if the label contains "nan" (case-insensitive)
-      if (trimmedLabel.toLowerCase().includes("nan")) {
-        // Always assign a new number if the label is "NaN"
-        return `\nSpeaker ${speakerCount++}:  `; // Note the two spaces after colon
-      } else {
-        // For valid numbers, maintain consistent numbering
-        if (!speakerMap.has(trimmedLabel)) {
-          speakerMap.set(trimmedLabel, speakerCount++);
+      let speakerNumber: number;
+      
+      if (label.toLowerCase().includes('nan')) {
+        // For NaN speakers, try to identify them by their spoken content
+        const contentKey = content.slice(0, 100); // Use first 100 chars as context
+        if (nanSpeakerContextMap.has(contentKey)) {
+          speakerNumber = nanSpeakerContextMap.get(contentKey)!;
+        } else {
+          speakerNumber = speakerCount++;
+          nanSpeakerContextMap.set(contentKey, speakerNumber);
         }
-        const speakerNumber = speakerMap.get(trimmedLabel);
-        return `\nSpeaker ${speakerNumber}:  `; // Note the two spaces after colon
+      } else {
+        // For numbered speakers, maintain consistent numbering
+        if (!speakerMap.has(label)) {
+          speakerMap.set(label, speakerCount++);
+        }
+        speakerNumber = speakerMap.get(label)!;
       }
-    });
 
-    // Ensure single newline after each speaker label
-    formattedText = formattedText.replace(/(Speaker \d+:  )\s*\n+/g, '$1');
+      // Format with exactly two spaces after the colon
+      return `\nSpeaker ${speakerNumber}:  ${content}`;
+    });
 
     if (options?.boldSpeakerNames) {
       // Add bold formatting to speaker labels (including the colon and spaces)
@@ -42,8 +50,9 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
     // Ensure proper spacing around speaker labels and their text
     formattedText = formattedText.replace(/\n\s*(Speaker \d+:  )\s*/g, '\n$1');
 
-    // Log speaker mapping for debugging (only valid for non-NaN speakers)
+    // Log speaker mappings for debugging
     console.log('Speaker mapping:', Object.fromEntries(speakerMap));
+    console.log('NaN speaker context mapping:', Object.fromEntries(nanSpeakerContextMap));
   }
 
   // Handle paragraph formatting if enabled
@@ -89,4 +98,3 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
 
   return formattedText;
 }
-
