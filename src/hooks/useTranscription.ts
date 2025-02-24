@@ -51,7 +51,8 @@ export const useTranscription = (): TranscriptionHookReturn => {
   const saveTranscriptionData = async (
     file: File,
     result: TranscriptionResult,
-    audioPath: string
+    audioPath: string,
+    jsonPath: string
   ) => {
     try {
       const jsonResult: Json = {
@@ -65,7 +66,16 @@ export const useTranscription = (): TranscriptionHookReturn => {
         }
       };
 
-      const { error } = await supabase
+      const { error: jsonError } = await supabase.storage
+        .from('json file')
+        .upload(jsonPath, JSON.stringify(jsonResult, null, 2), {
+          contentType: 'application/json',
+          upsert: false
+        });
+
+      if (jsonError) throw jsonError;
+
+      const { error: dbError } = await supabase
         .from('transcription_data')
         .insert({
           file_name: file.name,
@@ -74,16 +84,18 @@ export const useTranscription = (): TranscriptionHookReturn => {
             duration: result.metadata?.audioLength,
             speakers: result.metadata?.speakers,
             model: options.model,
-            language: options.language
+            language: options.language,
+            jsonPath: jsonPath
           } as Json,
           raw_response: jsonResult
         });
 
-      if (error) throw error;
-      toast.success('Transcription saved successfully');
+      if (dbError) throw dbError;
+      toast.success('Transcription and data saved successfully');
     } catch (error) {
       console.error('Error saving transcription:', error);
       toast.error('Failed to save transcription data');
+      throw error;
     }
   };
 
@@ -134,11 +146,13 @@ export const useTranscription = (): TranscriptionHookReturn => {
 
     try {
       const fileExt = uploadedFile.name.split('.').pop();
-      const filePath = `${crypto.randomUUID()}.${fileExt}`;
+      const uniqueId = crypto.randomUUID();
+      const audioPath = `${uniqueId}.${fileExt}`;
+      const jsonPath = `${uniqueId}.json`;
       
       const { error: uploadError } = await supabase.storage
-        .from('transcriptions')
-        .upload(filePath, uploadedFile);
+        .from('audio file')
+        .upload(audioPath, uploadedFile);
 
       if (uploadError) throw uploadError;
 
@@ -152,7 +166,7 @@ export const useTranscription = (): TranscriptionHookReturn => {
       const fileHash = await generateFileHash(uploadedFile);
       
       await transcriptProcessor.cacheTranscript(fileHash, result);
-      await saveTranscriptionData(uploadedFile, result, filePath);
+      await saveTranscriptionData(uploadedFile, result, audioPath, jsonPath);
       
       setTranscriptionResult(result);
       
