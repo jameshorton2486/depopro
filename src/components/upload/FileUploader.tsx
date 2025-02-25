@@ -88,7 +88,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
 
   return (
     <div className="mt-6">
-      <h3 className="text-lg font-medium mb-2">Upload Document</h3>
+      <h3 className="text-lg font-medium mb-2">Upload Audio</h3>
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg h-[288px] flex flex-col items-center justify-center cursor-pointer transition-colors
@@ -103,10 +103,10 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
             <UploadIcon className="w-8 h-8 mb-2 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
               {isDragActive 
-                ? "Drop the document here..."
+                ? "Drop the audio file here..."
                 : isProcessing
-                  ? `Processing document... ${progress}%`
-                  : "Upload PDF, DOCX, or TXT files (max 3GB)"}
+                  ? `Processing audio... ${progress}%`
+                  : "Upload MP3, WAV, or FLAC files (max 3GB)"}
             </p>
             {isProcessing && <UploadProgress progress={progress} />}
           </>
@@ -119,7 +119,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
           className="flex items-center gap-2"
         >
           {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
-          Generate Rules from Document
+          Generate Rules from Audio
         </Button>
       </div>
     </div>
@@ -127,4 +127,3 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
 };
 
 export default FileUploader;
-

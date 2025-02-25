@@ -4,6 +4,7 @@ import Layout from "@/components/layout/Layout";
 import Deepgram from "@/pages/Deepgram";
 import ModelTraining from "@/pages/ModelTraining";
 import TextComparison from "@/components/upload/TextComparison";
+import FileUploader from "@/components/upload/FileUploader";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -20,6 +21,10 @@ function App() {
     toast.success("Rules generated successfully");
   };
 
+  const handleFileRules = async (text: string) => {
+    // Handle file processing here
+  };
+
   return (
     <Routes>
       <Route element={<Layout><Outlet /></Layout>}>
@@ -27,7 +32,7 @@ function App() {
           <div className="space-y-12">
             <Deepgram />
             <div className="border-t pt-12">
-              <h2 className="text-3xl font-semibold text-center mb-8 text-blue-500">
+              <h2 className="text-6xl font-semibold text-center mb-8 text-blue-500">
                 Correct Transcript
               </h2>
               <div className="max-w-6xl mx-auto px-4">
@@ -38,6 +43,7 @@ function App() {
                   onCorrectedTextChange={setCorrectedText}
                   onGenerateRules={handleGenerateRules}
                 />
+                <FileUploader onGenerateRules={handleFileRules} />
               </div>
             </div>
           </div>
