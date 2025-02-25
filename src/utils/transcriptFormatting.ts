@@ -15,7 +15,7 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
     const suffix = ":  ";
 
     // First pass: clean up and standardize speaker labels
-    formattedText = formattedText.replace(/\n?Speaker\s+(NaN|\d+)\s*:/gi, (match, p1) => {
+    formattedText = formattedText.replace(/\n?Speaker\s+(NaN|\d+)\s*:(.*?)(?=\n?Speaker|\n?$)/gi, (match, p1, content) => {
       let speakerNumber;
       if (p1.toLowerCase() === "nan") {
         // For "NaN" labels, assign a new number each time
@@ -27,13 +27,17 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
         }
         speakerNumber = speakerMap.get(p1);
       }
-      return `\n${prefix}${speakerNumber}${suffix}`;
+      // Preserve the speaker's content while standardizing the format
+      return `\n${prefix}${speakerNumber}${suffix}${content.trim()}`;
     });
 
     if (options?.boldSpeakerNames) {
       // Add bold formatting to speaker labels
       formattedText = formattedText.replace(/\n?(Speaker \d+:  )/g, '\n**$1**');
     }
+
+    // Ensure proper spacing around speaker labels
+    formattedText = formattedText.replace(/\n\s*(Speaker \d+:  )\s*/g, '\n$1');
 
     // Debug output: log the speaker mapping
     console.log('Speaker mapping:', Object.fromEntries(speakerMap));
