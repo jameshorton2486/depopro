@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { KeytermForm, type Keyterm } from "./keyterm/KeytermForm";
+import { KeytermForm, type Keyterm, mapDatabaseRowToKeyterm } from "./keyterm/KeytermForm";
 import { KeytermList } from "./keyterm/KeytermList";
 import { DocumentUploader } from "./keyterm/DocumentUploader";
 

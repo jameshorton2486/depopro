@@ -1,10 +1,11 @@
-
+import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Keyterm } from "./KeytermForm";
+import { mapDatabaseRowToKeyterm } from "./KeytermForm";
 
 interface DocumentUploaderProps {
   onTermsExtracted: (terms: Keyterm[]) => void;
