@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FileJson, FileText, FileOutput, FileCheck } from "lucide-react";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 import { type TrainingRules } from "@/services/openai";
+import { supabase } from "@/lib/supabase";
 
 type TextComparisonProps = {
   originalText: string;
@@ -60,35 +61,19 @@ const TextComparison = ({
     try {
       const corrections = JSON.parse(originalText) as TrainingRules;
       
-      // Make API call to apply corrections using training model
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4",
-          messages: [
-            {
-              role: "system",
-              content: `You are a professional transcript corrector. Apply these specific rules and instructions:
-                ${JSON.stringify(corrections, null, 2)}`
-            },
-            {
-              role: "user",
-              content: correctedText
-            }
-          ]
-        })
+      // Call Supabase Edge Function to process corrections
+      const { data, error } = await supabase.functions.invoke('process-corrections', {
+        body: {
+          text: correctedText,
+          rules: corrections
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to process corrections');
+      if (error) {
+        throw error;
       }
 
-      const data = await response.json();
-      const correctedTranscript = data.choices[0].message.content;
+      const correctedTranscript = data.correctedText;
 
       // Create and open Word document with corrected text
       createAndDownloadWordDoc(correctedTranscript);
