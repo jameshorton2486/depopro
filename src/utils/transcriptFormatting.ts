@@ -1,52 +1,64 @@
 
-import { TranscriptFormatting } from "@/types/deepgram";
+import { TranscriptFormatting, DeepgramParagraph } from "@/types/deepgram";
 
 /**
  * Formats transcript text according to standardized rules
  */
-export function formatTranscriptText(text: string, options?: TranscriptFormatting): string {
+export function formatTranscriptText(
+  text: string, 
+  options?: TranscriptFormatting,
+  paragraphs?: DeepgramParagraph[]
+): string {
   let formattedText = text;
 
-  // Only process diarization if enabled
-  if (options?.enableDiarization) {
+  // Only process diarization if enabled and paragraphs data is available
+  if (options?.enableDiarization && paragraphs?.length) {
+    // Build a formatted version using the paragraphs data
+    formattedText = paragraphs.map(paragraph => {
+      const speakerLabel = `Speaker ${paragraph.speaker}:  `;
+      const content = paragraph.sentences.map(s => s.text).join(' ').trim();
+      return options?.boldSpeakerNames 
+        ? `\n**${speakerLabel}**${content}`
+        : `\n${speakerLabel}${content}`;
+    }).join('\n');
+
+    // Log paragraph data for debugging
+    console.log('Processing paragraphs:', paragraphs.map(p => ({ 
+      speaker: p.speaker,
+      sentenceCount: p.sentences.length
+    })));
+  } else {
+    // Fallback to regex-based formatting if no paragraph data
     let speakerCount = 0;
     const speakerMap = new Map<string, number>();
-    const prefix = "Speaker ";
-    const suffix = ":  ";
 
-    // First pass: clean up and standardize speaker labels
-    formattedText = formattedText.replace(/\n?Speaker\s+(NaN|\d+)\s*:(.*?)(?=\n?Speaker|\n?$)/gi, (match, p1, content) => {
-      let speakerNumber;
-      if (p1.toLowerCase() === "nan") {
-        // For "NaN" labels, assign a new number each time
-        speakerNumber = speakerCount++;
-      } else {
-        // For valid numbers, reuse the same mapping if it exists
-        if (!speakerMap.has(p1)) {
-          speakerMap.set(p1, speakerCount++);
+    formattedText = formattedText.replace(
+      /\n?Speaker\s+(NaN|\d+)\s*:(.*?)(?=\n?Speaker|\n?$)/gi,
+      (match, p1, content) => {
+        let speakerNumber;
+        if (p1.toLowerCase() === "nan") {
+          speakerNumber = speakerCount++;
+        } else {
+          if (!speakerMap.has(p1)) {
+            speakerMap.set(p1, speakerCount++);
+          }
+          speakerNumber = speakerMap.get(p1);
         }
-        speakerNumber = speakerMap.get(p1);
+        const speakerLabel = `Speaker ${speakerNumber}:  `;
+        return options?.boldSpeakerNames
+          ? `\n**${speakerLabel}**${content.trim()}`
+          : `\n${speakerLabel}${content.trim()}`;
       }
-      // Preserve the speaker's content while standardizing the format
-      return `\n${prefix}${speakerNumber}${suffix}${content.trim()}`;
-    });
+    );
 
-    if (options?.boldSpeakerNames) {
-      // Add bold formatting to speaker labels
-      formattedText = formattedText.replace(/\n?(Speaker \d+:  )/g, '\n**$1**');
-    }
-
-    // Ensure proper spacing around speaker labels
-    formattedText = formattedText.replace(/\n\s*(Speaker \d+:  )\s*/g, '\n$1');
-
-    // Debug output: log the speaker mapping
-    console.log('Speaker mapping:', Object.fromEntries(speakerMap));
+    // Log fallback processing
+    console.log('Using fallback speaker mapping:', Object.fromEntries(speakerMap));
   }
 
   // Handle paragraph formatting if enabled
   if (options?.enableParagraphs) {
     // Add an extra line break before new speakers to separate paragraphs
-    formattedText = formattedText.replace(/(\n\*\*Speaker \d+:  \*\*)/g, '\n\n$1');
+    formattedText = formattedText.replace(/(\n\*\*?Speaker \d+:  \*?\*?)/g, '\n\n$1');
     
     // Ensure consistent paragraph spacing
     formattedText = formattedText.replace(/\n{3,}/g, '\n\n');
