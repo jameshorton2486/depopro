@@ -23,6 +23,7 @@ function App() {
 
   const handleFileRules = async (text: string) => {
     // Handle file processing here
+    console.log("Processing file:", text);
   };
 
   return (
@@ -43,7 +44,6 @@ function App() {
                   onCorrectedTextChange={setCorrectedText}
                   onGenerateRules={handleGenerateRules}
                 />
-                <FileUploader onGenerateRules={handleFileRules} />
               </div>
             </div>
           </div>

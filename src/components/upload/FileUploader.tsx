@@ -8,7 +8,11 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const MAX_FILE_SIZE = 3 * 1024 * 1024 * 1024; // 3GB in bytes
 
-const FileUploader = () => {
+interface FileUploaderProps {
+  onGenerateRules?: (text: string) => Promise<void>;
+}
+
+const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
   const [uploadedFile, setUploadedFile] = useState<{ name: string } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -43,6 +47,11 @@ const FileUploader = () => {
 
       setUploadedFile({ name: file.name });
       toast.success("Audio file uploaded successfully");
+      
+      // Call onGenerateRules if provided
+      if (onGenerateRules) {
+        await onGenerateRules(filePath);
+      }
     } catch (error) {
       console.error("Error uploading audio file:", error);
       toast.error(error instanceof Error ? error.message : "Error uploading audio");
@@ -50,7 +59,7 @@ const FileUploader = () => {
     } finally {
       setIsUploading(false);
     }
-  }, []);
+  }, [onGenerateRules]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
