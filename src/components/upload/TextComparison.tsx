@@ -35,7 +35,7 @@ const TextComparison = ({
         <div>
           <div className="flex items-center gap-2 mb-2">
             <FileJson className="h-5 w-5 text-blue-500" />
-            <Label className="text-lg font-medium">Original JSON</Label>
+            <Label className="text-lg font-medium">JSON File</Label>
           </div>
           <Textarea
             className="min-h-[288px] font-mono"
@@ -50,7 +50,7 @@ const TextComparison = ({
         <div>
           <div className="flex items-center gap-2 mb-2">
             <FileText className="h-5 w-5 text-blue-500" />
-            <Label className="text-lg font-medium">Paste Transcript</Label>
+            <Label className="text-lg font-medium">Transcript</Label>
           </div>
           <Textarea
             className="min-h-[288px]"
