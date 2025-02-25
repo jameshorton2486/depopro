@@ -3,7 +3,6 @@ import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import UploadProgress from "./UploadProgress";
 import UploadedFileDisplay from "./UploadedFileDisplay";
 import { uploadAndProcessFile, MAX_FILE_SIZE } from "@/services/fileProcessing";
@@ -38,7 +37,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       
       const processedFile = await uploadAndProcessFile(file, setProgress);
       setUploadedFile(processedFile);
-      toast.success("Audio processed successfully");
+      toast.success("Audio uploaded successfully");
     } catch (error) {
       console.error("Error processing audio file:", error);
       toast.error(error instanceof Error ? error.message : "Error processing audio");
@@ -70,24 +69,6 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
     }
   });
 
-  const handleGenerateRules = async () => {
-    if (!uploadedFile) {
-      toast.error("Please upload an audio file first");
-      return;
-    }
-
-    try {
-      setIsProcessing(true);
-      await onGenerateRules(uploadedFile.text);
-      setUploadedFile(null);
-    } catch (error) {
-      console.error("Error generating rules:", error);
-      toast.error("Failed to generate rules from audio");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   return (
     <div className="mt-6">
       <h3 className="text-lg font-medium mb-2">Upload Audio</h3>
@@ -113,16 +94,6 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
             {isProcessing && <UploadProgress progress={progress} />}
           </>
         )}
-      </div>
-      <div className="flex justify-end mt-4">
-        <Button
-          onClick={handleGenerateRules}
-          disabled={!uploadedFile || isProcessing}
-          className="flex items-center gap-2"
-        >
-          {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
-          Generate Rules from Audio
-        </Button>
       </div>
     </div>
   );
