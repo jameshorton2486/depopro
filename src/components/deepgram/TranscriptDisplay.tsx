@@ -41,20 +41,25 @@ export const TranscriptDisplay = ({
     return speakerMap.get(originalSpeaker);
   };
 
-  const renderParagraph = (paragraph: DeepgramParagraph, index: number) => (
-    <div key={index} className="mb-4">
-      <div className="text-sm text-muted-foreground mb-1">
-        Speaker {getSpeakerNumber(paragraph.speaker)}:
+  const renderParagraph = (paragraph: DeepgramParagraph, index: number) => {
+    const speakerNumber = getSpeakerNumber(paragraph.speaker);
+    console.log(`Rendering speaker ${paragraph.speaker} as Speaker ${speakerNumber}`);
+    
+    return (
+      <div key={index} className="mb-4">
+        <div className="text-sm font-medium mb-1">
+          Speaker {speakerNumber}:
+        </div>
+        <p className="text-sm">
+          {paragraph.sentences.map((sentence, i) => (
+            <span key={i}>
+              {sentence.text}{' '}
+            </span>
+          ))}
+        </p>
       </div>
-      <p className="text-sm">
-        {paragraph.sentences.map((sentence, i) => (
-          <span key={i}>
-            {sentence.text}{' '}
-          </span>
-        ))}
-      </p>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="mt-6 space-y-4">

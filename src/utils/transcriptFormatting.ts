@@ -1,9 +1,6 @@
 
 import { TranscriptFormatting, DeepgramParagraph } from "@/types/deepgram";
 
-/**
- * Formats transcript text according to standardized rules
- */
 export function formatTranscriptText(
   text: string, 
   options?: TranscriptFormatting,
@@ -12,7 +9,7 @@ export function formatTranscriptText(
   let formattedText = text;
 
   // Only process diarization if enabled and paragraphs data is available
-  if (options?.enableDiarization && paragraphs?.length) {
+  if (paragraphs?.length) {
     // Create a map to assign sequential numbers starting from 0
     const speakerMap = new Map<number, number>();
     let nextSpeakerNumber = 0;
@@ -24,50 +21,19 @@ export function formatTranscriptText(
         speakerMap.set(paragraph.speaker, nextSpeakerNumber++);
       }
       const speakerNumber = speakerMap.get(paragraph.speaker);
-      const speakerLabel = `Speaker ${speakerNumber}:  `;
+      
+      // Format speaker label and content
+      const speakerLabel = `Speaker ${speakerNumber}:`;
       const content = paragraph.sentences.map(s => s.text).join(' ').trim();
-      return options?.boldSpeakerNames 
-        ? `\n**${speakerLabel}**${content}`
-        : `\n${speakerLabel}${content}`;
+      
+      // Log for debugging
+      console.log(`Processing speaker ${paragraph.speaker} -> ${speakerNumber}:`, content);
+      
+      return `\n${speakerLabel} ${content}`;
     }).join('\n');
 
-    // Log paragraph data for debugging
+    // Log speaker mapping for debugging
     console.log('Speaker mapping:', Object.fromEntries(speakerMap));
-  } else {
-    // Fallback to regex-based formatting if no paragraph data
-    let speakerCount = 0;
-    const speakerMap = new Map<string, number>();
-
-    formattedText = formattedText.replace(
-      /\n?Speaker\s+(NaN|\d+)\s*:(.*?)(?=\n?Speaker|\n?$)/gi,
-      (match, p1, content) => {
-        let speakerNumber;
-        if (p1.toLowerCase() === "nan") {
-          speakerNumber = speakerCount++;
-        } else {
-          if (!speakerMap.has(p1)) {
-            speakerMap.set(p1, speakerCount++);
-          }
-          speakerNumber = speakerMap.get(p1);
-        }
-        const speakerLabel = `Speaker ${speakerNumber}:  `;
-        return options?.boldSpeakerNames
-          ? `\n**${speakerLabel}**${content.trim()}`
-          : `\n${speakerLabel}${content.trim()}`;
-      }
-    );
-
-    // Log fallback processing
-    console.log('Using fallback speaker mapping:', Object.fromEntries(speakerMap));
-  }
-
-  // Handle paragraph formatting if enabled
-  if (options?.enableParagraphs) {
-    // Add an extra line break before new speakers to separate paragraphs
-    formattedText = formattedText.replace(/(\n\*\*?Speaker \d+:  \*?\*?)/g, '\n\n$1');
-    
-    // Ensure consistent paragraph spacing
-    formattedText = formattedText.replace(/\n{3,}/g, '\n\n');
   }
 
   if (options?.removeExtraSpaces) {
@@ -87,18 +53,11 @@ export function formatTranscriptText(
     formattedText = formattedText.replace(/([.?!])\s*(?=[A-Z])/g, '$1 ');
   }
 
-  if (options?.highlightFillerWords) {
-    // Highlight common filler words by wrapping them in underscores
-    const fillerWords = ['um', 'uh', 'ah', 'er', 'like', 'you know'];
-    const fillerRegex = new RegExp(`\\b(${fillerWords.join('|')})\\b`, 'gi');
-    formattedText = formattedText.replace(fillerRegex, '_$1_');
-  }
-
   // Final cleanup: trim any leading/trailing whitespace
   formattedText = formattedText.trim();
   
   // Ensure document starts with a newline if it begins with a speaker label
-  if (formattedText.startsWith('Speaker') || formattedText.startsWith('**Speaker')) {
+  if (formattedText.startsWith('Speaker')) {
     formattedText = '\n' + formattedText;
   }
 
