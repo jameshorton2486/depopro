@@ -34,6 +34,8 @@ export const saveTranscriptionData = async (
       }
     };
 
+    console.log('Saving transcription data:', { file_name: file.name, audioPath, jsonPath });
+
     const { error: jsonError } = await supabase.storage
       .from('json_file')
       .upload(jsonPath, JSON.stringify(jsonResult, null, 2), {
@@ -42,6 +44,11 @@ export const saveTranscriptionData = async (
       });
 
     if (jsonError) throw jsonError;
+
+    // Enable REPLICA IDENTITY FULL for the table to support realtime
+    await supabase.rpc('enable_realtime', {
+      table_name: 'transcription_data'
+    });
 
     const { error: dbError } = await supabase
       .from('transcription_data')

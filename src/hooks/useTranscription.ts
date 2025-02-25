@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
@@ -19,6 +19,32 @@ export const useTranscription = (): TranscriptionHookReturn => {
   const [processingStatus, setProcessingStatus] = useState("");
   const [progress, setProgress] = useState(0);
   const [options, setOptions] = useState<DeepgramOptions>(defaultTranscriptionOptions);
+
+  // Set up realtime subscription for transcription updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:transcription_data')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transcription_data'
+        },
+        (payload) => {
+          console.log('Realtime update received:', payload);
+          if (payload.new && uploadedFile?.name === payload.new.file_name) {
+            const result = transcriptProcessor.processFullResponse(payload.new.raw_response);
+            setTranscriptionResult(result);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [uploadedFile]);
 
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({ ...prev, ...newOptions }));
