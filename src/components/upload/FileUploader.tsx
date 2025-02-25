@@ -1,20 +1,16 @@
 
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadIcon, Loader2 } from "lucide-react";
+import { UploadIcon } from "lucide-react";
 import { toast } from "sonner";
-import UploadProgress from "./UploadProgress";
 import UploadedFileDisplay from "./UploadedFileDisplay";
-import { uploadAndProcessFile, MAX_FILE_SIZE } from "@/services/fileProcessing";
+import { supabase } from "@/integrations/supabase/client";
 
-type FileUploaderProps = {
-  onGenerateRules: (text: string) => Promise<void>;
-};
+export const MAX_FILE_SIZE = 3 * 1024 * 1024 * 1024; // 3GB in bytes
 
-const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
-  const [uploadedFile, setUploadedFile] = useState<{ text: string; name: string } | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
+const FileUploader = () => {
+  const [uploadedFile, setUploadedFile] = useState<{ name: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) {
@@ -29,22 +25,30 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       return;
     }
 
-    console.log("Processing audio file:", file.name, "Type:", file.type, "Size:", `${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+    console.log("Uploading audio file:", file.name, "Type:", file.type, "Size:", `${(file.size / (1024 * 1024)).toFixed(2)}MB`);
 
     try {
-      setIsProcessing(true);
-      setProgress(0);
+      setIsUploading(true);
       
-      const processedFile = await uploadAndProcessFile(file, setProgress);
-      setUploadedFile(processedFile);
-      toast.success("Audio uploaded successfully");
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('audio')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw new Error(`Error uploading file: ${uploadError.message}`);
+      }
+
+      setUploadedFile({ name: file.name });
+      toast.success("Audio file uploaded successfully");
     } catch (error) {
-      console.error("Error processing audio file:", error);
-      toast.error(error instanceof Error ? error.message : "Error processing audio");
+      console.error("Error uploading audio file:", error);
+      toast.error(error instanceof Error ? error.message : "Error uploading audio");
       setUploadedFile(null);
     } finally {
-      setIsProcessing(false);
-      setProgress(0);
+      setIsUploading(false);
     }
   }, []);
 
@@ -87,11 +91,10 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
             <p className="text-sm text-muted-foreground">
               {isDragActive 
                 ? "Drop the audio file here..."
-                : isProcessing
-                  ? `Processing audio... ${progress}%`
+                : isUploading
+                  ? "Uploading audio..."
                   : "Upload MP3, WAV, FLAC, M4A, or AAC files (max 3GB)"}
             </p>
-            {isProcessing && <UploadProgress progress={progress} />}
           </>
         )}
       </div>
