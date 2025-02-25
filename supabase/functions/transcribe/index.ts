@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
-import { DeepgramClient } from "https://esm.sh/@deepgram/sdk@2.4.0";
+import { Deepgram } from "https://esm.sh/@deepgram/sdk@2.4.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,7 +9,7 @@ const corsHeaders = {
 }
 
 // Initialize Deepgram client
-const deepgram = new DeepgramClient(Deno.env.get('DEEPGRAM_API_KEY') || '');
+const deepgram = new Deepgram(Deno.env.get('DEEPGRAM_API_KEY') || '');
 
 // Create Supabase client for storage access
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
@@ -57,7 +57,7 @@ const transcribeWithFallback = async (fileUrl: string, options: any) => {
     diarize_version: "2" // Use older, more stable diarization
   };
   
-  return deepgram.listen.prerecorded.transcribeUrl(
+  return deepgram.transcription.preRecorded(
     { url: fileUrl },
     fallbackOptions
   );
@@ -68,7 +68,7 @@ const transcribeFile = async (fileUrl: string, options: any) => {
   console.log('Transcribing with enforced options:', enforcedOptions);
   
   try {
-    const response = await deepgram.listen.prerecorded.transcribeUrl(
+    const response = await deepgram.transcription.preRecorded(
       { url: fileUrl },
       enforcedOptions
     );
