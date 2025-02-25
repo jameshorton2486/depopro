@@ -3,7 +3,8 @@ import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { FileJson, FileText } from "lucide-react";
+import { FileJson, FileText, FileOutput } from "lucide-react";
+import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 
 type TextComparisonProps = {
   originalText: string;
@@ -29,13 +30,39 @@ const TextComparison = ({
     }
   };
 
+  const handleExportToWord = () => {
+    if (!correctedText) {
+      toast.error("Please enter some text in the transcript box first");
+      return;
+    }
+    
+    try {
+      createAndDownloadWordDoc(correctedText);
+      toast.success("Document created and opened successfully");
+    } catch (error) {
+      toast.error("Failed to create document");
+      console.error("Document creation error:", error);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="h-5 w-5 text-blue-500" />
-            <Label className="text-lg font-medium">Transcript</Label>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-blue-500" />
+              <Label className="text-lg font-medium">Transcript</Label>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportToWord}
+              className="flex items-center gap-2"
+            >
+              <FileOutput className="h-4 w-4" />
+              Export to Word
+            </Button>
           </div>
           <Textarea
             className="min-h-[288px]"
