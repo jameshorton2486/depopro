@@ -11,35 +11,31 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
   if (options?.enableDiarization) {
     let speakerCount = 0;
     const speakerMap = new Map<string, number>();
+    const prefix = "Speaker ";
+    const suffix = ":  ";
 
     // First pass: clean up and standardize speaker labels
-    formattedText = formattedText.replace(/\n?Speaker(?:\s+(?:NaN|\d+))(?:\s*:)(?:\s*[^]*?)(?=\n?Speaker|\n?$)/gi, (match) => {
-      const labelMatch = match.match(/Speaker\s+(?:NaN|\d+)/i);
-      const label = labelMatch ? labelMatch[0].trim() : '';
-      const content = match.slice(label.length).trim();
-      
-      // Ensure we have a valid speaker number
-      let speakerNumber: number;
-      if (!speakerMap.has(label)) {
+    formattedText = formattedText.replace(/\n?Speaker\s+(NaN|\d+)\s*:/gi, (match, p1) => {
+      let speakerNumber;
+      if (p1.toLowerCase() === "nan") {
+        // For "NaN" labels, assign a new number each time
         speakerNumber = speakerCount++;
-        speakerMap.set(label, speakerNumber);
       } else {
-        speakerNumber = speakerMap.get(label)!;
+        // For valid numbers, reuse the same mapping if it exists
+        if (!speakerMap.has(p1)) {
+          speakerMap.set(p1, speakerCount++);
+        }
+        speakerNumber = speakerMap.get(p1);
       }
-
-      // Format with exactly two spaces after the colon
-      return `\nSpeaker ${speakerNumber}:  ${content}`;
+      return `\n${prefix}${speakerNumber}${suffix}`;
     });
 
     if (options?.boldSpeakerNames) {
-      // Add bold formatting to speaker labels (including the colon and spaces)
+      // Add bold formatting to speaker labels
       formattedText = formattedText.replace(/\n?(Speaker \d+:  )/g, '\n**$1**');
     }
 
-    // Ensure proper spacing around speaker labels and their text
-    formattedText = formattedText.replace(/\n\s*(Speaker \d+:  )\s*/g, '\n$1');
-
-    // Log speaker mappings for debugging
+    // Debug output: log the speaker mapping
     console.log('Speaker mapping:', Object.fromEntries(speakerMap));
   }
 
