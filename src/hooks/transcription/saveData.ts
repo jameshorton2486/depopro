@@ -2,15 +2,16 @@
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions, TranscriptionResult, DeepgramParagraph } from "@/types/deepgram";
 import { toast } from "sonner";
+import type { Database } from "@/integrations/supabase/types";
 import type { Json } from "@/integrations/supabase/types";
 
-interface EnableRealtimeParams {
-  table_name: string;
-}
-
-type EnableRealtimeResponse = {
-  enable_realtime: boolean;
-}
+type TranscriptionMetadata = {
+  duration?: number;
+  speakers?: number;
+  model?: string;
+  language?: string;
+  jsonPath?: string;
+};
 
 const convertParagraphToJson = (paragraph: DeepgramParagraph): Json => ({
   speaker: paragraph.speaker,
@@ -46,32 +47,27 @@ export const saveTranscriptionData = async (
 
     const { error: jsonError } = await supabase.storage
       .from('json_file')
-      .upload(jsonPath, JSON.stringify(jsonResult, null, 2), {
+      .upload(jsonPath, JSON.stringify(jsonResult), {
         contentType: 'application/json',
         upsert: false
       });
 
     if (jsonError) throw jsonError;
 
-    // Enable REPLICA IDENTITY FULL for the table to support realtime
-    const { error: rpcError } = await supabase.rpc('enable_realtime', {
-      table_name: 'transcription_data'
-    });
-
-    if (rpcError) throw rpcError;
+    const metadata: TranscriptionMetadata = {
+      duration: result.metadata?.audioLength,
+      speakers: result.metadata?.speakers,
+      model: options.model,
+      language: options.language,
+      jsonPath: jsonPath
+    };
 
     const { error: dbError } = await supabase
       .from('transcription_data')
       .insert({
         file_name: file.name,
         file_path: audioPath,
-        metadata: {
-          duration: result.metadata?.audioLength,
-          speakers: result.metadata?.speakers,
-          model: options.model,
-          language: options.language,
-          jsonPath: jsonPath
-        } as Json,
+        metadata: metadata as Json,
         raw_response: jsonResult
       });
 
