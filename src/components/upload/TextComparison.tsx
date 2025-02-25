@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { FileJson, FileText } from "lucide-react";
+import FileUploader from "./FileUploader";
 
 type TextComparisonProps = {
   originalText: string;
@@ -27,6 +28,11 @@ const TextComparison = ({
     } catch (e) {
       toast.error("Invalid JSON format");
     }
+  };
+
+  const handleFileRules = async (text: string) => {
+    // Handle file processing here
+    console.log("Processing file:", text);
   };
 
   return (
@@ -60,6 +66,11 @@ const TextComparison = ({
           />
         </div>
       </div>
+      
+      <div className="border-t pt-8">
+        <FileUploader onGenerateRules={handleFileRules} />
+      </div>
+
       <div className="flex justify-end">
         <Button
           onClick={onGenerateRules}
