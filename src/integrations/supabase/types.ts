@@ -36,6 +36,33 @@ export type Database = {
         }
         Relationships: []
       }
+      error_logs: {
+        Row: {
+          context: Json | null
+          created_at: string
+          error_message: string
+          id: string
+          source: string | null
+          stack_trace: string | null
+        }
+        Insert: {
+          context?: Json | null
+          created_at?: string
+          error_message: string
+          id?: string
+          source?: string | null
+          stack_trace?: string | null
+        }
+        Update: {
+          context?: Json | null
+          created_at?: string
+          error_message?: string
+          id?: string
+          source?: string | null
+          stack_trace?: string | null
+        }
+        Relationships: []
+      }
       keyterms: {
         Row: {
           boost: number | null
