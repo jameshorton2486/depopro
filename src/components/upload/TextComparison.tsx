@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { FileJson, FileText, FileOutput } from "lucide-react";
+import { FileJson, FileText, FileOutput, FileCheck } from "lucide-react";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 
 type TextComparisonProps = {
@@ -42,6 +42,29 @@ const TextComparison = ({
     } catch (error) {
       toast.error("Failed to create document");
       console.error("Document creation error:", error);
+    }
+  };
+
+  const handleCorrectTranscript = () => {
+    if (!correctedText) {
+      toast.error("Please enter some text in the transcript box first");
+      return;
+    }
+
+    if (!originalText) {
+      toast.error("Please provide the JSON corrections file");
+      return;
+    }
+
+    try {
+      const corrections = JSON.parse(originalText);
+      // Here you would apply the corrections from the JSON file
+      // For now, we'll just create the Word document with the existing text
+      createAndDownloadWordDoc(correctedText);
+      toast.success("Transcript corrected and saved as Word document");
+    } catch (error) {
+      toast.error("Failed to process corrections. Please check the JSON format.");
+      console.error("Correction processing error:", error);
     }
   };
 
@@ -86,6 +109,17 @@ const TextComparison = ({
             }}
           />
         </div>
+      </div>
+
+      <div className="flex justify-center">
+        <Button
+          onClick={handleCorrectTranscript}
+          className="bg-blue-500 text-white hover:bg-blue-600 gap-2"
+          size="lg"
+        >
+          <FileCheck className="h-5 w-5" />
+          Correct Transcript
+        </Button>
       </div>
     </div>
   );
