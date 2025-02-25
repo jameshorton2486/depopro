@@ -48,7 +48,7 @@ export const saveTranscriptionData = async (
     // Enable REPLICA IDENTITY FULL for the table to support realtime
     await supabase.rpc('enable_realtime', {
       table_name: 'transcription_data'
-    });
+    } as { table_name: string });
 
     const { error: dbError } = await supabase
       .from('transcription_data')

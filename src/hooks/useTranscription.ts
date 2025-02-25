@@ -11,6 +11,12 @@ import { saveTranscriptionData } from "./transcription/saveData";
 import { defaultTranscriptionOptions } from "./transcription/options";
 import type { TranscriptionHookReturn } from "./transcription/types";
 import { supabase } from "@/integrations/supabase/client";
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+
+interface TranscriptionRecord {
+  file_name: string;
+  raw_response: any;
+}
 
 export const useTranscription = (): TranscriptionHookReturn => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -31,10 +37,11 @@ export const useTranscription = (): TranscriptionHookReturn => {
           schema: 'public',
           table: 'transcription_data'
         },
-        (payload) => {
+        (payload: RealtimePostgresChangesPayload<TranscriptionRecord>) => {
           console.log('Realtime update received:', payload);
-          if (payload.new && uploadedFile?.name === payload.new.file_name) {
-            const result = transcriptProcessor.processFullResponse(payload.new.raw_response);
+          const newRecord = payload.new as TranscriptionRecord;
+          if (newRecord && uploadedFile?.name === newRecord.file_name) {
+            const result = transcriptProcessor.processFullResponse(newRecord.raw_response);
             setTranscriptionResult(result);
           }
         }
