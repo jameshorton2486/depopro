@@ -1,6 +1,23 @@
 
 import { DeepgramOptions } from "@/types/deepgram";
 
+export const enforceOptions = (userOptions: Partial<DeepgramOptions>): DeepgramOptions => ({
+  ...userOptions,
+  diarize: true,
+  punctuate: true,
+  smart_format: true,
+  paragraphs: true,
+  filler_words: true,
+  utterances: true,
+  model: userOptions.model || "nova-meeting",
+  language: userOptions.language || "en-US",
+  formatting: {
+    ...userOptions.formatting,
+    enableDiarization: true,
+    enableParagraphs: true
+  }
+});
+
 export const defaultTranscriptionOptions: DeepgramOptions = {
   model: "nova-meeting",
   language: "en-US",
@@ -13,14 +30,13 @@ export const defaultTranscriptionOptions: DeepgramOptions = {
   utteranceThreshold: 0.2,
   keywords: [],
   keyterms: [],
-  // Locked options configuration
   formatting: {
     timestampFormat: "HH:mm:ss",
     boldSpeakerNames: true,
     highlightFillerWords: true,
     removeExtraSpaces: true,
     standardizePunctuation: true,
-    enableDiarization: true,  // Forces diarization
-    enableParagraphs: true    // Forces paragraph formatting
+    enableDiarization: true,
+    enableParagraphs: true
   }
 };
