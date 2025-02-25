@@ -4,6 +4,10 @@ import { DeepgramOptions, TranscriptionResult, DeepgramParagraph } from "@/types
 import { toast } from "sonner";
 import type { Json } from "@/integrations/supabase/types";
 
+interface EnableRealtimeParams {
+  table_name: string;
+}
+
 const convertParagraphToJson = (paragraph: DeepgramParagraph): Json => ({
   speaker: paragraph.speaker,
   start: paragraph.start,
@@ -46,9 +50,12 @@ export const saveTranscriptionData = async (
     if (jsonError) throw jsonError;
 
     // Enable REPLICA IDENTITY FULL for the table to support realtime
-    await supabase.rpc('enable_realtime', {
-      table_name: 'transcription_data'
-    } as { table_name: string });
+    const { error: rpcError } = await supabase.rpc<void, EnableRealtimeParams>(
+      'enable_realtime',
+      { table_name: 'transcription_data' }
+    );
+
+    if (rpcError) throw rpcError;
 
     const { error: dbError } = await supabase
       .from('transcription_data')
