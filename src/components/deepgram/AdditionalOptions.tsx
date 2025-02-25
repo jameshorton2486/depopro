@@ -1,6 +1,5 @@
 
 import { useState } from "react";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -35,34 +34,9 @@ export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOption
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="diarize"
-            checked={options.diarize}
-            onCheckedChange={(checked) => onOptionsChange({ diarize: checked })}
-          />
-          <Label htmlFor="diarize">Speaker Diarization</Label>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="filler-words"
-            checked={options.filler_words}
-            onCheckedChange={(checked) => onOptionsChange({ filler_words: checked })}
-          />
-          <Label htmlFor="filler-words">Include Filler Words</Label>
-        </div>
-      </div>
-
       <div className="space-y-2">
         <Label htmlFor="utterance">Utterance Detection</Label>
         <div className="flex items-center gap-2">
-          <Switch
-            id="utterances"
-            checked={options.utterances}
-            onCheckedChange={(checked) => onOptionsChange({ utterances: checked })}
-          />
           <Input
             id="utterance"
             type="number"
