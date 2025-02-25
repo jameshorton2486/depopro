@@ -1,5 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 import { DeepgramClient } from "https://esm.sh/@deepgram/sdk@2.4.0";
 
 const corsHeaders = {
@@ -7,7 +8,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Initialize Deepgram client
 const deepgram = new DeepgramClient(Deno.env.get('DEEPGRAM_API_KEY') || '');
+
+// Create Supabase client for storage access
+const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 const enforceOptions = (userOptions: any): any => ({
   ...userOptions,
@@ -22,6 +29,7 @@ const enforceOptions = (userOptions: any): any => ({
 const transcribeFile = async (fileUrl: string, options: any) => {
   const enforcedOptions = enforceOptions(options);
   console.log('Transcribing with enforced options:', enforcedOptions);
+  
   return deepgram.listen.prerecorded.transcribeUrl(
     { url: fileUrl },
     enforcedOptions
@@ -29,6 +37,7 @@ const transcribeFile = async (fileUrl: string, options: any) => {
 };
 
 serve(async (req) => {
+  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -40,6 +49,7 @@ serve(async (req) => {
       throw new Error('No file name provided')
     }
 
+    // Get public URL for the uploaded file
     const { data: { publicUrl }, error: urlError } = await supabase.storage
       .from('audio_file')
       .getPublicUrl(fileName)

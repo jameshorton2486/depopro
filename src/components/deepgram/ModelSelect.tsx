@@ -20,12 +20,9 @@ export const ModelSelect = ({ model, onModelChange }: ModelSelectProps) => {
           <SelectValue placeholder="Select model" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="nova-meeting">Nova-Meeting</SelectItem>
-          <SelectItem value="nova-3">Nova-3 (Latest)</SelectItem>
-          <SelectItem value="nova-2">Nova-2</SelectItem>
-          <SelectItem value="nova-2-medical">Nova-2-Medical</SelectItem>
-          <SelectItem value="base">Base</SelectItem>
-          <SelectItem value="enhanced">Enhanced</SelectItem>
+          <SelectItem value="nova-meeting">Nova-Meeting (Diarization Enabled)</SelectItem>
+          <SelectItem value="nova-3">Nova-3 (Diarization Enabled)</SelectItem>
+          <SelectItem value="nova-2">Nova-2 (Diarization Enabled)</SelectItem>
         </SelectContent>
       </Select>
     </div>
