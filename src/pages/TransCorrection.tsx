@@ -20,7 +20,9 @@ const TransCorrection = () => {
     handleAudioUpload,
     handleTranscriptChange,
     handleJsonUpload,
+    handleJsonTextChange,
     transcriptText,
+    jsonText,
     saveStatus
   } = useTranscriptUpload();
 
@@ -100,6 +102,17 @@ const TransCorrection = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* JSON Text Area */}
+          <div>
+            <h3 className="text-lg font-medium mb-2">Paste JSON</h3>
+            <Textarea
+              placeholder="Paste your JSON here..."
+              value={jsonText}
+              onChange={handleJsonTextChange}
+              className="min-h-[200px] font-mono"
+            />
           </div>
 
           {/* Transcript Text Area */}

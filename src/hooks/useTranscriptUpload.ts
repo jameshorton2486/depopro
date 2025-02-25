@@ -13,6 +13,7 @@ export const useTranscriptUpload = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [correctedText, setCorrectedText] = useState<string>("");
   const [transcriptText, setTranscriptText] = useState<string>("");
+  const [jsonText, setJsonText] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({
@@ -60,6 +61,22 @@ export const useTranscriptUpload = () => {
     }
   }, []);
 
+  const handleJsonTextChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
+    const newJsonText = event.target.value;
+    setJsonText(newJsonText);
+    
+    try {
+      if (newJsonText.trim()) {
+        JSON.parse(newJsonText); // Validate JSON
+        setSaveStatus(prev => ({ ...prev, jsonSaved: true }));
+      } else {
+        setSaveStatus(prev => ({ ...prev, jsonSaved: false }));
+      }
+    } catch (error) {
+      setSaveStatus(prev => ({ ...prev, jsonSaved: false }));
+    }
+  }, []);
+
   const handleJsonUpload = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -71,6 +88,7 @@ export const useTranscriptUpload = () => {
         if (typeof text === 'string') {
           try {
             JSON.parse(text); // Validate JSON
+            setJsonText(text);
             setSaveStatus(prev => ({ ...prev, jsonSaved: true }));
             toast.success("JSON file validated and uploaded");
           } catch (error) {
@@ -130,6 +148,7 @@ export const useTranscriptUpload = () => {
     uploadedFile,
     correctedText,
     transcriptText,
+    jsonText,
     isProcessing,
     progress,
     saveStatus,
@@ -138,6 +157,7 @@ export const useTranscriptUpload = () => {
     handleRulesFormatting,
     handleAudioUpload,
     handleTranscriptChange,
-    handleJsonUpload
+    handleJsonUpload,
+    handleJsonTextChange
   };
 };
