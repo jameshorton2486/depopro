@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { splitTextIntoChunks } from "@/utils/textProcessing";
 
-export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+export const MAX_FILE_SIZE = 3 * 1024 * 1024 * 1024; // 3GB in bytes
 
 export const processTextInBatches = async (
   text: string,
@@ -16,7 +16,7 @@ export const processTextInBatches = async (
 
   for (let i = 0; i < chunks.length; i++) {
     try {
-      const { data, error } = await supabase.functions.invoke('process-document', {
+      const { data, error } = await supabase.functions.invoke('process-audio', {
         body: { text: chunks[i] },
         headers: { 'Content-Type': 'application/json' }
       });
@@ -31,7 +31,7 @@ export const processTextInBatches = async (
       }
     } catch (error) {
       console.error(`Error processing chunk ${i}:`, error);
-      toast.error(`Error processing document chunk ${i + 1}`);
+      toast.error(`Error processing audio chunk ${i + 1}`);
     }
   }
 
@@ -46,7 +46,7 @@ export const uploadAndProcessFile = async (
   const filePath = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
   const { error: uploadError } = await supabase.storage
-    .from('documents')
+    .from('audio')
     .upload(filePath, file);
 
   if (uploadError) {
@@ -54,12 +54,12 @@ export const uploadAndProcessFile = async (
   }
 
   const { data: { publicUrl } } = supabase.storage
-    .from('documents')
+    .from('audio')
     .getPublicUrl(filePath);
 
-  console.log("File uploaded successfully, processing document...");
+  console.log("Audio file uploaded successfully, processing...");
 
-  const { data, error } = await supabase.functions.invoke('process-document', {
+  const { data, error } = await supabase.functions.invoke('process-audio', {
     body: { fileUrl: publicUrl },
     headers: {
       'Content-Type': 'application/json'
@@ -73,7 +73,7 @@ export const uploadAndProcessFile = async (
 
   // Clean up: remove the temporary file from storage
   await supabase.storage
-    .from('documents')
+    .from('audio')
     .remove([filePath]);
 
   return {

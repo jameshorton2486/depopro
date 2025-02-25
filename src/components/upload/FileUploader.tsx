@@ -19,7 +19,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) {
-      toast.error("Please upload a valid document file");
+      toast.error("Please upload a valid audio file");
       return;
     }
 
@@ -30,7 +30,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       return;
     }
 
-    console.log("Processing file:", file.name, "Type:", file.type, "Size:", `${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+    console.log("Processing audio file:", file.name, "Type:", file.type, "Size:", `${(file.size / (1024 * 1024)).toFixed(2)}MB`);
 
     try {
       setIsProcessing(true);
@@ -38,10 +38,10 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       
       const processedFile = await uploadAndProcessFile(file, setProgress);
       setUploadedFile(processedFile);
-      toast.success("Document processed successfully");
+      toast.success("Audio processed successfully");
     } catch (error) {
-      console.error("Error processing file:", error);
-      toast.error(error instanceof Error ? error.message : "Error processing document");
+      console.error("Error processing audio file:", error);
+      toast.error(error instanceof Error ? error.message : "Error processing audio");
       setUploadedFile(null);
     } finally {
       setIsProcessing(false);
@@ -52,9 +52,11 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'application/pdf': ['.pdf'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'text/plain': ['.txt']
+      'audio/mpeg': ['.mp3'],
+      'audio/wav': ['.wav'],
+      'audio/flac': ['.flac'],
+      'audio/x-m4a': ['.m4a'],
+      'audio/aac': ['.aac'],
     },
     maxFiles: 1,
     maxSize: MAX_FILE_SIZE,
@@ -63,14 +65,14 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       if (error?.code === 'file-too-large') {
         toast.error(`File size must be less than 3GB. Current size: ${(fileRejections[0].file.size / (1024 * 1024 * 1024)).toFixed(2)}GB`);
       } else {
-        toast.error("Invalid file type. Please upload a PDF, DOCX, or TXT file");
+        toast.error("Invalid file type. Please upload an MP3, WAV, FLAC, M4A, or AAC file");
       }
     }
   });
 
   const handleGenerateRules = async () => {
     if (!uploadedFile) {
-      toast.error("Please upload a document first");
+      toast.error("Please upload an audio file first");
       return;
     }
 
@@ -80,7 +82,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
       setUploadedFile(null);
     } catch (error) {
       console.error("Error generating rules:", error);
-      toast.error("Failed to generate rules from document");
+      toast.error("Failed to generate rules from audio");
     } finally {
       setIsProcessing(false);
     }
@@ -106,7 +108,7 @@ const FileUploader = ({ onGenerateRules }: FileUploaderProps) => {
                 ? "Drop the audio file here..."
                 : isProcessing
                   ? `Processing audio... ${progress}%`
-                  : "Upload MP3, WAV, or FLAC files (max 3GB)"}
+                  : "Upload MP3, WAV, FLAC, M4A, or AAC files (max 3GB)"}
             </p>
             {isProcessing && <UploadProgress progress={progress} />}
           </>
