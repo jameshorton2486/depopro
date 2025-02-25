@@ -87,15 +87,6 @@ const TextComparison = ({
           />
         </div>
       </div>
-
-      <div className="flex justify-end">
-        <Button
-          onClick={onGenerateRules}
-          className="bg-blue-500 text-white hover:bg-blue-600"
-        >
-          Generate Rules
-        </Button>
-      </div>
     </div>
   );
 };
