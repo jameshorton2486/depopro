@@ -1,96 +1,95 @@
 
 import { useState, useCallback } from "react";
+import { processTextInBatches, uploadAndProcessFile } from "@/services/fileProcessing";
 import { toast } from "sonner";
-import { uploadAndProcessFile } from "@/services/fileProcessing";
-import { processTranscript } from "@/services/transcriptProcessing";
+
+interface SaveStatus {
+  transcriptSaved: boolean;
+  audioSaved: boolean;
+  jsonSaved: boolean;
+}
 
 export const useTranscriptUpload = () => {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [correctedText, setCorrectedText] = useState<string>("");
-  const [uploadedText, setUploadedText] = useState<string>("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({
+    transcriptSaved: false,
+    audioSaved: false,
+    jsonSaved: false
+  });
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) {
-      toast.error("Please upload a valid document file (DOCX or TXT)");
-      return;
-    }
-
-    const file = acceptedFiles[0];
-    console.log("Processing file:", file.name, "Type:", file.type);
+  const onDrop = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    
+    const file = files[0];
+    setUploadedFile(file);
+    setIsProcessing(true);
+    setSaveStatus({
+      transcriptSaved: false,
+      audioSaved: false,
+      jsonSaved: false
+    });
 
     try {
-      setIsProcessing(true);
-      setProgress(0);
-
-      const { text } = await uploadAndProcessFile(file, setProgress);
-      setUploadedFile(file);
-      setUploadedText(text);
-      toast.success("File uploaded and processed successfully");
-      
+      const result = await uploadAndProcessFile(file, setProgress);
+      setCorrectedText(result.text);
+      setSaveStatus({
+        transcriptSaved: true,
+        audioSaved: true,
+        jsonSaved: true
+      });
+      toast.success("Files processed and saved successfully");
     } catch (error) {
       console.error("Error processing file:", error);
-      toast.error(error instanceof Error ? error.message : "Error processing file");
-      setUploadedFile(null);
-      setUploadedText("");
+      toast.error("Error processing file");
     } finally {
       setIsProcessing(false);
-      setProgress(100);
+      setProgress(0);
     }
   }, []);
 
-  const handleInitialFormatting = async () => {
-    if (!uploadedText) {
-      toast.error("Please upload a file first");
-      return;
-    }
-
+  const handleInitialFormatting = useCallback(async () => {
+    if (!correctedText) return;
+    
+    setIsProcessing(true);
     try {
-      setIsProcessing(true);
-      setProgress(0);
-      
-      const corrected = await processTranscript(uploadedText, false);
-      setCorrectedText(corrected);
-      
-      toast.success("Initial formatting completed!");
+      const processed = await processTextInBatches(correctedText, setProgress);
+      setCorrectedText(processed);
+      setSaveStatus(prev => ({ ...prev, transcriptSaved: true }));
+      toast.success("Initial formatting complete");
     } catch (error) {
       console.error("Error during initial formatting:", error);
       toast.error("Error during initial formatting");
     } finally {
       setIsProcessing(false);
-      setProgress(100);
     }
-  };
+  }, [correctedText]);
 
-  const handleRulesFormatting = async () => {
-    if (!uploadedText) {
-      toast.error("Please upload a file first");
-      return;
-    }
-
+  const handleRulesFormatting = useCallback(async () => {
+    if (!correctedText) return;
+    
+    setIsProcessing(true);
     try {
-      setIsProcessing(true);
-      setProgress(0);
-      
-      const corrected = await processTranscript(uploadedText, true);
-      setCorrectedText(corrected);
-      
-      toast.success("Rules-based formatting completed!");
+      const processed = await processTextInBatches(correctedText, setProgress);
+      setCorrectedText(processed);
+      setSaveStatus(prev => ({ ...prev, jsonSaved: true }));
+      toast.success("Rules formatting complete");
     } catch (error) {
-      console.error("Error during rules-based formatting:", error);
-      toast.error("Error during rules-based formatting");
+      console.error("Error during rules formatting:", error);
+      toast.error("Error during rules formatting");
     } finally {
       setIsProcessing(false);
-      setProgress(100);
     }
-  };
+  }, [correctedText]);
 
   return {
-    isProcessing,
-    progress,
     uploadedFile,
     correctedText,
+    isProcessing,
+    progress,
+    saveStatus,
     onDrop,
     handleInitialFormatting,
     handleRulesFormatting

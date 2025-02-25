@@ -4,6 +4,7 @@ import TranscriptHeader from "@/components/transcript/TranscriptHeader";
 import UploadSection from "@/components/transcript/UploadSection";
 import UploadArea from "@/components/transcript/UploadArea";
 import CorrectedTextDisplay from "@/components/transcript/CorrectedTextDisplay";
+import SaveStatus from "@/components/transcript/SaveStatus";
 import { useTranscriptUpload } from "@/hooks/useTranscriptUpload";
 
 const TransCorrection = () => {
@@ -14,7 +15,8 @@ const TransCorrection = () => {
     correctedText,
     onDrop,
     handleInitialFormatting,
-    handleRulesFormatting
+    handleRulesFormatting,
+    saveStatus
   } = useTranscriptUpload();
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -37,6 +39,12 @@ const TransCorrection = () => {
         <TranscriptHeader />
 
         <div className="max-w-2xl mx-auto">
+          <SaveStatus 
+            transcriptSaved={saveStatus?.transcriptSaved ?? false}
+            audioSaved={saveStatus?.audioSaved ?? false}
+            jsonSaved={saveStatus?.jsonSaved ?? false}
+          />
+          
           <UploadSection>
             <UploadArea
               getRootProps={getRootProps}
