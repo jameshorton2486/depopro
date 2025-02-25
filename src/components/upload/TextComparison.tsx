@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { FileJson, FileText, FileOutput, FileCheck } from "lucide-react";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
+import { type TrainingRules } from "@/services/openai";
 
 type TextComparisonProps = {
   originalText: string;
@@ -45,7 +46,7 @@ const TextComparison = ({
     }
   };
 
-  const handleCorrectTranscript = () => {
+  const handleCorrectTranscript = async () => {
     if (!correctedText) {
       toast.error("Please enter some text in the transcript box first");
       return;
@@ -57,10 +58,40 @@ const TextComparison = ({
     }
 
     try {
-      const corrections = JSON.parse(originalText);
-      // Here you would apply the corrections from the JSON file
-      // For now, we'll just create the Word document with the existing text
-      createAndDownloadWordDoc(correctedText);
+      const corrections = JSON.parse(originalText) as TrainingRules;
+      
+      // Make API call to apply corrections using training model
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4",
+          messages: [
+            {
+              role: "system",
+              content: `You are a professional transcript corrector. Apply these specific rules and instructions:
+                ${JSON.stringify(corrections, null, 2)}`
+            },
+            {
+              role: "user",
+              content: correctedText
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process corrections');
+      }
+
+      const data = await response.json();
+      const correctedTranscript = data.choices[0].message.content;
+
+      // Create and open Word document with corrected text
+      createAndDownloadWordDoc(correctedTranscript);
       toast.success("Transcript corrected and saved as Word document");
     } catch (error) {
       toast.error("Failed to process corrections. Please check the JSON format.");
