@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,56 +13,58 @@ interface TranscriptDisplayProps {
   onDownload: (transcript: string) => void;
 }
 
-export const TranscriptDisplay = ({ 
+export const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({ 
   transcript, 
   transcriptionResult, 
   onDownload 
-}: TranscriptDisplayProps) => {
-  if (!transcript) return null;
-
-  const handleTranscriptComplete = () => {
-    onDownload(transcript);
-  };
-
+}) => {
   useEffect(() => {
     if (transcript) {
-      handleTranscriptComplete();
+      onDownload(transcript);
     }
-  }, [transcript]);
+  }, [transcript, onDownload]);
 
-  // Create a speaker mapping that starts from 0
-  const speakerMap = new Map<number, number>();
-  let nextSpeakerNumber = 0;
+  // Memoize speaker mapping to prevent unnecessary recalculations
+  const { speakerMap, getSpeakerNumber } = useMemo(() => {
+    const map = new Map<number, number>();
+    let nextNumber = 0;
 
-  const getSpeakerNumber = (originalSpeaker: number) => {
-    // Handle undefined or invalid speaker numbers
-    const validSpeaker = isNaN(originalSpeaker) ? 0 : originalSpeaker;
-    
-    if (!speakerMap.has(validSpeaker)) {
-      speakerMap.set(validSpeaker, nextSpeakerNumber++);
-    }
-    return speakerMap.get(validSpeaker) ?? 0;
-  };
+    const getNumber = (speaker: number | undefined): number => {
+      const validSpeaker = speaker ?? 0;
+      if (!map.has(validSpeaker)) {
+        map.set(validSpeaker, nextNumber++);
+      }
+      return map.get(validSpeaker) ?? 0;
+    };
 
-  const renderParagraph = (paragraph: DeepgramParagraph, index: number) => {
-    // Ensure speaker number is valid
-    const speakerNumber = getSpeakerNumber(paragraph.speaker ?? 0);
+    return {
+      speakerMap: map,
+      getSpeakerNumber: getNumber
+    };
+  }, []);
+
+  const renderParagraph = React.useCallback((paragraph: DeepgramParagraph, index: number) => {
+    const speakerNumber = getSpeakerNumber(paragraph.speaker);
     
     return (
-      <div key={index} className="mb-4">
+      <div key={`paragraph-${index}`} className="mb-4">
         <div className="text-sm font-medium mb-1 text-blue-600">
-          Speaker {speakerNumber}
+          Speaker {speakerNumber}:
         </div>
         <p className="text-sm leading-relaxed">
           {paragraph.sentences.map((sentence, i) => (
-            <span key={i} className="inline-block">
+            <span key={`sentence-${index}-${i}`} className="inline-block">
               {sentence.text}{' '}
             </span>
           ))}
         </p>
       </div>
     );
-  };
+  }, [getSpeakerNumber]);
+
+  if (!transcript) {
+    return null;
+  }
 
   return (
     <div className="mt-6 space-y-4">
