@@ -49,14 +49,53 @@ const enforceOptions = (userOptions: any): any => {
   };
 };
 
+const transcribeWithFallback = async (fileUrl: string, options: any) => {
+  console.log('Attempting transcription with fallback model');
+  const fallbackOptions = {
+    ...options,
+    model: 'nova-2', // Fallback to more stable model
+    diarize_version: "2" // Use older, more stable diarization
+  };
+  
+  return deepgram.listen.prerecorded.transcribeUrl(
+    { url: fileUrl },
+    fallbackOptions
+  );
+};
+
 const transcribeFile = async (fileUrl: string, options: any) => {
   const enforcedOptions = enforceOptions(options);
   console.log('Transcribing with enforced options:', enforcedOptions);
   
-  return deepgram.listen.prerecorded.transcribeUrl(
-    { url: fileUrl },
-    enforcedOptions
-  );
+  try {
+    const response = await deepgram.listen.prerecorded.transcribeUrl(
+      { url: fileUrl },
+      enforcedOptions
+    );
+
+    // Validate diarization results
+    const words = response?.results?.channels?.[0]?.alternatives?.[0]?.words || [];
+    const speakers = new Set(words.map(w => w.speaker).filter(Boolean));
+
+    if (speakers.size < 2) {
+      console.warn('Diarization warning: Limited speaker differentiation detected');
+    }
+
+    return response;
+  } catch (error: any) {
+    console.error('Transcription error:', error);
+
+    if (error.message.includes('diarization')) {
+      console.error('Diarization failure - attempting fallback:', {
+        originalModel: options.model,
+        error: error.message
+      });
+      
+      return transcribeWithFallback(fileUrl, options);
+    }
+
+    throw error;
+  }
 };
 
 serve(async (req) => {
@@ -113,7 +152,11 @@ serve(async (req) => {
   } catch (error) {
     console.error('Transcription error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        type: error.name,
+        details: error.stack
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

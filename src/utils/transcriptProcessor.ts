@@ -12,7 +12,37 @@ export class TranscriptProcessor {
   }
 
   processFullResponse(data: DeepgramResponse): TranscriptionResult {
+    this.validateDiarization(data);
     return this.formatter.format(data);
+  }
+
+  private validateDiarization(response: DeepgramResponse) {
+    if (!response?.results?.channels?.[0]?.alternatives?.[0]?.words) {
+      throw new Error('Invalid response format: Missing words array');
+    }
+
+    const words = response.results.channels[0].alternatives[0].words;
+    const speakers = new Set(words.map(w => w.speaker).filter(Boolean));
+    const speakerChanges = words
+      .map(w => w.speaker)
+      .filter((s, i, arr) => i === 0 || s !== arr[i-1])
+      .length;
+
+    if (speakers.size < 2) {
+      console.warn('Single speaker detected - verify if this is expected');
+    }
+
+    if (speakerChanges < 2) {
+      throw new Error('Insufficient speaker differentiation - check audio quality');
+    }
+
+    // Log diarization quality metrics
+    console.debug('Diarization metrics:', {
+      uniqueSpeakers: speakers.size,
+      speakerChanges,
+      totalWords: words.length,
+      avgWordsPerSpeaker: words.length / speakers.size
+    });
   }
 
   formatTime(seconds: number): string {
