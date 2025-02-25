@@ -1,8 +1,6 @@
 
 import { useDropzone, DropzoneInputProps } from "react-dropzone";
 import TranscriptHeader from "@/components/transcript/TranscriptHeader";
-import UploadSection from "@/components/transcript/UploadSection";
-import UploadArea from "@/components/transcript/UploadArea";
 import CorrectedTextDisplay from "@/components/transcript/CorrectedTextDisplay";
 import SaveStatus from "@/components/transcript/SaveStatus";
 import { useTranscriptUpload } from "@/hooks/useTranscriptUpload";
@@ -44,17 +42,6 @@ const TransCorrection = () => {
             audioSaved={saveStatus?.audioSaved ?? false}
             jsonSaved={saveStatus?.jsonSaved ?? false}
           />
-          
-          <UploadSection>
-            <UploadArea
-              getRootProps={getRootProps}
-              getInputProps={getInputProps}
-              isDragActive={isDragActive}
-              uploadedFile={uploadedFile}
-              isProcessing={isProcessing}
-              progress={progress}
-            />
-          </UploadSection>
 
           {correctedText && !isProcessing && (
             <CorrectedTextDisplay text={correctedText} />
