@@ -7,7 +7,7 @@ const Navbar = () => {
   return (
     <nav className="flex flex-col items-center mb-8 animate-fade-down">
       <h1 className="text-6xl font-semibold text-center mb-6 text-blue-500">
-        Transcript Processing and Training
+        Create Transcript
       </h1>
       <div className="flex flex-wrap justify-center gap-4">
         <Link to="/deepgram">

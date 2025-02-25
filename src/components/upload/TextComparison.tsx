@@ -50,11 +50,11 @@ const TextComparison = ({
         <div>
           <div className="flex items-center gap-2 mb-2">
             <FileText className="h-5 w-5 text-blue-500" />
-            <Label className="text-lg font-medium">Corrected Transcript</Label>
+            <Label className="text-lg font-medium">Paste Transcript</Label>
           </div>
           <Textarea
             className="min-h-[288px]"
-            placeholder="Paste the corrected transcript here..."
+            placeholder="Paste the transcript that needs correction here..."
             value={correctedText}
             onChange={(e) => onCorrectedTextChange(e.target.value)}
           />
