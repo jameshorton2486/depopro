@@ -15,8 +15,8 @@ export const defaultTranscriptionOptions: DeepgramOptions = {
   keyterms: [],
   formatting: {
     timestampFormat: "HH:mm:ss",
-    boldSpeakerNames: true,
-    highlightFillerWords: true,
+    boldSpeakerNames: false,
+    highlightFillerWords: false,
     removeExtraSpaces: true,
     standardizePunctuation: true
   }

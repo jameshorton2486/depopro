@@ -16,8 +16,8 @@ const FormattingButtons = ({ transcript }: FormattingButtonsProps) => {
   const [formatting, setFormatting] = useState<TranscriptFormatting>({
     removeExtraSpaces: true,
     standardizePunctuation: true,
-    boldSpeakerNames: true,
-    highlightFillerWords: true,
+    boldSpeakerNames: false,
+    highlightFillerWords: false,
     enableDiarization: true,
     enableParagraphs: true
   });
@@ -93,36 +93,6 @@ const FormattingButtons = ({ transcript }: FormattingButtonsProps) => {
             checked={formatting.standardizePunctuation}
             onCheckedChange={(checked) => 
               setFormatting(prev => ({ ...prev, standardizePunctuation: checked }))
-            }
-          />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label>Bold Speaker Names</Label>
-            <p className="text-sm text-muted-foreground">
-              Make speaker labels stand out in bold
-            </p>
-          </div>
-          <Switch
-            checked={formatting.boldSpeakerNames}
-            onCheckedChange={(checked) => 
-              setFormatting(prev => ({ ...prev, boldSpeakerNames: checked }))
-            }
-          />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label>Highlight Filler Words</Label>
-            <p className="text-sm text-muted-foreground">
-              Emphasize words like "um", "uh", "like"
-            </p>
-          </div>
-          <Switch
-            checked={formatting.highlightFillerWords}
-            onCheckedChange={(checked) => 
-              setFormatting(prev => ({ ...prev, highlightFillerWords: checked }))
             }
           />
         </div>
