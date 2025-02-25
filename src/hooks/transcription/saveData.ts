@@ -8,6 +8,10 @@ interface EnableRealtimeParams {
   table_name: string;
 }
 
+interface EnableRealtimeResponse {
+  success: boolean;
+}
+
 const convertParagraphToJson = (paragraph: DeepgramParagraph): Json => ({
   speaker: paragraph.speaker,
   start: paragraph.start,
@@ -50,7 +54,7 @@ export const saveTranscriptionData = async (
     if (jsonError) throw jsonError;
 
     // Enable REPLICA IDENTITY FULL for the table to support realtime
-    const { error: rpcError } = await supabase.rpc<EnableRealtimeParams>(
+    const { error: rpcError } = await supabase.rpc<EnableRealtimeResponse, EnableRealtimeParams>(
       'enable_realtime',
       { table_name: 'transcription_data' }
     );
