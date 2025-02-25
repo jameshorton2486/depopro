@@ -16,15 +16,38 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-const enforceOptions = (userOptions: any): any => ({
-  ...userOptions,
-  diarize: true,
-  punctuate: true,
-  smart_format: true,
-  paragraphs: true,
-  filler_words: true,
-  utterances: true
-});
+const validateOptions = (options: any) => {
+  const requiredOptions = {
+    diarize: true,
+    punctuate: true,
+    smart_format: true,
+    paragraphs: true,
+    filler_words: true,
+    utterances: true
+  };
+
+  const violations = Object.entries(requiredOptions).filter(([key, value]) => {
+    return options[key] === false || options[key] === undefined;
+  });
+
+  if (violations.length > 0) {
+    const missingOptions = violations.map(([key]) => key).join(', ');
+    throw new Error(`Cannot disable required options: ${missingOptions}`);
+  }
+};
+
+const enforceOptions = (userOptions: any): any => {
+  validateOptions(userOptions);
+  return {
+    ...userOptions,
+    diarize: true,
+    punctuate: true,
+    smart_format: true,
+    paragraphs: true,
+    filler_words: true,
+    utterances: true
+  };
+};
 
 const transcribeFile = async (fileUrl: string, options: any) => {
   const enforcedOptions = enforceOptions(options);
@@ -46,7 +69,25 @@ serve(async (req) => {
     const { fileName, options } = await req.json()
 
     if (!fileName) {
-      throw new Error('No file name provided')
+      return new Response(
+        JSON.stringify({ error: 'No file name provided' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    try {
+      validateOptions(options);
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
     }
 
     // Get public URL for the uploaded file
@@ -59,6 +100,11 @@ serve(async (req) => {
     console.log('Starting transcription with URL:', publicUrl);
     const response = await transcribeFile(publicUrl, options);
     
+    // Verify response contains required fields
+    if (!response?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs) {
+      throw new Error('Invalid response: Missing required paragraph segmentation');
+    }
+
     return new Response(
       JSON.stringify({ data: response }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

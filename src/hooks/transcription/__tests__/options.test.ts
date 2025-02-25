@@ -1,6 +1,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { enforceOptions } from '../options';
+import { DeepgramOptions } from '@/types/deepgram';
 
 describe('Options enforcement', () => {
   it('should enforce required options', () => {
@@ -14,7 +15,12 @@ describe('Options enforcement', () => {
       smart_format: true,
       paragraphs: true,
       filler_words: true,
-      utterances: true
+      utterances: true,
+      language: 'en-US',
+      formatting: {
+        enableDiarization: true,
+        enableParagraphs: true
+      }
     });
   });
 
@@ -35,7 +41,27 @@ describe('Options enforcement', () => {
       smart_format: true,
       paragraphs: true,
       filler_words: true,
-      utterances: true
+      utterances: true,
+      language: 'en-US',
+      formatting: {
+        enableDiarization: true,
+        enableParagraphs: true
+      }
+    });
+  });
+
+  it('should always enforce formatting options', () => {
+    const userOptions = {
+      formatting: {
+        enableDiarization: false,
+        enableParagraphs: false
+      }
+    };
+    const result = enforceOptions(userOptions);
+    
+    expect(result.formatting).toEqual({
+      enableDiarization: true,
+      enableParagraphs: true
     });
   });
 });
