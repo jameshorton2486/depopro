@@ -11,7 +11,6 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
   if (options?.enableDiarization) {
     let speakerCount = 0;
     const speakerMap = new Map<string, number>();
-    const nanSpeakerContextMap = new Map<string, number>();
 
     // First pass: clean up and standardize speaker labels
     formattedText = formattedText.replace(/\n?Speaker(?:\s+(?:NaN|\d+))(?:\s*:)(?:\s*[^]*?)(?=\n?Speaker|\n?$)/gi, (match) => {
@@ -19,22 +18,12 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
       const label = labelMatch ? labelMatch[0].trim() : '';
       const content = match.slice(label.length).trim();
       
+      // Ensure we have a valid speaker number
       let speakerNumber: number;
-      
-      if (label.toLowerCase().includes('nan')) {
-        // For NaN speakers, try to identify them by their spoken content
-        const contentKey = content.slice(0, 100); // Use first 100 chars as context
-        if (nanSpeakerContextMap.has(contentKey)) {
-          speakerNumber = nanSpeakerContextMap.get(contentKey)!;
-        } else {
-          speakerNumber = speakerCount++;
-          nanSpeakerContextMap.set(contentKey, speakerNumber);
-        }
+      if (!speakerMap.has(label)) {
+        speakerNumber = speakerCount++;
+        speakerMap.set(label, speakerNumber);
       } else {
-        // For numbered speakers, maintain consistent numbering
-        if (!speakerMap.has(label)) {
-          speakerMap.set(label, speakerCount++);
-        }
         speakerNumber = speakerMap.get(label)!;
       }
 
@@ -52,7 +41,6 @@ export function formatTranscriptText(text: string, options?: TranscriptFormattin
 
     // Log speaker mappings for debugging
     console.log('Speaker mapping:', Object.fromEntries(speakerMap));
-    console.log('NaN speaker context mapping:', Object.fromEntries(nanSpeakerContextMap));
   }
 
   // Handle paragraph formatting if enabled
