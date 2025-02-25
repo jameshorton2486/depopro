@@ -15,6 +15,9 @@ import { Plus, X, Loader2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import type { Database } from "@/integrations/supabase/types";
+
+type KeytermRow = Database['public']['Tables']['keyterms']['Row'];
 
 interface Keyterm {
   id: string;
@@ -22,6 +25,13 @@ interface Keyterm {
   boost: number;
   category: 'legal' | 'medical' | 'other';
 }
+
+const mapDatabaseRowToKeyterm = (row: KeytermRow): Keyterm => ({
+  id: row.id,
+  term: row.term,
+  boost: Number(row.boost) || 1.5,
+  category: row.category as 'legal' | 'medical' | 'other'
+});
 
 interface KeytermManagementProps {
   onKeytermsChange: (keyterms: Keyterm[]) => void;
@@ -70,8 +80,11 @@ export const KeytermManagement = ({ onKeytermsChange }: KeytermManagementProps) 
           .select();
 
         if (insertError) throw insertError;
+
+        if (insertedTerms) {
+          processedTerms.push(...insertedTerms.map(mapDatabaseRowToKeyterm));
+        }
         
-        processedTerms.push(...insertedTerms);
         setFilesProcessed(i + 1);
         setAnalyzingProgress(((i + 1) / acceptedFiles.length) * 100);
       }
@@ -112,8 +125,9 @@ export const KeytermManagement = ({ onKeytermsChange }: KeytermManagementProps) 
 
       if (error) throw error;
 
-      setKeyterms(data || []);
-      onKeytermsChange(data || []);
+      const mappedKeyterms = (data || []).map(mapDatabaseRowToKeyterm);
+      setKeyterms(mappedKeyterms);
+      onKeytermsChange(mappedKeyterms);
     } catch (error: any) {
       toast.error(`Error loading keyterms: ${error.message}`);
     } finally {
@@ -127,18 +141,20 @@ export const KeytermManagement = ({ onKeytermsChange }: KeytermManagementProps) 
     try {
       const { data, error } = await supabase
         .from('keyterms')
-        .insert([{
+        .insert({
           term: newTerm.trim(),
           boost: parseFloat(newBoost),
           category
-        }])
+        })
         .select()
         .single();
 
       if (error) throw error;
+      if (!data) throw new Error('No data returned from insert');
 
-      setKeyterms([...keyterms, data]);
-      onKeytermsChange([...keyterms, data]);
+      const newKeyterm = mapDatabaseRowToKeyterm(data);
+      setKeyterms([...keyterms, newKeyterm]);
+      onKeytermsChange([...keyterms, newKeyterm]);
       setNewTerm("");
       toast.success("Keyterm added successfully");
     } catch (error: any) {
