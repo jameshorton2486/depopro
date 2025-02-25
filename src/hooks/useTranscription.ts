@@ -1,14 +1,16 @@
+
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
-import { DeepgramOptions, TranscriptionResult, DeepgramParagraph } from "@/types/deepgram";
+import { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
 import { cleanupOldFiles, generateFileHash } from "./transcription/storage";
 import { simulateProgress } from "./transcription/progress";
 import { handleFileUpload, transcribeAudio, handleDownload } from "./transcription/actions";
+import { saveTranscriptionData } from "./transcription/saveData";
+import { defaultTranscriptionOptions } from "./transcription/options";
 import type { TranscriptionHookReturn } from "./transcription/types";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 
 export const useTranscription = (): TranscriptionHookReturn => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -16,88 +18,7 @@ export const useTranscription = (): TranscriptionHookReturn => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState("");
   const [progress, setProgress] = useState(0);
-  const [options, setOptions] = useState<DeepgramOptions>({
-    model: "nova-meeting",
-    language: "en-US",
-    smart_format: true,
-    diarize: true,
-    punctuate: true,
-    filler_words: true,
-    paragraphs: true,
-    utterances: true,
-    utteranceThreshold: 0.2,
-    keywords: [],
-    keyterms: [],
-    formatting: {
-      timestampFormat: "HH:mm:ss",
-      boldSpeakerNames: true,
-      highlightFillerWords: true,
-      removeExtraSpaces: true,
-      standardizePunctuation: true
-    }
-  });
-
-  const convertParagraphToJson = (paragraph: DeepgramParagraph): Json => ({
-    speaker: paragraph.speaker,
-    start: paragraph.start,
-    end: paragraph.end,
-    sentences: paragraph.sentences.map(sentence => ({
-      text: sentence.text,
-      start: sentence.start,
-      end: sentence.end
-    }))
-  });
-
-  const saveTranscriptionData = async (
-    file: File,
-    result: TranscriptionResult,
-    audioPath: string,
-    jsonPath: string
-  ) => {
-    try {
-      const jsonResult: Json = {
-        transcript: result.transcript,
-        paragraphs: result.paragraphs?.map(convertParagraphToJson) || [],
-        metadata: {
-          processingTime: result.metadata?.processingTime,
-          audioLength: result.metadata?.audioLength,
-          speakers: result.metadata?.speakers,
-          fillerWords: result.metadata?.fillerWords
-        }
-      };
-
-      const { error: jsonError } = await supabase.storage
-        .from('json_file')
-        .upload(jsonPath, JSON.stringify(jsonResult, null, 2), {
-          contentType: 'application/json',
-          upsert: false
-        });
-
-      if (jsonError) throw jsonError;
-
-      const { error: dbError } = await supabase
-        .from('transcription_data')
-        .insert({
-          file_name: file.name,
-          file_path: audioPath,
-          metadata: {
-            duration: result.metadata?.audioLength,
-            speakers: result.metadata?.speakers,
-            model: options.model,
-            language: options.language,
-            jsonPath: jsonPath
-          } as Json,
-          raw_response: jsonResult
-        });
-
-      if (dbError) throw dbError;
-      toast.success('Transcription and data saved successfully');
-    } catch (error) {
-      console.error('Error saving transcription:', error);
-      toast.error('Failed to save transcription data');
-      throw error;
-    }
-  };
+  const [options, setOptions] = useState<DeepgramOptions>(defaultTranscriptionOptions);
 
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({ ...prev, ...newOptions }));
@@ -166,7 +87,7 @@ export const useTranscription = (): TranscriptionHookReturn => {
       const fileHash = await generateFileHash(uploadedFile);
       
       await transcriptProcessor.cacheTranscript(fileHash, result);
-      await saveTranscriptionData(uploadedFile, result, audioPath, jsonPath);
+      await saveTranscriptionData(uploadedFile, result, audioPath, jsonPath, options);
       
       setTranscriptionResult(result);
       
