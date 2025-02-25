@@ -13,14 +13,14 @@ export const defaultTranscriptionOptions: DeepgramOptions = {
   utteranceThreshold: 0.2,
   keywords: [],
   keyterms: [],
+  // Locked options configuration
   formatting: {
     timestampFormat: "HH:mm:ss",
     boldSpeakerNames: true,
     highlightFillerWords: true,
     removeExtraSpaces: true,
     standardizePunctuation: true,
-    enableDiarization: true,
-    enableParagraphs: true
+    enableDiarization: true,  // Forces diarization
+    enableParagraphs: true    // Forces paragraph formatting
   }
 };
-

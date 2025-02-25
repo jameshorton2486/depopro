@@ -54,11 +54,34 @@ export const useTranscription = (): TranscriptionHookReturn => {
   }, [uploadedFile]);
 
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {
-    setOptions(prev => ({ ...prev, ...newOptions }));
+    // Force required options
+    const enforcedOptions = {
+      ...newOptions,
+      smart_format: true,
+      diarize: true,
+      punctuate: true,
+      filler_words: true,
+      paragraphs: true,
+      formatting: {
+        ...newOptions.formatting,
+        enableDiarization: true,
+        enableParagraphs: true
+      }
+    };
+    
+    setOptions(prev => ({ 
+      ...prev, 
+      ...enforcedOptions,
+      formatting: {
+        ...prev.formatting,
+        ...enforcedOptions.formatting
+      }
+    }));
+    
     console.debug('🔄 Options updated:', { 
       previousOptions: options, 
-      newOptions,
-      mergedOptions: { ...options, ...newOptions }
+      newOptions: enforcedOptions,
+      mergedOptions: { ...options, ...enforcedOptions }
     });
   }, [options]);
 
