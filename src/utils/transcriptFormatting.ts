@@ -16,31 +16,26 @@ export function formatTranscriptText(
 
     // Build a formatted version using the paragraphs data
     formattedText = paragraphs.map(paragraph => {
+      // Handle undefined speaker numbers
+      const validSpeaker = isNaN(paragraph.speaker) ? 0 : paragraph.speaker;
+      
       // Get or assign a sequential number for this speaker
-      if (!speakerMap.has(paragraph.speaker)) {
-        speakerMap.set(paragraph.speaker, nextSpeakerNumber++);
+      if (!speakerMap.has(validSpeaker)) {
+        speakerMap.set(validSpeaker, nextSpeakerNumber++);
       }
-      const speakerNumber = speakerMap.get(paragraph.speaker);
+      const speakerNumber = speakerMap.get(validSpeaker) ?? 0;
       
       // Format speaker label and content
       const speakerLabel = `Speaker ${speakerNumber}:`;
       const content = paragraph.sentences.map(s => s.text).join(' ').trim();
       
-      // Log for debugging
-      console.log(`Processing speaker ${paragraph.speaker} -> ${speakerNumber}:`, content);
-      
       return `\n${speakerLabel} ${content}`;
     }).join('\n');
-
-    // Log speaker mapping for debugging
-    console.log('Speaker mapping:', Object.fromEntries(speakerMap));
   }
 
   if (options?.removeExtraSpaces) {
     // Collapse multiple spaces (but preserve newlines)
     formattedText = formattedText.replace(/[ \t]+/g, ' ');
-    
-    // Remove extra spaces at end of sentences
     formattedText = formattedText.replace(/([.?!])\s{2,}(\n|$)/g, '$1\n');
   }
 
@@ -48,12 +43,10 @@ export function formatTranscriptText(
     // Ensure consistent spacing after punctuation
     formattedText = formattedText.replace(/([.?!,;])\s*/g, '$1 ');
     formattedText = formattedText.replace(/\s+([.?!,;])/g, '$1');
-    
-    // Ensure proper spacing after sentences when next character is uppercase
     formattedText = formattedText.replace(/([.?!])\s*(?=[A-Z])/g, '$1 ');
   }
 
-  // Final cleanup: trim any leading/trailing whitespace
+  // Final cleanup
   formattedText = formattedText.trim();
   
   // Ensure document starts with a newline if it begins with a speaker label

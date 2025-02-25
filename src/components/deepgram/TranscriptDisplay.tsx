@@ -35,24 +35,27 @@ export const TranscriptDisplay = ({
   let nextSpeakerNumber = 0;
 
   const getSpeakerNumber = (originalSpeaker: number) => {
-    if (!speakerMap.has(originalSpeaker)) {
-      speakerMap.set(originalSpeaker, nextSpeakerNumber++);
+    // Handle undefined or invalid speaker numbers
+    const validSpeaker = isNaN(originalSpeaker) ? 0 : originalSpeaker;
+    
+    if (!speakerMap.has(validSpeaker)) {
+      speakerMap.set(validSpeaker, nextSpeakerNumber++);
     }
-    return speakerMap.get(originalSpeaker);
+    return speakerMap.get(validSpeaker) ?? 0;
   };
 
   const renderParagraph = (paragraph: DeepgramParagraph, index: number) => {
-    const speakerNumber = getSpeakerNumber(paragraph.speaker);
-    console.log(`Rendering speaker ${paragraph.speaker} as Speaker ${speakerNumber}`);
+    // Ensure speaker number is valid
+    const speakerNumber = getSpeakerNumber(paragraph.speaker ?? 0);
     
     return (
       <div key={index} className="mb-4">
-        <div className="text-sm font-medium mb-1">
-          Speaker {speakerNumber}:
+        <div className="text-sm font-medium mb-1 text-blue-600">
+          Speaker {speakerNumber}
         </div>
-        <p className="text-sm">
+        <p className="text-sm leading-relaxed">
           {paragraph.sentences.map((sentence, i) => (
-            <span key={i}>
+            <span key={i} className="inline-block">
               {sentence.text}{' '}
             </span>
           ))}
@@ -68,8 +71,8 @@ export const TranscriptDisplay = ({
           <h3 className="text-lg font-semibold">Transcript</h3>
           {transcriptionResult?.metadata && (
             <div className="text-sm text-muted-foreground">
-              {transcriptionResult.metadata.speakers} speakers • 
-              {Math.round(transcriptionResult.metadata.audioLength)} seconds
+              {transcriptionResult.metadata.speakers || 1} speakers • 
+              {Math.round(transcriptionResult.metadata.audioLength || 0)} seconds
             </div>
           )}
         </div>
