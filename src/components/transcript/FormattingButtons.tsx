@@ -39,36 +39,6 @@ const FormattingButtons = ({ transcript }: FormattingButtonsProps) => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
-            <Label>Enable Diarization</Label>
-            <p className="text-sm text-muted-foreground">
-              Separate and label different speakers in the transcript
-            </p>
-          </div>
-          <Switch
-            checked={formatting.enableDiarization}
-            onCheckedChange={(checked) => 
-              setFormatting(prev => ({ ...prev, enableDiarization: checked }))
-            }
-          />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label>Enable Paragraphs</Label>
-            <p className="text-sm text-muted-foreground">
-              Format text into logical paragraphs
-            </p>
-          </div>
-          <Switch
-            checked={formatting.enableParagraphs}
-            onCheckedChange={(checked) => 
-              setFormatting(prev => ({ ...prev, enableParagraphs: checked }))
-            }
-          />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
             <Label>Remove Extra Spaces</Label>
             <p className="text-sm text-muted-foreground">
               Clean up excessive whitespace and line breaks
