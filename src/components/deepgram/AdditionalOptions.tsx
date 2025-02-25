@@ -58,12 +58,7 @@ export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOption
       </div>
 
       <div className="space-y-2">
-        <Label>Keyterms</Label>
-        <KeytermManagement onKeytermsChange={handleKeytermsChange} />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Additional Keywords</Label>
+        <Label>Keywords</Label>
         <div className="flex gap-2">
           <Input
             value={newKeyword}
@@ -104,6 +99,11 @@ export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOption
             ))}
           </div>
         )}
+      </div>
+
+      <div className="space-y-2">
+        <Label>Keyterms</Label>
+        <KeytermManagement onKeytermsChange={handleKeytermsChange} />
       </div>
     </div>
   );

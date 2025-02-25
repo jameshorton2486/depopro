@@ -1,86 +1,66 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import "https://deno.land/x/xhr@0.1.0/mod.ts"
+import { DeepgramClient } from "https://esm.sh/@deepgram/sdk@2.4.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const deepgram = new DeepgramClient(Deno.env.get('DEEPGRAM_API_KEY') || '');
+
+const enforceOptions = (userOptions: any): any => ({
+  ...userOptions,
+  diarize: true,
+  punctuate: true,
+  smart_format: true,
+  paragraphs: true,
+  filler_words: true,
+  utterances: true
+});
+
+const transcribeFile = async (fileUrl: string, options: any) => {
+  const enforcedOptions = enforceOptions(options);
+  console.log('Transcribing with enforced options:', enforcedOptions);
+  return deepgram.listen.prerecorded.transcribeUrl(
+    { url: fileUrl },
+    enforcedOptions
+  );
+};
+
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { options, fileName } = await req.json()
+    const { fileName, options } = await req.json()
 
-    const apiKey = Deno.env.get('DEEPGRAM_API_KEY')
-    if (!apiKey) {
-      throw new Error('Deepgram API key not configured')
+    if (!fileName) {
+      throw new Error('No file name provided')
     }
 
-    // Get the file URL from Supabase Storage
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const fileUrl = `${supabaseUrl}/storage/v1/object/public/transcriptions/${fileName}`
+    const { data: { publicUrl }, error: urlError } = await supabase.storage
+      .from('audio_file')
+      .getPublicUrl(fileName)
 
-    console.log('Starting transcription:', {
-      fileUrl,
-      options
-    })
+    if (urlError) throw urlError
 
-    // Call Deepgram API
-    const response = await fetch('https://api.deepgram.com/v1/listen?model=nova&smart_format=true', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: fileUrl,
-        model: options.model || 'nova-meeting',
-        language: options.language || 'en-US',
-        smart_format: true,
-        diarize: true,
-        utterances: false,
-        punctuate: true
-      })
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Deepgram API error:', errorText)
-      throw new Error(`Deepgram API error: ${errorText}`)
-    }
-
-    const data = await response.json()
+    console.log('Starting transcription with URL:', publicUrl);
+    const response = await transcribeFile(publicUrl, options);
     
-    console.log('Transcription completed successfully')
-
     return new Response(
-      JSON.stringify({ data }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
+      JSON.stringify({ data: response }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Error in transcribe function:', error)
+    console.error('Transcription error:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: error.stack 
-      }),
+      JSON.stringify({ error: error.message }),
       { 
         status: 500,
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
   }

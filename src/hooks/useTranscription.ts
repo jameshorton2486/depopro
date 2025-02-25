@@ -119,6 +119,16 @@ export const useTranscription = (): TranscriptionHookReturn => {
     setProgress(0);
     setProcessingStatus("Processing audio...");
 
+    // Add verification logging
+    console.log('Final Deepgram Request Options:', {
+      model: options.model,
+      diarize: options.diarize,
+      punctuate: options.punctuate,
+      smart_format: options.smart_format,
+      paragraphs: options.paragraphs,
+      filler_words: options.filler_words
+    });
+
     const progressInterval = simulateProgress(setProgress, 10);
 
     try {
