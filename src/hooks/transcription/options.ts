@@ -15,9 +15,12 @@ export const defaultTranscriptionOptions: DeepgramOptions = {
   keyterms: [],
   formatting: {
     timestampFormat: "HH:mm:ss",
-    boldSpeakerNames: false,
-    highlightFillerWords: false,
+    boldSpeakerNames: true,
+    highlightFillerWords: true,
     removeExtraSpaces: true,
-    standardizePunctuation: true
+    standardizePunctuation: true,
+    enableDiarization: true,
+    enableParagraphs: true
   }
 };
+
