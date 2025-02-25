@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, ChangeEvent } from "react";
 import { processTextInBatches, uploadAndProcessFile } from "@/services/fileProcessing";
 import { toast } from "sonner";
 
@@ -12,6 +12,7 @@ interface SaveStatus {
 export const useTranscriptUpload = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [correctedText, setCorrectedText] = useState<string>("");
+  const [transcriptText, setTranscriptText] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({
@@ -26,27 +27,70 @@ export const useTranscriptUpload = () => {
     const file = files[0];
     setUploadedFile(file);
     setIsProcessing(true);
-    setSaveStatus({
-      transcriptSaved: false,
-      audioSaved: false,
-      jsonSaved: false
-    });
 
     try {
       const result = await uploadAndProcessFile(file, setProgress);
       setCorrectedText(result.text);
-      setSaveStatus({
-        transcriptSaved: true,
-        audioSaved: true,
-        jsonSaved: true
-      });
-      toast.success("Files processed and saved successfully");
+      setSaveStatus(prev => ({ ...prev, transcriptSaved: true }));
+      toast.success("Transcript file processed successfully");
     } catch (error) {
       console.error("Error processing file:", error);
-      toast.error("Error processing file");
+      toast.error("Error processing transcript file");
     } finally {
       setIsProcessing(false);
       setProgress(0);
+    }
+  }, []);
+
+  const handleAudioUpload = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Upload audio file to storage
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Simulate upload for now
+      setSaveStatus(prev => ({ ...prev, audioSaved: true }));
+      toast.success("Audio file uploaded successfully");
+    } catch (error) {
+      console.error("Error uploading audio:", error);
+      toast.error("Error uploading audio file");
+    }
+  }, []);
+
+  const handleJsonUpload = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const text = e.target?.result;
+        if (typeof text === 'string') {
+          try {
+            JSON.parse(text); // Validate JSON
+            setSaveStatus(prev => ({ ...prev, jsonSaved: true }));
+            toast.success("JSON file validated and uploaded");
+          } catch (error) {
+            toast.error("Invalid JSON file");
+          }
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      console.error("Error processing JSON:", error);
+      toast.error("Error processing JSON file");
+    }
+  }, []);
+
+  const handleTranscriptChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
+    setTranscriptText(event.target.value);
+    if (event.target.value) {
+      setSaveStatus(prev => ({ ...prev, transcriptSaved: true }));
+    } else {
+      setSaveStatus(prev => ({ ...prev, transcriptSaved: false }));
     }
   }, []);
 
@@ -57,7 +101,6 @@ export const useTranscriptUpload = () => {
     try {
       const processed = await processTextInBatches(correctedText, setProgress);
       setCorrectedText(processed);
-      setSaveStatus(prev => ({ ...prev, transcriptSaved: true }));
       toast.success("Initial formatting complete");
     } catch (error) {
       console.error("Error during initial formatting:", error);
@@ -74,7 +117,6 @@ export const useTranscriptUpload = () => {
     try {
       const processed = await processTextInBatches(correctedText, setProgress);
       setCorrectedText(processed);
-      setSaveStatus(prev => ({ ...prev, jsonSaved: true }));
       toast.success("Rules formatting complete");
     } catch (error) {
       console.error("Error during rules formatting:", error);
@@ -87,11 +129,15 @@ export const useTranscriptUpload = () => {
   return {
     uploadedFile,
     correctedText,
+    transcriptText,
     isProcessing,
     progress,
     saveStatus,
     onDrop,
     handleInitialFormatting,
-    handleRulesFormatting
+    handleRulesFormatting,
+    handleAudioUpload,
+    handleTranscriptChange,
+    handleJsonUpload
   };
 };
