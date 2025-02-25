@@ -4,8 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
-import { DeepgramOptions, DeepgramKeyterm } from "@/types/deepgram";
-import { KeytermManagement } from "./KeytermManagement";
+import { DeepgramOptions } from "@/types/deepgram";
 
 interface AdditionalOptionsProps {
   options: DeepgramOptions;
@@ -26,10 +25,6 @@ export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOption
   const handleKeywordRemove = (index: number) => {
     const updatedKeywords = options.keywords?.filter((_, i) => i !== index) || [];
     onOptionsChange({ keywords: updatedKeywords });
-  };
-
-  const handleKeytermsChange = (keyterms: DeepgramKeyterm[]) => {
-    onOptionsChange({ keyterms });
   };
 
   return (
@@ -99,11 +94,6 @@ export const AdditionalOptions = ({ options, onOptionsChange }: AdditionalOption
             ))}
           </div>
         )}
-      </div>
-
-      <div className="space-y-2">
-        <Label>Keyterms</Label>
-        <KeytermManagement onKeytermsChange={handleKeytermsChange} />
       </div>
     </div>
   );
