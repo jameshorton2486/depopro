@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
-import { Deepgram } from "https://esm.sh/@deepgram/sdk@2.4.0";
+import { Deepgram } from "https://esm.sh/@deepgram/sdk@1.3.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -57,10 +57,8 @@ const transcribeWithFallback = async (fileUrl: string, options: any) => {
     diarize_version: "2" // Use older, more stable diarization
   };
   
-  return deepgram.transcription.preRecorded(
-    { url: fileUrl },
-    fallbackOptions
-  );
+  const { results } = await deepgram.transcription.preRecordedUrl(fileUrl, fallbackOptions);
+  return results;
 };
 
 const transcribeFile = async (fileUrl: string, options: any) => {
@@ -68,20 +66,17 @@ const transcribeFile = async (fileUrl: string, options: any) => {
   console.log('Transcribing with enforced options:', enforcedOptions);
   
   try {
-    const response = await deepgram.transcription.preRecorded(
-      { url: fileUrl },
-      enforcedOptions
-    );
+    const { results } = await deepgram.transcription.preRecordedUrl(fileUrl, enforcedOptions);
 
     // Validate diarization results
-    const words = response?.results?.channels?.[0]?.alternatives?.[0]?.words || [];
+    const words = results?.channels?.[0]?.alternatives?.[0]?.words || [];
     const speakers = new Set(words.map(w => w.speaker).filter(Boolean));
 
     if (speakers.size < 2) {
       console.warn('Diarization warning: Limited speaker differentiation detected');
     }
 
-    return response;
+    return results;
   } catch (error: any) {
     console.error('Transcription error:', error);
 
@@ -146,12 +141,12 @@ serve(async (req) => {
     const response = await transcribeFile(publicUrl, options);
     
     // Verify response contains required fields
-    if (!response?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs) {
+    if (!response?.channels?.[0]?.alternatives?.[0]?.paragraphs) {
       throw new Error('Invalid response: Missing required paragraph segmentation');
     }
 
     return new Response(
-      JSON.stringify({ data: response }),
+      JSON.stringify({ data: { results: { channels: [{ alternatives: [{ paragraphs: response }] }] } } }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
