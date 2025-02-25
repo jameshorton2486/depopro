@@ -30,10 +30,21 @@ export const TranscriptDisplay = ({
     }
   }, [transcript]);
 
+  // Create a speaker mapping that starts from 0
+  const speakerMap = new Map<number, number>();
+  let nextSpeakerNumber = 0;
+
+  const getSpeakerNumber = (originalSpeaker: number) => {
+    if (!speakerMap.has(originalSpeaker)) {
+      speakerMap.set(originalSpeaker, nextSpeakerNumber++);
+    }
+    return speakerMap.get(originalSpeaker);
+  };
+
   const renderParagraph = (paragraph: DeepgramParagraph, index: number) => (
     <div key={index} className="mb-4">
       <div className="text-sm text-muted-foreground mb-1">
-        Speaker {paragraph.speaker}:
+        Speaker {getSpeakerNumber(paragraph.speaker)}:
       </div>
       <p className="text-sm">
         {paragraph.sentences.map((sentence, i) => (

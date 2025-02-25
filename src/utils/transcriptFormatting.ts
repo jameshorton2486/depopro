@@ -13,9 +13,18 @@ export function formatTranscriptText(
 
   // Only process diarization if enabled and paragraphs data is available
   if (options?.enableDiarization && paragraphs?.length) {
+    // Create a map to assign sequential numbers starting from 0
+    const speakerMap = new Map<number, number>();
+    let nextSpeakerNumber = 0;
+
     // Build a formatted version using the paragraphs data
     formattedText = paragraphs.map(paragraph => {
-      const speakerLabel = `Speaker ${paragraph.speaker}:  `;
+      // Get or assign a sequential number for this speaker
+      if (!speakerMap.has(paragraph.speaker)) {
+        speakerMap.set(paragraph.speaker, nextSpeakerNumber++);
+      }
+      const speakerNumber = speakerMap.get(paragraph.speaker);
+      const speakerLabel = `Speaker ${speakerNumber}:  `;
       const content = paragraph.sentences.map(s => s.text).join(' ').trim();
       return options?.boldSpeakerNames 
         ? `\n**${speakerLabel}**${content}`
@@ -23,10 +32,7 @@ export function formatTranscriptText(
     }).join('\n');
 
     // Log paragraph data for debugging
-    console.log('Processing paragraphs:', paragraphs.map(p => ({ 
-      speaker: p.speaker,
-      sentenceCount: p.sentences.length
-    })));
+    console.log('Speaker mapping:', Object.fromEntries(speakerMap));
   } else {
     // Fallback to regex-based formatting if no paragraph data
     let speakerCount = 0;
