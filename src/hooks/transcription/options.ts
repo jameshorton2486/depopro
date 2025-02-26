@@ -12,11 +12,14 @@ export const enforceOptions = (userOptions: Partial<DeepgramOptions>): DeepgramO
   model: userOptions.model || "nova-meeting",
   language: userOptions.language || "en-US",
   formatting: {
-    ...userOptions.formatting,
+    timestampFormat: "HH:mm:ss",
     enableDiarization: true,
     enableParagraphs: true,
     removeExtraSpaces: true,
-    standardizePunctuation: true
+    standardizePunctuation: true,
+    boldSpeakerNames: true,
+    highlightFillerWords: true,
+    ...userOptions.formatting
   }
 });
 

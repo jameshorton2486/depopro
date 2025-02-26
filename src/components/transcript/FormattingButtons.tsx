@@ -14,6 +14,7 @@ interface FormattingButtonsProps {
 
 const FormattingButtons = ({ transcript }: FormattingButtonsProps) => {
   const [formatting, setFormatting] = useState<TranscriptFormatting>({
+    timestampFormat: "HH:mm:ss",
     removeExtraSpaces: true,
     standardizePunctuation: true,
     boldSpeakerNames: false,
