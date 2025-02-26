@@ -1,11 +1,13 @@
+
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { FileJson, FileText, FileOutput, FileCheck } from "lucide-react";
+import { FileJson, FileText, FileOutput, FileCheck, Loader2 } from "lucide-react";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 import { type TrainingRules } from "@/services/openai";
-import { supabase } from "@/integrations/supabase/client";
+import { useTranscriptProcessing } from "@/hooks/useTranscriptProcessing";
+import { useMemo } from "react";
 
 type TextComparisonProps = {
   originalText: string;
@@ -22,14 +24,7 @@ const TextComparison = ({
   onCorrectedTextChange,
   onGenerateRules
 }: TextComparisonProps) => {
-  const validateJson = (text: string) => {
-    try {
-      JSON.parse(text);
-      toast.success("Valid JSON format");
-    } catch (e) {
-      toast.error("Invalid JSON format");
-    }
-  };
+  const { isProcessing, processTranscript, validateJson } = useTranscriptProcessing();
 
   const handleExportToWord = () => {
     if (!correctedText) {
@@ -47,41 +42,19 @@ const TextComparison = ({
   };
 
   const handleCorrectTranscript = async () => {
-    if (!correctedText) {
-      toast.error("Please enter some text in the transcript box first");
+    if (!correctedText || !originalText) {
+      toast.error("Please provide both transcript and JSON corrections");
       return;
     }
 
-    if (!originalText) {
-      toast.error("Please provide the JSON corrections file");
-      return;
-    }
-
-    try {
-      const corrections = JSON.parse(originalText) as TrainingRules;
-      
-      // Call Supabase Edge Function to process corrections
-      const { data, error } = await supabase.functions.invoke('process-corrections', {
-        body: {
-          text: correctedText,
-          rules: corrections
-        }
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      const correctedTranscript = data.correctedText;
-
-      // Create and open Word document with corrected text
-      createAndDownloadWordDoc(correctedTranscript);
-      toast.success("Transcript corrected and saved as Word document");
-    } catch (error) {
-      toast.error("Failed to process corrections. Please check the JSON format.");
-      console.error("Correction processing error:", error);
-    }
+    await processTranscript(correctedText, originalText);
   };
+
+  // Memoize the JSON validation handler
+  const handleJsonChange = useMemo(() => (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    onOriginalTextChange(e.target.value);
+    if (e.target.value) validateJson(e.target.value);
+  }, [onOriginalTextChange, validateJson]);
 
   return (
     <div className="space-y-8">
@@ -97,6 +70,7 @@ const TextComparison = ({
               size="sm"
               onClick={handleExportToWord}
               className="flex items-center gap-2"
+              disabled={isProcessing}
             >
               <FileOutput className="h-4 w-4" />
               Export to Word
@@ -107,6 +81,7 @@ const TextComparison = ({
             placeholder="Paste the transcript that needs correction here..."
             value={correctedText}
             onChange={(e) => onCorrectedTextChange(e.target.value)}
+            disabled={isProcessing}
           />
         </div>
         <div>
@@ -118,10 +93,8 @@ const TextComparison = ({
             className="min-h-[288px] font-mono"
             placeholder="Paste the original JSON here..."
             value={originalText}
-            onChange={(e) => {
-              onOriginalTextChange(e.target.value);
-              if (e.target.value) validateJson(e.target.value);
-            }}
+            onChange={handleJsonChange}
+            disabled={isProcessing}
           />
         </div>
       </div>
@@ -131,9 +104,14 @@ const TextComparison = ({
           onClick={handleCorrectTranscript}
           className="bg-blue-500 text-white hover:bg-blue-600 gap-2"
           size="lg"
+          disabled={isProcessing}
         >
-          <FileCheck className="h-5 w-5" />
-          Correct Transcript
+          {isProcessing ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <FileCheck className="h-5 w-5" />
+          )}
+          {isProcessing ? 'Processing...' : 'Correct Transcript'}
         </Button>
       </div>
     </div>
