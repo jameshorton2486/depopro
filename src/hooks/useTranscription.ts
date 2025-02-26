@@ -28,6 +28,7 @@ export const useTranscription = (): TranscriptionHookReturn => {
 
   // Set up realtime subscription for transcription updates
   useEffect(() => {
+    console.log('Setting up realtime subscription for transcription updates');
     const channel = supabase
       .channel('public:transcription_data')
       .on(
@@ -49,11 +50,17 @@ export const useTranscription = (): TranscriptionHookReturn => {
       .subscribe();
 
     return () => {
+      console.log('Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
   }, [uploadedFile]);
 
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {
+    console.log('Updating transcription options:', {
+      currentOptions: options,
+      newOptions,
+    });
+
     // Force required options
     const enforcedOptions = {
       ...newOptions,
@@ -78,7 +85,7 @@ export const useTranscription = (): TranscriptionHookReturn => {
       }
     }));
     
-    console.debug('🔄 Options updated:', { 
+    console.debug('Options updated:', { 
       previousOptions: options, 
       newOptions: enforcedOptions,
       mergedOptions: { ...options, ...enforcedOptions }
@@ -89,6 +96,12 @@ export const useTranscription = (): TranscriptionHookReturn => {
     if (files.length === 0) return;
     
     try {
+      console.log('File dropped:', {
+        fileName: files[0].name,
+        fileSize: `${(files[0].size / (1024 * 1024)).toFixed(2)}MB`,
+        fileType: files[0].type
+      });
+
       validateFile(files[0]);
       const fileHash = await handleFileUpload(files[0], cleanupOldFiles);
       setUploadedFile(files[0]);
@@ -96,6 +109,7 @@ export const useTranscription = (): TranscriptionHookReturn => {
       if (fileHash) {
         const cached = await transcriptProcessor.getCachedTranscript(fileHash);
         if (cached) {
+          console.log('Using cached transcription result');
           setTranscriptionResult(cached);
           toast.info("Retrieved cached transcription");
         }
@@ -120,13 +134,14 @@ export const useTranscription = (): TranscriptionHookReturn => {
     setProcessingStatus("Processing audio...");
 
     // Add verification logging
-    console.log('Final Deepgram Request Options:', {
+    console.log('Starting transcription with options:', {
       model: options.model,
       diarize: options.diarize,
       punctuate: options.punctuate,
       smart_format: options.smart_format,
       paragraphs: options.paragraphs,
-      filler_words: options.filler_words
+      filler_words: options.filler_words,
+      fullOptions: JSON.stringify(options, null, 2)
     });
 
     const progressInterval = simulateProgress(setProgress, 10);
@@ -137,19 +152,19 @@ export const useTranscription = (): TranscriptionHookReturn => {
       const audioPath = `${uniqueId}.${fileExt}`;
       const jsonPath = `${uniqueId}.json`;
       
-      const { error: uploadError } = await supabase.storage
-        .from('audio_file')
-        .upload(audioPath, uploadedFile);
+      console.log('Processing file:', {
+        originalName: uploadedFile.name,
+        audioPath,
+        jsonPath
+      });
 
-      if (uploadError) throw uploadError;
-
-      console.log('Starting transcription with options:', options);
-      
       const data = await transcribeAudio(uploadedFile, options, progressInterval, setProgress);
+      console.log('Transcription completed:', {
+        success: true,
+        responseData: JSON.stringify(data, null, 2)
+      });
+
       const result = transcriptProcessor.processFullResponse(data.data);
-      
-      console.log('Transcription result:', result);
-      
       const fileHash = await generateFileHash(uploadedFile);
       
       await transcriptProcessor.cacheTranscript(fileHash, result);
@@ -164,7 +179,10 @@ export const useTranscription = (): TranscriptionHookReturn => {
       }
 
     } catch (error: any) {
-      console.error("❌ Transcription error:", error);
+      console.error("❌ Transcription error:", {
+        error: JSON.stringify(error, null, 2),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       toast.error(`Transcription failed: ${error.message}`);
       clearInterval(progressInterval);
       setProgress(0);
