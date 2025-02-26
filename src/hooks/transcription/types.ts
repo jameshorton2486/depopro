@@ -1,5 +1,5 @@
 
-import type { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
+import type { DeepgramOptions, TranscriptionResult, DeepgramResponse } from "@/types/deepgram";
 import type { ExtendedMetadata } from "@/services/transcription/types";
 
 export interface TranscriptionError extends Error {
