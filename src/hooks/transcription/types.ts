@@ -1,13 +1,19 @@
 
-import { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
+import type { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
+import type { ExtendedMetadata } from "@/services/transcription/types";
+
+export interface TranscriptionError extends Error {
+  code?: string;
+  details?: unknown;
+}
 
 export interface StoredTranscription {
   id: string;
   file_path: string;
   file_name: string;
-  metadata: any;
+  metadata: ExtendedMetadata;
   created_at: string;
-  raw_response: any;
+  raw_response: DeepgramResponse;
 }
 
 export interface TranscriptionState {

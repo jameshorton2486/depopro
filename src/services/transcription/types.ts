@@ -14,7 +14,7 @@ export interface SpeakerCharacteristics {
 export interface ExtendedMetadata {
   sentimentAnalysis?: SentimentResult;
   topicDetection?: string[];
-  speakerCharacteristics?: SpeakerCharacteristics;
+  speakerCharacteristics?: Record<number, SpeakerCharacteristics>;
 }
 
 export interface TranscriptFormatter {
