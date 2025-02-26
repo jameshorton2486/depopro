@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FileJson, FileText, FileOutput, FileCheck } from "lucide-react";
 import { createAndDownloadWordDoc } from "@/utils/documentUtils";
 import { type TrainingRules } from "@/services/openai";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 type TextComparisonProps = {
   originalText: string;
