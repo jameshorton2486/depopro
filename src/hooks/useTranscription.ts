@@ -17,6 +17,7 @@ export const useTranscription = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [transcriptionResult, setTranscriptionResult] = useState<TranscriptionResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState("");
   const [progress, setProgress] = useState(0);
   const [options, setOptions] = useState<DeepgramOptions>(defaultTranscriptionOptions);
 
@@ -86,6 +87,7 @@ export const useTranscription = () => {
     setIsProcessing(true);
     setTranscriptionResult(null);
     setProgress(0);
+    setProcessingStatus("Processing audio file...");
 
     try {
       const data = await transcribeAudio(uploadedFile, options, setProgress);
@@ -97,6 +99,7 @@ export const useTranscription = () => {
       }
       
       setTranscriptionResult(result);
+      setProcessingStatus("Transcription complete");
       toast.success(
         result.metadata?.speakers && result.metadata.speakers > 1
           ? `Detected ${result.metadata.speakers} speakers!`
@@ -105,6 +108,7 @@ export const useTranscription = () => {
     } catch (error: any) {
       toast.error(`Transcription failed: ${error.message}`);
       setProgress(0);
+      setProcessingStatus("Transcription failed");
     } finally {
       setIsProcessing(false);
     }
@@ -115,6 +119,7 @@ export const useTranscription = () => {
     transcript: transcriptionResult?.transcript || "",
     transcriptionResult,
     isProcessing,
+    processingStatus,
     progress,
     options,
     model: options.model,

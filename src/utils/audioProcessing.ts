@@ -141,3 +141,31 @@ export const processChunkWithRetry = async (
     throw error;
   }
 };
+
+export const processAudioChunk = (chunk: ArrayBuffer): Promise<ArrayBuffer> => {
+  return Promise.resolve(chunk);
+};
+
+interface WordWithSpeaker {
+  word: string;
+  start: number;
+  end: number;
+  confidence: number;
+  speaker?: number;
+}
+
+export const assignSpeakersToWords = (response: DeepgramResponse): WordWithSpeaker[] => {
+  const words = response.results.channels[0].alternatives[0].words;
+  const paragraphs = response.results.channels[0].alternatives[0].paragraphs?.paragraphs || [];
+  
+  return words.map(word => {
+    const paragraph = paragraphs.find(p => 
+      word.start >= p.start && word.end <= p.end
+    );
+    
+    return {
+      ...word,
+      speaker: paragraph?.speaker
+    };
+  });
+};
