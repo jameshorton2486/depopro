@@ -3,10 +3,15 @@ import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
-import { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
+import { DeepgramOptions, TranscriptionResult, DeepgramResponse } from "@/types/deepgram";
 import { handleFileUpload, transcribeAudio, handleDownload } from "./transcription/actions";
 import { defaultTranscriptionOptions } from "./transcription/options";
 import { supabase } from "@/integrations/supabase/client";
+
+interface TranscriptionRecord {
+  file_name: string;
+  raw_response: DeepgramResponse;
+}
 
 export const useTranscription = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -16,21 +21,26 @@ export const useTranscription = () => {
   const [options, setOptions] = useState<DeepgramOptions>(defaultTranscriptionOptions);
 
   useEffect(() => {
+    if (!uploadedFile) return;
+
     const channel = supabase
       .channel('public:transcription_data')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'transcription_data' },
-        (payload) => {
-          if (payload.new && uploadedFile?.name === payload.new.file_name) {
-            const result = transcriptProcessor.processFullResponse(payload.new.raw_response);
+        (payload: any) => {
+          const record = payload.new as TranscriptionRecord;
+          if (record && uploadedFile.name === record.file_name) {
+            const result = transcriptProcessor.processFullResponse(record.raw_response);
             setTranscriptionResult(result);
           }
         }
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [uploadedFile]);
 
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {

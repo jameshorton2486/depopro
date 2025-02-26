@@ -14,7 +14,9 @@ export const enforceOptions = (userOptions: Partial<DeepgramOptions>): DeepgramO
   formatting: {
     ...userOptions.formatting,
     enableDiarization: true,
-    enableParagraphs: true
+    enableParagraphs: true,
+    removeExtraSpaces: true,
+    standardizePunctuation: true
   }
 });
 
@@ -32,11 +34,11 @@ export const defaultTranscriptionOptions: DeepgramOptions = {
   keyterms: [],
   formatting: {
     timestampFormat: "HH:mm:ss",
-    boldSpeakerNames: true,
-    highlightFillerWords: true,
+    enableDiarization: true,
+    enableParagraphs: true,
     removeExtraSpaces: true,
     standardizePunctuation: true,
-    enableDiarization: true,
-    enableParagraphs: true
+    boldSpeakerNames: true,
+    highlightFillerWords: true
   }
 };
