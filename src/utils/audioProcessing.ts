@@ -1,4 +1,6 @@
+
 import { DeepgramResponse, DeepgramParagraph } from "@/types/deepgram";
+import { toast } from "sonner";
 
 interface AudioChunkMetadata {
   duration: number;
@@ -14,11 +16,35 @@ interface WordWithSpeaker {
   speaker?: number;
 }
 
+export const processChunkWithRetry = async (
+  chunk: ArrayBuffer,
+  retries = 3
+): Promise<ArrayBuffer> => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await processAudioChunk(chunk);
+    } catch (error) {
+      console.error(`Processing attempt ${attempt} failed:`, error);
+      if (attempt === retries) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+  throw new Error("Failed to process audio chunk after multiple attempts");
+};
+
 export const processAudioChunk = (chunk: ArrayBuffer): Promise<ArrayBuffer> => {
-  return Promise.resolve(chunk);
+  return new Promise((resolve, reject) => {
+    try {
+      // Basic audio processing logic
+      resolve(chunk);
+    } catch (error) {
+      reject(error);
+    }
+  });
 };
 
 export const extractMetadata = (audio: ArrayBuffer): AudioChunkMetadata => {
+  // Basic metadata extraction
   return {
     duration: 0,
     sampleRate: 44100,
