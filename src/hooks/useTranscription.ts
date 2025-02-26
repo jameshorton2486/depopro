@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
@@ -21,29 +21,35 @@ export const useTranscription = () => {
   const [progress, setProgress] = useState(0);
   const [options, setOptions] = useState<DeepgramOptions>(defaultTranscriptionOptions);
 
-  useEffect(() => {
-    if (!uploadedFile) return;
-
-    const channel = supabase
+  // Memoize subscription setup to prevent unnecessary re-renders
+  const setupSubscription = useCallback((fileName: string) => {
+    return supabase
       .channel('public:transcription_data')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'transcription_data' },
         (payload: any) => {
           const record = payload.new as TranscriptionRecord;
-          if (record && uploadedFile.name === record.file_name) {
+          if (record && fileName === record.file_name) {
             const result = transcriptProcessor.processFullResponse(record.raw_response);
             setTranscriptionResult(result);
           }
         }
       )
       .subscribe();
+  }, []);
 
+  // Use useEffect with proper cleanup
+  useEffect(() => {
+    if (!uploadedFile) return;
+
+    const channel = setupSubscription(uploadedFile.name);
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [uploadedFile]);
+  }, [uploadedFile, setupSubscription]);
 
+  // Memoize options change handler
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({
       ...prev,
@@ -56,6 +62,7 @@ export const useTranscription = () => {
     }));
   }, []);
 
+  // Memoize file drop handler
   const onDrop = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     
@@ -69,6 +76,7 @@ export const useTranscription = () => {
         if (cached) {
           setTranscriptionResult(cached);
           toast.info("Retrieved cached transcription");
+          return; // Early return if cached result found
         }
       }
       
@@ -78,6 +86,7 @@ export const useTranscription = () => {
     }
   }, []);
 
+  // Memoize transcribe handler
   const handleTranscribe = useCallback(async () => {
     if (!uploadedFile) {
       toast.error("Please upload a file first");
@@ -114,9 +123,15 @@ export const useTranscription = () => {
     }
   }, [uploadedFile, options]);
 
+  // Memoize derived state
+  const transcriptText = useMemo(() => 
+    transcriptionResult?.transcript || "", 
+    [transcriptionResult]
+  );
+
   return {
     uploadedFile,
-    transcript: transcriptionResult?.transcript || "",
+    transcript: transcriptText,
     transcriptionResult,
     isProcessing,
     processingStatus,
@@ -125,7 +140,7 @@ export const useTranscription = () => {
     model: options.model,
     onDrop,
     handleOptionsChange,
-    onModelChange: (model: string) => handleOptionsChange({ model }),
+    onModelChange: useCallback((model: string) => handleOptionsChange({ model }), [handleOptionsChange]),
     handleTranscribe,
     handleDownload,
   };
