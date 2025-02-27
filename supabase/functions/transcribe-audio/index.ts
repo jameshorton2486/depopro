@@ -1,118 +1,161 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+const DEEPGRAM_API_KEY = Deno.env.get('DEEPGRAM_API_KEY') || '';
+
+// Validates the request body
+function validateRequest(req: any) {
+  if (!req) {
+    throw new Error('Missing request body');
+  }
+  
+  // Check for at least one audio source
+  if (!req.audioData && !req.audioUrl) {
+    throw new Error('Missing audio source: provide either audioData or audioUrl');
+  }
+
+  // Options validation
+  if (!req.options) {
+    req.options = {};
+  }
+}
+
+// Utility to extract base64 data from data URLs
+function extractBase64FromDataUrl(dataUrl: string): string {
+  const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!matches || matches.length !== 3) {
+    throw new Error('Invalid data URL format');
+  }
+  return matches[2];
+}
+
+// Handle audio transcription from a URL
+async function transcribeFromUrl(url: string, options: Record<string, any>) {
+  console.log(`Transcribing from URL: ${url}`);
+  
+  // Build query parameters
+  const queryParams = new URLSearchParams();
+  Object.entries(options).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && typeof value !== 'object') {
+      queryParams.append(key, String(value));
+    }
+  });
+  
+  // For YouTube URLs, we need to add a special parameter
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    console.log('YouTube URL detected, adding youtube parameter');
+    queryParams.append('youtube', 'true');
+  }
+  
+  // Construct the API URL with query parameters
+  const apiUrl = `https://api.deepgram.com/v1/listen?${queryParams.toString()}`;
+  
+  // Make the request to Deepgram API
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('Deepgram API error (URL):', error);
+    throw new Error(`Deepgram API error: ${response.status} - ${error}`);
+  }
+  
+  return response.json();
+}
+
+// Handle audio transcription from file data
+async function transcribeFromData(base64Data: string, options: Record<string, any>) {
+  console.log('Transcribing from file data');
+  
+  // Decode base64 data to binary
+  const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+  
+  // Build query parameters
+  const queryParams = new URLSearchParams();
+  Object.entries(options).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && typeof value !== 'object') {
+      queryParams.append(key, String(value));
+    }
+  });
+  
+  // Construct the API URL with query parameters
+  const apiUrl = `https://api.deepgram.com/v1/listen?${queryParams.toString()}`;
+  
+  // Make the request to Deepgram API
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+      'Content-Type': 'audio/mpeg',
+    },
+    body: binaryData,
+  });
+  
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('Deepgram API error (File):', error);
+    throw new Error(`Deepgram API error: ${response.status} - ${error}`);
+  }
+  
+  return response.json();
 }
 
 serve(async (req) => {
+  // CORS headers
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers });
   }
 
   try {
-    const { audioData, audioUrl, options, isYouTube } = await req.json()
-
-    if (!audioData && !audioUrl) {
-      throw new Error('No audio data or URL provided')
+    if (!DEEPGRAM_API_KEY) {
+      throw new Error('DEEPGRAM_API_KEY is not set');
     }
 
-    console.log('Processing with options:', JSON.stringify(options, null, 2))
-
-    let audioBytes: Uint8Array | null = null;
-    let audioUrlToFetch = audioUrl;
+    // Parse the request body
+    const requestBody = await req.json();
     
-    // Handle base64 audio data
-    if (audioData) {
-      console.log('Processing audio data from base64')
-      // Extract the actual base64 content from the data URL
-      const base64Data = audioData.toString().replace(/^data:.+;base64,/, '')
-      
-      // Convert base64 to Uint8Array
-      audioBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
-    } 
-    // Handle YouTube URL
-    else if (isYouTube) {
-      console.log('Processing YouTube URL:', audioUrl)
-      // In a real implementation, you would extract audio from YouTube
-      // This would typically involve using a third-party service or API
-      throw new Error('YouTube extraction is not implemented in this demo edge function')
-    }
-
-    console.log('Preparing Deepgram API request')
+    // Validate the request
+    validateRequest(requestBody);
     
-    // Direct API call to Deepgram without SDK
-    const apiOptions = new URLSearchParams()
-    
-    // Add Deepgram parameters to URL
-    if (options) {
-      Object.entries(options).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && typeof value !== 'object') {
-          apiOptions.append(key, String(value))
-        }
-      })
-    }
-    
-    const url = `https://api.deepgram.com/v1/listen?${apiOptions.toString()}`
-    
-    console.log('Sending request to Deepgram API:', url)
-    
-    let response;
-    
-    if (audioBytes) {
-      // Send binary audio data
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Authorization": `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
-          "Content-Type": "audio/mpeg",
-        },
-        body: audioBytes,
-      })
-    } else if (audioUrlToFetch) {
-      // Send URL to Deepgram
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Authorization": `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: audioUrlToFetch
-        }),
-      })
+    // Transcribe based on the source type
+    let result;
+    if (requestBody.audioUrl) {
+      // URL-based transcription
+      result = await transcribeFromUrl(requestBody.audioUrl, requestBody.options);
     } else {
-      throw new Error('No valid audio source provided')
+      // File-based transcription
+      const base64Data = extractBase64FromDataUrl(requestBody.audioData);
+      result = await transcribeFromData(base64Data, requestBody.options);
     }
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Deepgram error response:', errorText)
-      throw new Error(`Deepgram API error: ${response.status} - ${errorText}`)
-    }
-
-    const data = await response.json()
-    console.log('Successfully received Deepgram response')
-
-    return new Response(
-      JSON.stringify(data),
-      { 
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
+    // Return transcription result
+    return new Response(JSON.stringify(result), {
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+    });
   } catch (error) {
-    console.error('Error in transcribe-audio function:', error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    )
+    console.error('Transcription error:', error);
+    
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+    });
   }
-})
+});

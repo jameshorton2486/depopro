@@ -11,7 +11,6 @@ const transcriptProcessor = {
   processFullResponse: (data: any): TranscriptionResult => {
     const transcript = data.results?.channels[0]?.alternatives[0]?.transcript || "";
     const speakers = data.results?.channels[0]?.alternatives[0]?.speaker_count || 0;
-    const duration = data.metadata?.duration;
     const processingTime = data.metadata?.processing_time;
     const audioLength = data.metadata?.duration;
     const detectedLanguage = data.results?.channels[0]?.alternatives[0]?.language || data.metadata?.language;
@@ -21,7 +20,6 @@ const transcriptProcessor = {
       transcript,
       metadata: {
         speakers,
-        duration: audioLength,
         processingTime,
         audioLength
       },

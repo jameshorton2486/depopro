@@ -66,6 +66,7 @@ export default function Deepgram() {
           </Tabs>
           
           <TranscriptionControls
+            model={options.model || 'nova-2'}
             options={options}
             onModelChange={onModelChange}
             onOptionsChange={handleOptionsChange}
@@ -75,9 +76,9 @@ export default function Deepgram() {
           />
           
           {options.keyterms && options.keyterms.length > 0 && (
-            <ExtractedTerms terms={options.keyterms.map(term => ({ 
-              id: term.id,
-              name: term.term,
+            <ExtractedTerms terms={options.keyterms.map(term => ({
+              term: term.term,
+              boost: term.boost,
               category: term.category || 'other'
             }))} />
           )}
