@@ -1,6 +1,6 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { Deepgram } from 'https://esm.sh/@deepgram/sdk@3.0.0'
+import { createClient as createDeepgramClient } from 'https://esm.sh/@deepgram/sdk@3.0.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,8 +20,8 @@ if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-// Initialize Deepgram with proper typing
-const deepgram = new Deepgram(deepgramApiKey)
+// Initialize clients with proper typing
+const deepgram = createDeepgramClient(deepgramApiKey)
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 async function transcribeFile(fileName: string, options: any) {
@@ -41,28 +41,28 @@ async function transcribeFile(fileName: string, options: any) {
 
     console.log('Got public URL:', publicUrl)
 
-    // Using the correct method from v3.0.0 of the SDK
+    // Using the correct method from v3.0.0 of the SDK with createClient
     console.log('Attempting transcription with Deepgram...')
-    const transcription = await deepgram.listen.prerecorded.transcribeUrl(
+    const response = await deepgram.listen.prerecorded.transcribeUrl(
       { url: publicUrl },
       {
         ...options,
         smart_format: true,
         diarize: true,
         punctuate: true,
-        model: options.model || 'nova-2',
+        model: options.model || 'nova-3',
         language: options.language || 'en-US'
       }
     )
 
-    if (!transcription || !transcription.results) {
-      console.error('Invalid response from Deepgram:', transcription)
+    if (!response || !response.results) {
+      console.error('Invalid response from Deepgram:', response)
       throw new Error('Invalid response from Deepgram')
     }
 
     console.log('Transcription completed successfully')
-    console.log('Response structure:', Object.keys(transcription))
-    return transcription
+    console.log('Response structure:', Object.keys(response))
+    return response
   } catch (error) {
     console.error('Transcription error:', error)
     if (error instanceof Error) {
