@@ -3,15 +3,16 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
-import { DeepgramOptions, TranscriptionResult, DeepgramResponse } from "@/types/deepgram";
-import { handleFileUpload, transcribeAudio, handleDownload } from "./transcription/actions";
+import { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
 import { defaultTranscriptionOptions } from "./transcription/options";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TranscriptionRecord {
   file_name: string;
-  raw_response: DeepgramResponse;
+  raw_response: any;
 }
+
+const DEEPGRAM_API_URL = 'https://api.deepgram.com/v1/listen';
 
 export const useTranscription = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -39,7 +40,6 @@ export const useTranscription = () => {
       .subscribe();
   }, []);
 
-  // Use useEffect with proper cleanup
   useEffect(() => {
     if (!uploadedFile) return;
 
@@ -49,7 +49,6 @@ export const useTranscription = () => {
     };
   }, [uploadedFile, setupSubscription]);
 
-  // Memoize options change handler
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({
       ...prev,
@@ -62,21 +61,20 @@ export const useTranscription = () => {
     }));
   }, []);
 
-  // Memoize file drop handler
   const onDrop = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     
     try {
       validateFile(files[0]);
-      const fileHash = await handleFileUpload(files[0]);
       setUploadedFile(files[0]);
+      const fileHash = await transcriptProcessor.generateFileHash(files[0]);
       
       if (fileHash) {
         const cached = await transcriptProcessor.getCachedTranscript(fileHash);
         if (cached) {
           setTranscriptionResult(cached);
           toast.info("Retrieved cached transcription");
-          return; // Early return if cached result found
+          return;
         }
       }
       
@@ -86,7 +84,6 @@ export const useTranscription = () => {
     }
   }, []);
 
-  // Memoize transcribe handler
   const handleTranscribe = useCallback(async () => {
     if (!uploadedFile) {
       toast.error("Please upload a file first");
@@ -99,16 +96,32 @@ export const useTranscription = () => {
     setProcessingStatus("Processing audio file...");
 
     try {
-      const data = await transcribeAudio(uploadedFile, options, setProgress);
-      const result = transcriptProcessor.processFullResponse(data.data);
-      const fileHash = await handleFileUpload(uploadedFile);
+      const formData = new FormData();
+      formData.append('audio', uploadedFile);
+
+      const response = await fetch(DEEPGRAM_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${import.meta.env.VITE_DEEPGRAM_API_KEY}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Transcription failed');
+      }
+
+      const data = await response.json();
+      const result = transcriptProcessor.processFullResponse(data);
       
+      const fileHash = await transcriptProcessor.generateFileHash(uploadedFile);
       if (fileHash) {
         await transcriptProcessor.cacheTranscript(fileHash, result);
       }
       
       setTranscriptionResult(result);
       setProcessingStatus("Transcription complete");
+      
       toast.success(
         result.metadata?.speakers && result.metadata.speakers > 1
           ? `Detected ${result.metadata.speakers} speakers!`
@@ -121,9 +134,8 @@ export const useTranscription = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [uploadedFile, options]);
+  }, [uploadedFile]);
 
-  // Memoize derived state
   const transcriptText = useMemo(() => 
     transcriptionResult?.transcript || "", 
     [transcriptionResult]
@@ -142,6 +154,14 @@ export const useTranscription = () => {
     handleOptionsChange,
     onModelChange: useCallback((model: string) => handleOptionsChange({ model }), [handleOptionsChange]),
     handleTranscribe,
-    handleDownload,
+    handleDownload: async (text: string) => {
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'transcript.txt';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    },
   };
 };

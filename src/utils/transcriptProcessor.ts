@@ -13,8 +13,16 @@ export class TranscriptProcessor {
     this.cache = new Map();
   }
 
+  async generateFileHash(file: File): Promise<string> {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+  }
+
   processFullResponse(data: DeepgramResponse): TranscriptionResult {
-    if (!data?.results?.channels?.[0]?.alternatives?.[0]?.words) {
+    if (!data?.results?.channels?.[0]?.alternatives?.[0]) {
       throw new Error('Invalid response format');
     }
 
@@ -28,10 +36,8 @@ export class TranscriptProcessor {
       timestamp: Date.now()
     };
     
-    // Update in-memory cache
     this.cache.set(fileHash, cacheData);
     
-    // Update session storage
     try {
       sessionStorage.setItem(storageKey, JSON.stringify(cacheData));
     } catch (error) {
@@ -40,13 +46,11 @@ export class TranscriptProcessor {
   }
 
   async getCachedTranscript(fileHash: string): Promise<TranscriptionResult | null> {
-    // Check in-memory cache first
     const memoryCache = this.cache.get(fileHash);
     if (memoryCache && Date.now() - memoryCache.timestamp <= this.TTL * 1000) {
       return memoryCache.data;
     }
     
-    // Check session storage if not in memory
     try {
       const cached = sessionStorage.getItem(this.STORAGE_PREFIX + fileHash);
       if (!cached) return null;
@@ -57,7 +61,6 @@ export class TranscriptProcessor {
         return null;
       }
       
-      // Update in-memory cache
       this.cache.set(fileHash, { data, timestamp });
       return data;
     } catch (error) {
