@@ -9,7 +9,7 @@ const corsHeaders = {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
@@ -19,7 +19,7 @@ serve(async (req) => {
       throw new Error('No audio data or URL provided')
     }
 
-    console.log('Processing with options:', options)
+    console.log('Processing with options:', JSON.stringify(options, null, 2))
 
     let audioBytes: Uint8Array | null = null;
     let audioUrlToFetch = audioUrl;
@@ -28,7 +28,7 @@ serve(async (req) => {
     if (audioData) {
       console.log('Processing audio data from base64')
       // Extract the actual base64 content from the data URL
-      const base64Data = audioData.replace(/^data:.+;base64,/, '')
+      const base64Data = audioData.toString().replace(/^data:.+;base64,/, '')
       
       // Convert base64 to Uint8Array
       audioBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
@@ -57,7 +57,7 @@ serve(async (req) => {
     
     const url = `https://api.deepgram.com/v1/listen?${apiOptions.toString()}`
     
-    console.log('Sending request to Deepgram API')
+    console.log('Sending request to Deepgram API:', url)
     
     let response;
     

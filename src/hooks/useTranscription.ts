@@ -2,39 +2,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-
-export type DeepgramOptions = {
-  model?: string;
-  language?: string;
-  smart_format?: boolean;
-  diarize?: boolean;
-  utterances?: boolean;
-  punctuate?: boolean;
-  paragraphs?: boolean;
-  detect_language?: boolean;
-  utteranceThreshold?: number;
-  filler_words?: boolean;
-  formatting?: boolean;
-  keywords?: string[];
-  keyterms?: {
-    id: string;
-    term: string;
-    boost: number;
-  }[];
-};
-
-export type TranscriptionResult = {
-  transcript: string;
-  metadata?: {
-    speakers?: number;
-    duration?: number;
-    language?: string;
-    processingTime?: number;
-    audioLength?: number;
-  };
-  segments?: any[];
-  paragraphs?: any[];
-};
+import { DeepgramOptions, TranscriptionResult, DeepgramKeyterm } from "@/types/deepgram";
 
 type TranscriptionSource = "file" | "url" | null;
 
@@ -53,8 +21,7 @@ const transcriptProcessor = {
       transcript,
       metadata: {
         speakers,
-        duration,
-        language: detectedLanguage,
+        duration: audioLength,
         processingTime,
         audioLength
       },
@@ -80,9 +47,16 @@ export const useTranscription = () => {
     utterances: true,
     punctuate: true,
     paragraphs: true,
-    detect_language: true,
     filler_words: false,
-    formatting: true,
+    formatting: {
+      timestampFormat: 'HH:mm:ss',
+      enableDiarization: true,
+      enableParagraphs: true,
+      removeExtraSpaces: true,
+      standardizePunctuation: true,
+      boldSpeakerNames: true,
+      highlightFillerWords: false
+    },
     keywords: [],
     keyterms: []
   });
@@ -124,8 +98,10 @@ export const useTranscription = () => {
 
   const handleUrlChange = useCallback((url: string) => {
     setAudioUrl(url);
-    setCurrentSource("url");
-    setUploadedFile(null); // Clear file when URL is provided
+    if (url) {
+      setCurrentSource("url");
+      setUploadedFile(null); // Clear file when URL is provided
+    }
   }, []);
 
   const isYouTubeUrl = (url: string): boolean => {
@@ -207,10 +183,6 @@ export const useTranscription = () => {
                 ? `Detected ${result.metadata.speakers} speakers!`
                 : "Transcription complete"
             );
-            
-            if (result.metadata?.language && result.metadata.language !== options.language) {
-              toast.info(`Detected language: ${result.metadata.language}`);
-            }
           } catch (error: any) {
             console.error("Transcription error:", error);
             toast.error(`Transcription failed: ${error.message}`);
@@ -263,10 +235,6 @@ export const useTranscription = () => {
               ? `Detected ${result.metadata.speakers} speakers!`
               : "Transcription complete"
           );
-          
-          if (result.metadata?.language && result.metadata.language !== options.language) {
-            toast.info(`Detected language: ${result.metadata.language}`);
-          }
         } catch (error: any) {
           console.error("URL transcription error:", error);
           toast.error(`Transcription failed: ${error.message}`);

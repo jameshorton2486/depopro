@@ -75,7 +75,11 @@ export default function Deepgram() {
           />
           
           {options.keyterms && options.keyterms.length > 0 && (
-            <ExtractedTerms terms={options.keyterms.map(term => term.term)} />
+            <ExtractedTerms terms={options.keyterms.map(term => ({ 
+              id: term.id,
+              name: term.term,
+              category: term.category || 'other'
+            }))} />
           )}
         </div>
 
