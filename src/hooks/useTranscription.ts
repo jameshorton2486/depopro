@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DeepgramOptions, TranscriptionResult, DeepgramKeyterm } from "@/types/deepgram";
@@ -57,6 +57,14 @@ export const useTranscription = () => {
     keywords: [],
     keyterms: []
   });
+
+  // Log environment variables for debugging
+  useEffect(() => {
+    console.log("Checking for Deepgram API Key configuration...");
+    // This will output undefined if the key isn't set, which is useful to know
+    const apiKeyExists = !!import.meta.env.VITE_DEEPGRAM_API_KEY;
+    console.log("Deepgram API Key is configured:", apiKeyExists ? "Yes" : "No");
+  }, []);
 
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({
