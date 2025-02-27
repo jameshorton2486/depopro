@@ -40,12 +40,6 @@ export const useTranscription = () => {
       return;
     }
 
-    const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
-    if (!apiKey) {
-      toast.error("Deepgram API Key is missing!");
-      return;
-    }
-
     setIsProcessing(true);
     setTranscriptionResult(null);
     setProgress(0);
@@ -56,35 +50,36 @@ export const useTranscription = () => {
       const audioUrl = URL.createObjectURL(uploadedFile);
       console.log("Audio URL created:", audioUrl);
 
-      // Prepare query parameters
-      const queryParams = new URLSearchParams({
-        model: options.model || 'general',
-        smart_format: 'true',
-        diarize: 'true',
-        utterances: 'true',
-        punctuate: 'true',
-        paragraphs: 'true',
-        language: options.language || 'en',
+      // Call the Supabase Edge Function
+      const { data: transcriptionData, error } = await supabase.functions.invoke('transcribe-audio', {
+        body: { 
+          audioUrl,
+          options: {
+            model: options.model || 'general',
+            language: options.language || 'en',
+            smart_format: true,
+            diarize: true,
+            utterances: true,
+            punctuate: true,
+            paragraphs: true,
+          }
+        }
       });
 
-      const response = await fetch(`https://api.deepgram.com/v1/listen?${queryParams.toString()}`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Token ${apiKey}`,
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify({ url: audioUrl })
-      });
+      // Clean up the URL immediately after sending the request
+      URL.revokeObjectURL(audioUrl);
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} - ${response.statusText}`);
+      if (error) {
+        throw new Error(error.message);
       }
 
-      const data = await response.json();
-      console.log("Transcription Data:", data);
+      if (!transcriptionData) {
+        throw new Error('No transcription data received');
+      }
 
-      const result = transcriptProcessor.processFullResponse(data);
+      console.log("Transcription Data:", transcriptionData);
+
+      const result = transcriptProcessor.processFullResponse(transcriptionData);
       setTranscriptionResult(result);
       setProcessingStatus("Transcription complete");
       
@@ -93,9 +88,6 @@ export const useTranscription = () => {
           ? `Detected ${result.metadata.speakers} speakers!`
           : "Transcription complete"
       );
-
-      // Clean up the URL
-      URL.revokeObjectURL(audioUrl);
 
     } catch (error: any) {
       console.error("Transcription error:", error);
