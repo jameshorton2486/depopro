@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { YouTube, Globe } from "lucide-react";
+import { Youtube, Globe } from "lucide-react";
 
 interface UrlInputProps {
   audioUrl: string;
@@ -38,7 +38,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
           />
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
             {inputValue && isYouTubeUrl(inputValue) ? (
-              <YouTube className="h-4 w-4" />
+              <Youtube className="h-4 w-4" />
             ) : (
               <Globe className="h-4 w-4" />
             )}

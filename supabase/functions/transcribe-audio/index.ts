@@ -36,8 +36,8 @@ serve(async (req) => {
     // Handle YouTube URL
     else if (isYouTube) {
       console.log('Processing YouTube URL:', audioUrl)
-      // Extract audio from YouTube using third-party service
-      // This is a placeholder - you might need to use a proper YouTube extraction service
+      // In a real implementation, you would extract audio from YouTube
+      // This would typically involve using a third-party service or API
       throw new Error('YouTube extraction is not implemented in this demo edge function')
     }
 
