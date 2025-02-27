@@ -1,13 +1,11 @@
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { validateFile } from "@/utils/fileValidation";
 import { transcriptProcessor } from "@/utils/transcriptProcessor";
 import { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
 import { defaultTranscriptionOptions } from "./transcription/options";
 import { supabase } from "@/integrations/supabase/client";
-
-const DEEPGRAM_API_URL = 'https://api.deepgram.com/v1/listen';
 
 export const useTranscription = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -48,46 +46,43 @@ export const useTranscription = () => {
     setProcessingStatus("Processing audio file...");
 
     try {
-      // Create URL with query parameters
-      const queryParams = new URLSearchParams({
-        model: options.model || 'general',
-        smart_format: 'true',
-        diarize: 'true',
-        utterances: 'true',
-        punctuate: 'true',
-        paragraphs: 'true',
-        language: options.language || 'en',
+      // Convert file to base64
+      const reader = new FileReader();
+      const fileBase64Promise = new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(uploadedFile);
       });
 
-      const url = `${DEEPGRAM_API_URL}?${queryParams.toString()}`;
+      const base64Data = await fileBase64Promise;
+      const base64Audio = (base64Data as string).split(',')[1]; // Remove data URL prefix
 
-      // Create form data with the audio file
-      const formData = new FormData();
-      formData.append('audio', uploadedFile);
-
-      console.log('Sending request to Deepgram:', {
-        url,
-        fileType: uploadedFile.type,
-        fileSize: uploadedFile.size,
-        options: Object.fromEntries(queryParams.entries())
+      // Call Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+        body: {
+          audio: base64Audio,
+          fileName: uploadedFile.name,
+          options: {
+            model: options.model || 'general',
+            language: options.language || 'en',
+            smart_format: true,
+            diarize: true,
+            utterances: true,
+            punctuate: true,
+            paragraphs: true,
+          }
+        }
       });
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${import.meta.env.VITE_DEEPGRAM_API_KEY}`,
-          'Accept': 'application/json',
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Transcription failed: ${errorText}`);
+      if (error) {
+        throw new Error(error.message);
       }
 
-      const data = await response.json();
-      console.log('Deepgram response:', data);
+      if (!data) {
+        throw new Error('No transcription data received');
+      }
+
+      console.log('Transcription response:', data);
 
       const result = transcriptProcessor.processFullResponse(data);
       setTranscriptionResult(result);
