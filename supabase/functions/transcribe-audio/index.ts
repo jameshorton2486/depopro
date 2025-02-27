@@ -13,22 +13,32 @@ serve(async (req) => {
   }
 
   try {
-    const { audioUrl } = await req.json()
+    const { audioData, options } = await req.json()
 
-    if (!audioUrl) {
-      throw new Error('No audio URL provided')
+    if (!audioData) {
+      throw new Error('No audio data provided')
     }
 
-    console.log('Received request for audio URL:', audioUrl)
+    console.log('Processing audio data with options:', options)
 
+    // Convert base64 to buffer
+    const binaryString = atob(audioData.split(',')[1])
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    // Create FormData with audio file
+    const formData = new FormData()
+    formData.append('file', new Blob([bytes]), 'audio.mp3')
+
+    // Send request to Deepgram
     const response = await fetch("https://api.deepgram.com/v1/listen", {
       method: "POST",
       headers: {
         "Authorization": `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
-        "Content-Type": "application/json",
-        "Accept": "application/json"
       },
-      body: JSON.stringify({ url: audioUrl })
+      body: formData,
     })
 
     if (!response.ok) {

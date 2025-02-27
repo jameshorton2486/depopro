@@ -46,55 +46,69 @@ export const useTranscription = () => {
     setProcessingStatus("Processing audio file...");
 
     try {
-      // Convert file to URL
-      const audioUrl = URL.createObjectURL(uploadedFile);
-      console.log("Audio URL created:", audioUrl);
+      // Read file as base64
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64Data = reader.result;
+          console.log("File read successfully, sending to edge function");
 
-      // Call the Supabase Edge Function
-      const { data: transcriptionData, error } = await supabase.functions.invoke('transcribe-audio', {
-        body: { 
-          audioUrl,
-          options: {
-            model: options.model || 'general',
-            language: options.language || 'en',
-            smart_format: true,
-            diarize: true,
-            utterances: true,
-            punctuate: true,
-            paragraphs: true,
+          // Call the Supabase Edge Function with base64 data
+          const { data: transcriptionData, error } = await supabase.functions.invoke('transcribe-audio', {
+            body: { 
+              audioData: base64Data,
+              options: {
+                model: options.model || 'general',
+                language: options.language || 'en',
+                smart_format: true,
+                diarize: true,
+                utterances: true,
+                punctuate: true,
+                paragraphs: true,
+              }
+            }
+          });
+
+          if (error) {
+            throw error;
           }
+
+          if (!transcriptionData) {
+            throw new Error('No transcription data received');
+          }
+
+          console.log("Transcription Data:", transcriptionData);
+
+          const result = transcriptProcessor.processFullResponse(transcriptionData);
+          setTranscriptionResult(result);
+          setProcessingStatus("Transcription complete");
+          setProgress(100);
+          
+          toast.success(
+            result.metadata?.speakers && result.metadata.speakers > 1
+              ? `Detected ${result.metadata.speakers} speakers!`
+              : "Transcription complete"
+          );
+        } catch (error: any) {
+          console.error("Transcription error:", error);
+          toast.error(`Transcription failed: ${error.message}`);
+          setProgress(0);
+          setProcessingStatus("Transcription failed");
+        } finally {
+          setIsProcessing(false);
         }
-      });
+      };
 
-      // Clean up the URL immediately after sending the request
-      URL.revokeObjectURL(audioUrl);
+      reader.onerror = () => {
+        toast.error("Error reading file");
+        setIsProcessing(false);
+      };
 
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (!transcriptionData) {
-        throw new Error('No transcription data received');
-      }
-
-      console.log("Transcription Data:", transcriptionData);
-
-      const result = transcriptProcessor.processFullResponse(transcriptionData);
-      setTranscriptionResult(result);
-      setProcessingStatus("Transcription complete");
-      
-      toast.success(
-        result.metadata?.speakers && result.metadata.speakers > 1
-          ? `Detected ${result.metadata.speakers} speakers!`
-          : "Transcription complete"
-      );
-
+      reader.readAsDataURL(uploadedFile);
+      setProgress(25);
     } catch (error: any) {
-      console.error("Transcription error:", error);
-      toast.error(`Transcription failed: ${error.message}`);
-      setProgress(0);
-      setProcessingStatus("Transcription failed");
-    } finally {
+      console.error("File reading error:", error);
+      toast.error(`Error reading file: ${error.message}`);
       setIsProcessing(false);
     }
   }, [uploadedFile, options]);
