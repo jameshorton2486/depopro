@@ -13,43 +13,79 @@ serve(async (req) => {
   }
 
   try {
-    const { audioData, options } = await req.json()
+    const { audioData, audioUrl, options, isYouTube } = await req.json()
 
-    if (!audioData) {
-      throw new Error('No audio data provided')
+    if (!audioData && !audioUrl) {
+      throw new Error('No audio data or URL provided')
     }
 
-    console.log('Processing audio with options:', options)
+    console.log('Processing with options:', options)
 
-    // Extract the actual base64 content from the data URL
-    const base64Data = audioData.replace(/^data:.+;base64,/, '')
+    let audioBytes: Uint8Array | null = null;
+    let audioUrlToFetch = audioUrl;
     
-    // Convert base64 to Uint8Array
-    const audioBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
+    // Handle base64 audio data
+    if (audioData) {
+      console.log('Processing audio data from base64')
+      // Extract the actual base64 content from the data URL
+      const base64Data = audioData.replace(/^data:.+;base64,/, '')
+      
+      // Convert base64 to Uint8Array
+      audioBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
+    } 
+    // Handle YouTube URL
+    else if (isYouTube) {
+      console.log('Processing YouTube URL:', audioUrl)
+      // Extract audio from YouTube using third-party service
+      // This is a placeholder - you might need to use a proper YouTube extraction service
+      throw new Error('YouTube extraction is not implemented in this demo edge function')
+    }
 
+    console.log('Preparing Deepgram API request')
+    
     // Direct API call to Deepgram without SDK
     const apiOptions = new URLSearchParams()
     
     // Add Deepgram parameters to URL
     if (options) {
       Object.entries(options).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
+        if (value !== undefined && value !== null && typeof value !== 'object') {
           apiOptions.append(key, String(value))
         }
       })
     }
     
     const url = `https://api.deepgram.com/v1/listen?${apiOptions.toString()}`
-    console.log('Sending request to Deepgram API:', url)
     
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
-        "Content-Type": "audio/mpeg",
-      },
-      body: audioBytes,
-    })
+    console.log('Sending request to Deepgram API')
+    
+    let response;
+    
+    if (audioBytes) {
+      // Send binary audio data
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
+          "Content-Type": "audio/mpeg",
+        },
+        body: audioBytes,
+      })
+    } else if (audioUrlToFetch) {
+      // Send URL to Deepgram
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: audioUrlToFetch
+        }),
+      })
+    } else {
+      throw new Error('No valid audio source provided')
+    }
 
     if (!response.ok) {
       const errorText = await response.text()

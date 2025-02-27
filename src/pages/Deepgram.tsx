@@ -7,17 +7,23 @@ import { DeepgramHeader } from "@/components/deepgram/DeepgramHeader";
 import { ExtractedTerms } from "@/components/deepgram/ExtractedTerms";
 import { useTranscription } from "@/hooks/useTranscription";
 import { KeytermManagement } from "@/components/deepgram/KeytermManagement";
+import { UrlInput } from "@/components/deepgram/UrlInput";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Deepgram() {
   const {
     uploadedFile,
+    audioUrl,
+    handleUrlChange,
+    isYouTubeUrl,
+    currentSource,
+    setCurrentSource,
     transcript,
     transcriptionResult,
     isProcessing,
     processingStatus,
     progress,
     options,
-    model,
     onDrop,
     handleOptionsChange,
     onModelChange,
@@ -31,16 +37,35 @@ export default function Deepgram() {
       
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-6">
-          <FileUploadArea
-            onDrop={onDrop}
-            uploadedFile={uploadedFile}
-            isProcessing={isProcessing}
-            processingStatus={processingStatus}
-            progress={progress}
-          />
+          <Tabs 
+            defaultValue="file" 
+            value={currentSource || "file"}
+            onValueChange={(value) => setCurrentSource(value as "file" | "url" | null)}
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="file">Upload File</TabsTrigger>
+              <TabsTrigger value="url">Use URL</TabsTrigger>
+            </TabsList>
+            <TabsContent value="file">
+              <FileUploadArea
+                onDrop={onDrop}
+                uploadedFile={uploadedFile}
+                isProcessing={isProcessing}
+                processingStatus={processingStatus}
+                progress={progress}
+              />
+            </TabsContent>
+            <TabsContent value="url">
+              <UrlInput
+                audioUrl={audioUrl}
+                handleUrlChange={handleUrlChange}
+                isYouTubeUrl={isYouTubeUrl}
+                disabled={isProcessing}
+              />
+            </TabsContent>
+          </Tabs>
           
           <TranscriptionControls
-            model={model}
             options={options}
             onModelChange={onModelChange}
             onOptionsChange={handleOptionsChange}
@@ -50,7 +75,7 @@ export default function Deepgram() {
           />
           
           {options.keyterms && options.keyterms.length > 0 && (
-            <ExtractedTerms terms={options.keyterms} />
+            <ExtractedTerms terms={options.keyterms.map(term => term.term)} />
           )}
         </div>
 
