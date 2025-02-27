@@ -1,6 +1,7 @@
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { createClient as createDeepgramClient } from 'https://esm.sh/@deepgram/sdk@3.0.0'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
+import { createClient as createDeepgramClient } from "https://esm.sh/@deepgram/sdk@3.0.0"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,7 +21,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-// Initialize clients with proper typing
+// Initialize clients with proper Deno-compatible typing
 const deepgram = createDeepgramClient(deepgramApiKey)
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
@@ -41,7 +42,7 @@ async function transcribeFile(fileName: string, options: any) {
 
     console.log('Got public URL:', publicUrl)
 
-    // Using the correct method from v3.0.0 of the SDK with createClient
+    // Using Deno-compatible SDK methods
     console.log('Attempting transcription with Deepgram...')
     const { result } = await deepgram.transcription.preRecorded.transcribeUrl({
       url: publicUrl,
@@ -74,7 +75,7 @@ async function transcribeFile(fileName: string, options: any) {
   }
 }
 
-Deno.serve(async (req) => {
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
