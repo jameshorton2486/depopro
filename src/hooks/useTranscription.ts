@@ -40,49 +40,49 @@ export const useTranscription = () => {
       return;
     }
 
+    const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
+    if (!apiKey) {
+      toast.error("Deepgram API Key is missing!");
+      return;
+    }
+
     setIsProcessing(true);
     setTranscriptionResult(null);
     setProgress(0);
     setProcessingStatus("Processing audio file...");
 
     try {
-      // Convert file to base64
-      const reader = new FileReader();
-      const fileBase64Promise = new Promise((resolve, reject) => {
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(uploadedFile);
+      // Convert file to URL
+      const audioUrl = URL.createObjectURL(uploadedFile);
+      console.log("Audio URL created:", audioUrl);
+
+      // Prepare query parameters
+      const queryParams = new URLSearchParams({
+        model: options.model || 'general',
+        smart_format: 'true',
+        diarize: 'true',
+        utterances: 'true',
+        punctuate: 'true',
+        paragraphs: 'true',
+        language: options.language || 'en',
       });
 
-      const base64Data = await fileBase64Promise;
-      const base64Audio = (base64Data as string).split(',')[1]; // Remove data URL prefix
-
-      // Call Supabase Edge Function
-      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-        body: {
-          audio: base64Audio,
-          fileName: uploadedFile.name,
-          options: {
-            model: options.model || 'general',
-            language: options.language || 'en',
-            smart_format: true,
-            diarize: true,
-            utterances: true,
-            punctuate: true,
-            paragraphs: true,
-          }
-        }
+      const response = await fetch(`https://api.deepgram.com/v1/listen?${queryParams.toString()}`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Token ${apiKey}`,
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({ url: audioUrl })
       });
 
-      if (error) {
-        throw new Error(error.message);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} - ${response.statusText}`);
       }
 
-      if (!data) {
-        throw new Error('No transcription data received');
-      }
-
-      console.log('Transcription response:', data);
+      const data = await response.json();
+      console.log("Transcription Data:", data);
 
       const result = transcriptProcessor.processFullResponse(data);
       setTranscriptionResult(result);
@@ -93,8 +93,12 @@ export const useTranscription = () => {
           ? `Detected ${result.metadata.speakers} speakers!`
           : "Transcription complete"
       );
+
+      // Clean up the URL
+      URL.revokeObjectURL(audioUrl);
+
     } catch (error: any) {
-      console.error('Transcription error:', error);
+      console.error("Transcription error:", error);
       toast.error(`Transcription failed: ${error.message}`);
       setProgress(0);
       setProcessingStatus("Transcription failed");
