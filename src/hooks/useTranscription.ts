@@ -1,11 +1,44 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { validateFile } from "@/utils/fileValidation";
-import { transcriptProcessor } from "@/utils/transcriptProcessor";
-import { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
-import { defaultTranscriptionOptions } from "./transcription/options";
 import { supabase } from "@/integrations/supabase/client";
+
+type DeepgramOptions = {
+  model?: string;
+  language?: string;
+  smart_format?: boolean;
+  diarize?: boolean;
+  utterances?: boolean;
+  punctuate?: boolean;
+  paragraphs?: boolean;
+};
+
+type TranscriptionResult = {
+  transcript: string;
+  metadata?: {
+    speakers?: number;
+    duration?: number;
+  };
+  segments?: any[];
+};
+
+// Simple transcript processor
+const transcriptProcessor = {
+  processFullResponse: (data: any): TranscriptionResult => {
+    const transcript = data.results?.channels[0]?.alternatives[0]?.transcript || "";
+    const speakers = data.results?.channels[0]?.alternatives[0]?.speaker_count || 0;
+    const duration = data.metadata?.duration;
+    
+    return {
+      transcript,
+      metadata: {
+        speakers,
+        duration
+      },
+      segments: data.results?.channels[0]?.alternatives[0]?.paragraphs?.paragraphs || []
+    };
+  }
+};
 
 export const useTranscription = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -13,7 +46,15 @@ export const useTranscription = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState("");
   const [progress, setProgress] = useState(0);
-  const [options, setOptions] = useState<DeepgramOptions>(defaultTranscriptionOptions);
+  const [options, setOptions] = useState<DeepgramOptions>({
+    model: 'general',
+    language: 'en',
+    smart_format: true,
+    diarize: true,
+    utterances: true,
+    punctuate: true,
+    paragraphs: true,
+  });
 
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({
@@ -21,6 +62,20 @@ export const useTranscription = () => {
       ...newOptions,
     }));
   }, []);
+
+  // File validation function
+  const validateFile = (file: File) => {
+    const allowedTypes = ['audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/m4a', 'audio/mp4'];
+    const maxSize = 100 * 1024 * 1024; // 100MB
+    
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error(`Invalid file type. Allowed types: ${allowedTypes.join(', ')}`);
+    }
+    
+    if (file.size > maxSize) {
+      throw new Error(`File size exceeds limit (100MB)`);
+    }
+  };
 
   const onDrop = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
@@ -51,21 +106,14 @@ export const useTranscription = () => {
       reader.onload = async () => {
         try {
           const base64Data = reader.result;
-          console.log("File read successfully, sending to edge function");
-
+          setProgress(25);
+          setProcessingStatus("Sending to transcription service...");
+          
           // Call the Supabase Edge Function with base64 data
           const { data: transcriptionData, error } = await supabase.functions.invoke('transcribe-audio', {
             body: { 
               audioData: base64Data,
-              options: {
-                model: options.model || 'general',
-                language: options.language || 'en',
-                smart_format: true,
-                diarize: true,
-                utterances: true,
-                punctuate: true,
-                paragraphs: true,
-              }
+              options
             }
           });
 
@@ -77,8 +125,9 @@ export const useTranscription = () => {
             throw new Error('No transcription data received');
           }
 
-          console.log("Transcription Data:", transcriptionData);
-
+          setProgress(75);
+          setProcessingStatus("Processing transcription...");
+          
           const result = transcriptProcessor.processFullResponse(transcriptionData);
           setTranscriptionResult(result);
           setProcessingStatus("Transcription complete");
@@ -105,7 +154,6 @@ export const useTranscription = () => {
       };
 
       reader.readAsDataURL(uploadedFile);
-      setProgress(25);
     } catch (error: any) {
       console.error("File reading error:", error);
       toast.error(`Error reading file: ${error.message}`);
@@ -126,12 +174,11 @@ export const useTranscription = () => {
     processingStatus,
     progress,
     options,
-    model: options.model,
     onDrop,
     handleOptionsChange,
     onModelChange: useCallback((model: string) => handleOptionsChange({ model }), [handleOptionsChange]),
     handleTranscribe,
-    handleDownload: async (text: string) => {
+    handleDownload: useCallback((text: string) => {
       const blob = new Blob([text], { type: 'text/plain' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -139,6 +186,6 @@ export const useTranscription = () => {
       a.download = 'transcript.txt';
       a.click();
       window.URL.revokeObjectURL(url);
-    },
+    }, []),
   };
 };
