@@ -23,7 +23,6 @@ const transcriptProcessor = {
         processingTime,
         audioLength
       },
-      segments: data.results?.channels[0]?.alternatives[0]?.paragraphs?.paragraphs || [],
       paragraphs
     };
   }
