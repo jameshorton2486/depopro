@@ -1,6 +1,6 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { DeepgramClient } from 'https://esm.sh/@deepgram/sdk@3.0.0'
+import { createClient as createDeepgramClient } from 'https://esm.sh/@deepgram/sdk@3.0.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,7 +21,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 }
 
 // Initialize clients with proper typing
-const deepgram = new DeepgramClient(deepgramApiKey)
+const deepgram = createDeepgramClient(deepgramApiKey)
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 async function transcribeFile(fileName: string, options: any) {
@@ -41,30 +41,28 @@ async function transcribeFile(fileName: string, options: any) {
 
     console.log('Got public URL:', publicUrl)
 
-    // Using the correct method from v3.0.0 of the SDK for Deno
+    // Using the correct method from v3.0.0 of the SDK with createClient
     console.log('Attempting transcription with Deepgram...')
-    const { result: response } = await deepgram.transcription.preRecorded.transcribeUrl(
-      {
-        url: publicUrl,
-        options: {
-          ...options,
-          smart_format: true,
-          diarize: true,
-          punctuate: true,
-          model: options.model || 'nova-3',
-          language: options.language || 'en-US'
-        }
+    const { result } = await deepgram.transcription.preRecorded.transcribeUrl({
+      url: publicUrl,
+      options: {
+        ...options,
+        smart_format: true,
+        diarize: true,
+        punctuate: true,
+        model: options.model || 'nova-3',
+        language: options.language || 'en-US'
       }
-    )
+    })
 
-    if (!response || !response.results) {
-      console.error('Invalid response from Deepgram:', response)
+    if (!result || !result.results) {
+      console.error('Invalid response from Deepgram:', result)
       throw new Error('Invalid response from Deepgram')
     }
 
     console.log('Transcription completed successfully')
-    console.log('Response structure:', Object.keys(response))
-    return response
+    console.log('Response structure:', Object.keys(result))
+    return result
   } catch (error) {
     console.error('Transcription error:', error)
     if (error instanceof Error) {
