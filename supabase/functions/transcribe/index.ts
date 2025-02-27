@@ -68,9 +68,9 @@ async function transcribeFile(fileName: string, options: any) {
 
     console.log('Got public URL:', publicUrl)
 
-    // Using SDK v3 with custom fetch handler
+    // Using SDK v3's listen.prerecorded namespace
     console.log('Attempting transcription with Deepgram...')
-    const { result } = await deepgram.transcription.preRecorded.transcribeUrl({
+    const { result } = await deepgram.listen.prerecorded.transcribeUrl({
       url: publicUrl,
       options: {
         ...options,
