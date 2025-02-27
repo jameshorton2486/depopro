@@ -1,5 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
+import { createClient as createDeepgramClient } from "https://esm.sh/@deepgram/sdk@3.0.0"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,15 +20,10 @@ serve(async (req) => {
     const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
     if (deepgramKey) {
       try {
-        const response = await fetch('https://api.deepgram.com/v1/projects', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Token ${deepgramKey}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        const deepgram = createDeepgramClient(deepgramKey);
+        const response = await deepgram.manage.getProjects();
         
-        if (response.ok) {
+        if (response) {
           results.deepgram = { status: 'success', message: 'Deepgram API key is valid' };
         } else {
           results.deepgram = { status: 'error', message: 'Invalid Deepgram API key' };
@@ -38,28 +35,25 @@ serve(async (req) => {
       results.deepgram = { status: 'error', message: 'Deepgram API key not configured' };
     }
 
-    // Test OpenAI API
-    const openaiKey = Deno.env.get('OPENAI_API_KEY');
-    if (openaiKey) {
+    // Test Supabase connection
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (supabaseUrl && supabaseKey) {
       try {
-        const response = await fetch('https://api.openai.com/v1/models', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${openaiKey}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        const { data, error } = await supabase.from('transcription_data').select('count(*)', { count: 'exact', head: true });
         
-        if (response.ok) {
-          results.openai = { status: 'success', message: 'OpenAI API key is valid' };
+        if (!error) {
+          results.supabase = { status: 'success', message: 'Supabase connection is working' };
         } else {
-          results.openai = { status: 'error', message: 'Invalid OpenAI API key' };
+          results.supabase = { status: 'error', message: `Supabase error: ${error.message}` };
         }
       } catch (error) {
-        results.openai = { status: 'error', message: `OpenAI API error: ${error.message}` };
+        results.supabase = { status: 'error', message: `Supabase error: ${error.message}` };
       }
     } else {
-      results.openai = { status: 'error', message: 'OpenAI API key not configured' };
+      results.supabase = { status: 'error', message: 'Supabase credentials not configured' };
     }
 
     return new Response(
