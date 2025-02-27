@@ -3,70 +3,48 @@ import { DeepgramResponse, TranscriptionResult } from "@/types/deepgram";
 import { FormatterFactory } from "@/services/transcription/FormatterFactory";
 
 export class TranscriptProcessor {
-  private readonly STORAGE_PREFIX = 'transcript_';
-  private readonly TTL = 3600;
   private formatter;
-  private cache: Map<string, { data: TranscriptionResult; timestamp: number }>;
 
   constructor() {
     this.formatter = FormatterFactory.getFormatter("default");
-    this.cache = new Map();
-  }
-
-  async generateFileHash(file: File): Promise<string> {
-    const buffer = await file.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    return hashHex;
   }
 
   processFullResponse(data: DeepgramResponse): TranscriptionResult {
-    if (!data?.results?.channels?.[0]?.alternatives?.[0]) {
-      throw new Error('Invalid response format');
-    }
-
-    return this.formatter.format(data);
-  }
-
-  async cacheTranscript(fileHash: string, processedData: TranscriptionResult) {
-    const storageKey = this.STORAGE_PREFIX + fileHash;
-    const cacheData = {
-      data: processedData,
-      timestamp: Date.now()
-    };
-    
-    this.cache.set(fileHash, cacheData);
-    
     try {
-      sessionStorage.setItem(storageKey, JSON.stringify(cacheData));
-    } catch (error) {
-      console.warn('Failed to save to session storage:', error);
-    }
-  }
-
-  async getCachedTranscript(fileHash: string): Promise<TranscriptionResult | null> {
-    const memoryCache = this.cache.get(fileHash);
-    if (memoryCache && Date.now() - memoryCache.timestamp <= this.TTL * 1000) {
-      return memoryCache.data;
-    }
-    
-    try {
-      const cached = sessionStorage.getItem(this.STORAGE_PREFIX + fileHash);
-      if (!cached) return null;
+      console.log('Processing Deepgram response:', data);
       
-      const { data, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp > this.TTL * 1000) {
-        sessionStorage.removeItem(this.STORAGE_PREFIX + fileHash);
-        return null;
+      if (!data?.results?.channels?.[0]?.alternatives?.[0]) {
+        throw new Error('Invalid response format from Deepgram');
       }
+
+      const alternative = data.results.channels[0].alternatives[0];
+      const paragraphs = alternative.paragraphs?.paragraphs || [];
       
-      this.cache.set(fileHash, { data, timestamp });
-      return data;
+      return {
+        transcript: alternative.transcript,
+        paragraphs: paragraphs,
+        metadata: {
+          processingTime: data.metadata.processing_time,
+          audioLength: data.metadata.duration,
+          speakers: this.countSpeakers(paragraphs),
+          fillerWords: this.countFillerWords(alternative.transcript)
+        }
+      };
     } catch (error) {
-      console.warn('Failed to retrieve from session storage:', error);
-      return null;
+      console.error('Error processing transcript:', error);
+      throw error;
     }
+  }
+
+  private countSpeakers(paragraphs: any[]): number {
+    const speakers = new Set(paragraphs.map(p => p.speaker));
+    return speakers.size;
+  }
+
+  private countFillerWords(transcript: string): number {
+    const fillerWords = ['um', 'uh', 'ah', 'er', 'like', 'you know'];
+    const words = transcript.toLowerCase().split(' ');
+    return words.filter(word => fillerWords.includes(word)).length;
   }
 }
 

@@ -7,11 +7,6 @@ import { DeepgramOptions, TranscriptionResult } from "@/types/deepgram";
 import { defaultTranscriptionOptions } from "./transcription/options";
 import { supabase } from "@/integrations/supabase/client";
 
-interface TranscriptionRecord {
-  file_name: string;
-  raw_response: any;
-}
-
 const DEEPGRAM_API_URL = 'https://api.deepgram.com/v1/listen';
 
 export const useTranscription = () => {
@@ -22,42 +17,10 @@ export const useTranscription = () => {
   const [progress, setProgress] = useState(0);
   const [options, setOptions] = useState<DeepgramOptions>(defaultTranscriptionOptions);
 
-  // Memoize subscription setup to prevent unnecessary re-renders
-  const setupSubscription = useCallback((fileName: string) => {
-    return supabase
-      .channel('public:transcription_data')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'transcription_data' },
-        (payload: any) => {
-          const record = payload.new as TranscriptionRecord;
-          if (record && fileName === record.file_name) {
-            const result = transcriptProcessor.processFullResponse(record.raw_response);
-            setTranscriptionResult(result);
-          }
-        }
-      )
-      .subscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!uploadedFile) return;
-
-    const channel = setupSubscription(uploadedFile.name);
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [uploadedFile, setupSubscription]);
-
   const handleOptionsChange = useCallback((newOptions: Partial<DeepgramOptions>) => {
     setOptions(prev => ({
       ...prev,
       ...newOptions,
-      smart_format: true,
-      diarize: true,
-      punctuate: true,
-      filler_words: true,
-      paragraphs: true,
     }));
   }, []);
 
@@ -67,17 +30,6 @@ export const useTranscription = () => {
     try {
       validateFile(files[0]);
       setUploadedFile(files[0]);
-      const fileHash = await transcriptProcessor.generateFileHash(files[0]);
-      
-      if (fileHash) {
-        const cached = await transcriptProcessor.getCachedTranscript(fileHash);
-        if (cached) {
-          setTranscriptionResult(cached);
-          toast.info("Retrieved cached transcription");
-          return;
-        }
-      }
-      
       toast.success(`File uploaded: ${files[0].name}`);
     } catch (error: any) {
       toast.error(error.message);
@@ -96,29 +48,48 @@ export const useTranscription = () => {
     setProcessingStatus("Processing audio file...");
 
     try {
+      // Create URL with query parameters
+      const queryParams = new URLSearchParams({
+        model: options.model || 'general',
+        smart_format: 'true',
+        diarize: 'true',
+        utterances: 'true',
+        punctuate: 'true',
+        paragraphs: 'true',
+        language: options.language || 'en',
+      });
+
+      const url = `${DEEPGRAM_API_URL}?${queryParams.toString()}`;
+
+      // Create form data with the audio file
       const formData = new FormData();
       formData.append('audio', uploadedFile);
 
-      const response = await fetch(DEEPGRAM_API_URL, {
+      console.log('Sending request to Deepgram:', {
+        url,
+        fileType: uploadedFile.type,
+        fileSize: uploadedFile.size,
+        options: Object.fromEntries(queryParams.entries())
+      });
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${import.meta.env.VITE_DEEPGRAM_API_KEY}`,
+          'Accept': 'application/json',
         },
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Transcription failed');
+        const errorText = await response.text();
+        throw new Error(`Transcription failed: ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('Deepgram response:', data);
+
       const result = transcriptProcessor.processFullResponse(data);
-      
-      const fileHash = await transcriptProcessor.generateFileHash(uploadedFile);
-      if (fileHash) {
-        await transcriptProcessor.cacheTranscript(fileHash, result);
-      }
-      
       setTranscriptionResult(result);
       setProcessingStatus("Transcription complete");
       
@@ -128,13 +99,14 @@ export const useTranscription = () => {
           : "Transcription complete"
       );
     } catch (error: any) {
+      console.error('Transcription error:', error);
       toast.error(`Transcription failed: ${error.message}`);
       setProgress(0);
       setProcessingStatus("Transcription failed");
     } finally {
       setIsProcessing(false);
     }
-  }, [uploadedFile]);
+  }, [uploadedFile, options]);
 
   const transcriptText = useMemo(() => 
     transcriptionResult?.transcript || "", 
