@@ -18,13 +18,7 @@ export const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
   transcriptionResult, 
   onDownload 
 }) => {
-  useEffect(() => {
-    if (transcript) {
-      onDownload(transcript);
-    }
-  }, [transcript, onDownload]);
-
-  // Memoize speaker mapping to prevent unnecessary recalculations
+  // Move hooks to the top level
   const { speakerMap, getSpeakerNumber } = useMemo(() => {
     const map = new Map<number, number>();
     let nextNumber = 0;
@@ -42,6 +36,12 @@ export const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
       getSpeakerNumber: getNumber
     };
   }, []);
+
+  useEffect(() => {
+    if (transcript) {
+      onDownload(transcript);
+    }
+  }, [transcript, onDownload]);
 
   const renderParagraph = React.useCallback((paragraph: DeepgramParagraph, index: number) => {
     const speakerNumber = getSpeakerNumber(paragraph.speaker);
@@ -62,10 +62,6 @@ export const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
     );
   }, [getSpeakerNumber]);
 
-  if (!transcript) {
-    return null;
-  }
-
   return (
     <div className="mt-6 space-y-4">
       <div className="flex justify-between items-center mb-4">
@@ -79,32 +75,38 @@ export const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
           )}
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => createAndDownloadWordDoc(transcript)}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Download Raw
-          </Button>
+          {transcript && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => createAndDownloadWordDoc(transcript)}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download Raw
+            </Button>
+          )}
         </div>
       </div>
 
-      <FormattingButtons transcript={transcript} />
+      {transcript && (
+        <>
+          <FormattingButtons transcript={transcript} />
 
-      <ScrollArea className="h-[500px] w-full rounded-md border p-4">
-        {transcriptionResult?.paragraphs ? (
-          <div className="space-y-6">
-            {transcriptionResult.paragraphs.map((paragraph, index) => 
-              renderParagraph(paragraph, index)
+          <ScrollArea className="h-[500px] w-full rounded-md border p-4">
+            {transcriptionResult?.paragraphs ? (
+              <div className="space-y-6">
+                {transcriptionResult.paragraphs.map((paragraph, index) => 
+                  renderParagraph(paragraph, index)
+                )}
+              </div>
+            ) : (
+              <pre className="whitespace-pre-wrap font-mono text-sm">
+                {transcript}
+              </pre>
             )}
-          </div>
-        ) : (
-          <pre className="whitespace-pre-wrap font-mono text-sm">
-            {transcript}
-          </pre>
-        )}
-      </ScrollArea>
+          </ScrollArea>
+        </>
+      )}
     </div>
   );
 };

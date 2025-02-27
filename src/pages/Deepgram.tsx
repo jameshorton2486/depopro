@@ -55,16 +55,15 @@ export default function Deepgram() {
         </div>
 
         <div className="relative min-h-[400px] border rounded-lg p-4">
-          {isProcessing ? (
+          <TranscriptDisplay
+            transcript={transcript}
+            transcriptionResult={transcriptionResult}
+            onDownload={handleDownload}
+          />
+          {isProcessing && (
             <ProcessingOverlay
               processingStatus={processingStatus}
               progress={progress}
-            />
-          ) : (
-            <TranscriptDisplay
-              transcript={transcript}
-              transcriptionResult={transcriptionResult}
-              onDownload={handleDownload}
             />
           )}
         </div>
