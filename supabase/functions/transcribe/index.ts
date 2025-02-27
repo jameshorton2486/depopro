@@ -20,6 +20,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
+// Initialize Deepgram with proper typing
 const deepgram = new Deepgram(deepgramApiKey)
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
@@ -40,26 +41,35 @@ async function transcribeFile(fileName: string, options: any) {
 
     console.log('Got public URL:', publicUrl)
 
-    // Using the correct method from the latest Deepgram SDK
-    const { result, error } = await deepgram.transcription.preRecorded(
+    // Using the correct method from v3.0.0 of the SDK
+    console.log('Attempting transcription with Deepgram...')
+    const transcription = await deepgram.listen.prerecorded.transcribeUrl(
       { url: publicUrl },
       {
         ...options,
         smart_format: true,
         diarize: true,
-        punctuate: true
+        punctuate: true,
+        model: options.model || 'nova-2',
+        language: options.language || 'en-US'
       }
     )
 
-    if (error) {
-      console.error('Deepgram API error:', error)
-      throw error
+    if (!transcription || !transcription.results) {
+      console.error('Invalid response from Deepgram:', transcription)
+      throw new Error('Invalid response from Deepgram')
     }
 
     console.log('Transcription completed successfully')
-    return result
+    console.log('Response structure:', Object.keys(transcription))
+    return transcription
   } catch (error) {
     console.error('Transcription error:', error)
+    if (error instanceof Error) {
+      console.error('Error name:', error.name)
+      console.error('Error message:', error.message)
+      console.error('Error stack:', error.stack)
+    }
     throw error
   }
 }
@@ -78,6 +88,8 @@ Deno.serve(async (req) => {
     }
 
     console.log('Processing request for file:', fileName)
+    console.log('Request options:', options)
+
     const transcription = await transcribeFile(fileName, options)
 
     // Store the transcription result
@@ -106,10 +118,17 @@ Deno.serve(async (req) => {
     )
   } catch (error) {
     console.error('Function error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorDetails = error instanceof Error ? {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    } : error
+    
     return new Response(
       JSON.stringify({
-        error: error.message || 'Internal server error',
-        details: error
+        error: errorMessage,
+        details: errorDetails
       }),
       {
         status: 500,
