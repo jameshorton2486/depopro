@@ -27,27 +27,28 @@ serve(async (req) => {
     // Convert base64 to Uint8Array
     const audioBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
 
-    // Create a blob with the correct mime type
-    const formData = new FormData()
-    formData.append('file', new Blob([audioBytes]), 'audio.mp3')
-
-    // Add Deepgram parameters
+    // Direct API call to Deepgram without SDK
+    const apiOptions = new URLSearchParams()
+    
+    // Add Deepgram parameters to URL
     if (options) {
       Object.entries(options).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          formData.append(key, String(value))
+          apiOptions.append(key, String(value))
         }
       })
     }
-
-    console.log('Sending request to Deepgram')
-
-    const response = await fetch("https://api.deepgram.com/v1/listen", {
+    
+    const url = `https://api.deepgram.com/v1/listen?${apiOptions.toString()}`
+    console.log('Sending request to Deepgram API:', url)
+    
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Authorization": `Token ${Deno.env.get('DEEPGRAM_API_KEY')}`,
+        "Content-Type": "audio/mpeg",
       },
-      body: formData,
+      body: audioBytes,
     })
 
     if (!response.ok) {
