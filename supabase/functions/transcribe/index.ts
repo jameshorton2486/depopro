@@ -1,6 +1,6 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { createClient as createDeepgramClient } from 'https://esm.sh/@deepgram/sdk@3.0.0'
+import { DeepgramClient } from 'https://esm.sh/@deepgram/sdk@3.0.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,7 +21,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 }
 
 // Initialize clients with proper typing
-const deepgram = createDeepgramClient(deepgramApiKey)
+const deepgram = new DeepgramClient(deepgramApiKey)
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 async function transcribeFile(fileName: string, options: any) {
@@ -41,17 +41,19 @@ async function transcribeFile(fileName: string, options: any) {
 
     console.log('Got public URL:', publicUrl)
 
-    // Using the correct method from v3.0.0 of the SDK with createClient
+    // Using the correct method from v3.0.0 of the SDK for Deno
     console.log('Attempting transcription with Deepgram...')
-    const response = await deepgram.listen.prerecorded.transcribeUrl(
-      { url: publicUrl },
+    const { result: response } = await deepgram.transcription.preRecorded.transcribeUrl(
       {
-        ...options,
-        smart_format: true,
-        diarize: true,
-        punctuate: true,
-        model: options.model || 'nova-3',
-        language: options.language || 'en-US'
+        url: publicUrl,
+        options: {
+          ...options,
+          smart_format: true,
+          diarize: true,
+          punctuate: true,
+          model: options.model || 'nova-3',
+          language: options.language || 'en-US'
+        }
       }
     )
 
